@@ -1,0 +1,45 @@
+# macOS
+.DS_Store
+._*
+
+# Local editor settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment variables and local secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Frontend dependencies and build output
+node_modules/
+.pnpm-store/
+/apps/client/dist/
+/apps/client/build/
+/apps/client/.taro/
+/apps/client/.cache/
+*.tsbuildinfo
+
+# Go build output and development tools
+/services/api/bin/
+/services/api/tmp/
+*.test
+coverage.out
+
+# Test reports
+coverage/
+playwright-report/
+test-results/
+
+# Logs
+*.log
+
+# Local runtime data and uploads
+/services/api/data/
+/services/api/uploads/
+/deploy/data/
+/deploy/backups/
