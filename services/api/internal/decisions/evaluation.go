@@ -2,9 +2,9 @@ package decisions
 
 import "fmt"
 
-// ConstraintStatus summarizes ALL applicable hard constraints for one candidate.
-// Any proven violation dominates unknowns; no constraints means satisfied.
-// These assessments come from the server fact checker, never model/client claims.
+// ConstraintStatus 汇总某条候选对全部适用硬约束的满足情况。
+// 已证实违反优先于信息未知；没有硬约束时视为满足。
+// 此结论来自服务端事实检查，不接受模型或客户端自行声明。
 type ConstraintStatus string
 
 const (
@@ -13,18 +13,20 @@ const (
 	ConstraintUnknown   ConstraintStatus = "unknown"
 )
 
+// CandidateAssessment 将一条候选笔记与它的硬约束检查结论关联。
 type CandidateAssessment struct {
 	NoteID string
 	Status ConstraintStatus
 }
 
-// SelectEvaluation covers the complete authorized/filter/exclusion candidate
-// pool. Vector Top K alone cannot prove an empty pool or no viable candidate.
+// SelectEvaluation 覆盖权限、类型与排除过滤之后的完整候选池。
+// 仅检查向量检索的 Top K，无法证明整个候选池为空或没有可用方案。
 type SelectEvaluation struct {
-	ConditionsConflict bool
+	ConditionsConflict bool // 条件本身互相矛盾，与某条笔记是否满足无关。
 	Candidates         []CandidateAssessment
 }
 
+// Outcome 按优先级得出结论：条件矛盾、无候选、有满足项、信息未知、全部违反。
 func (e SelectEvaluation) Outcome() (Outcome, error) {
 	seen := make(map[string]bool)
 	passes, unknowns := 0, 0
@@ -58,8 +60,8 @@ func (e SelectEvaluation) Outcome() (Outcome, error) {
 	return OutcomeConstraintConflict, nil
 }
 
-// ValidateResult supplements structural validation with trusted fact decisions.
-// Context candidates may be a retrieval subset of the full evaluation pool.
+// ValidateResult 在结构校验之上，再核对业务结论与选中笔记的可信检查结果。
+// 提供给模型的 Context 候选可以是完整检查池中的一个子集。
 func (e SelectEvaluation) ValidateResult(ctx Context, result Result) error {
 	if err := result.ValidateSelect(ctx); err != nil {
 		return err

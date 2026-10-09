@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ValidateSelect 校验本期请求的任务类型、必填身份与意图，以及条件是否合法。
 func (r Request) ValidateSelect() error {
 	if r.Task != TaskSelect {
 		return fmt.Errorf("unsupported task %q", r.Task)
@@ -18,6 +19,7 @@ func (r Request) ValidateSelect() error {
 	return r.Conditions.ValidateSelect()
 }
 
+// ValidateSelect 拒绝规划参数、负数限制和不支持的笔记类型。
 func (c Conditions) ValidateSelect() error {
 	if c.Planning != nil {
 		return fmt.Errorf("select does not accept planning conditions")
@@ -33,9 +35,8 @@ func (c Conditions) ValidateSelect() error {
 	return nil
 }
 
-// ValidateSelect checks result structure and references against trusted Context.
-// It does NOT prove semantic hard constraints or current space authorization;
-// those require independently verified facts and authoritative membership data.
+// ValidateSelect 按可信 Context 检查结果结构、候选引用与参与者解释是否完整。
+// 硬约束是否满足由事实检查负责，当前访问权限由服务层按空间成员数据检查。
 func (r Result) ValidateSelect(ctx Context) error {
 	if ctx.Task != TaskSelect {
 		return fmt.Errorf("unsupported task %q", ctx.Task)
@@ -118,8 +119,8 @@ func (r Result) ValidateSelect(ctx Context) error {
 	return nil
 }
 
-// ValidateFor allows only unchanged intent to continue a session. The builder
-// must resolve semantic ambiguity before this comparison; no model is used here.
+// ValidateFor 只允许在意图不变、作用域一致且未过期时继续当前会话。
+// 这里进行确定性比较，不调用模型；自然语言的歧义需要在组装请求前解决。
 func (s Session) ValidateFor(r Request, now time.Time) error {
 	if err := r.ValidateSelect(); err != nil {
 		return err
@@ -136,6 +137,8 @@ func (s Session) ValidateFor(r Request, now time.Time) error {
 	return nil
 }
 
+// sameConditions 忽略列表顺序、重复项与文本首尾空白，再比较条件。
+// 数值的 nil 与零保留不同含义，不能合并。
 func sameConditions(a, b Conditions) bool {
 	canonical := func(c Conditions) Conditions {
 		c.NoteTypes = slices.Clone(c.NoteTypes)
@@ -151,6 +154,7 @@ func sameConditions(a, b Conditions) bool {
 	return reflect.DeepEqual(canonical(a), canonical(b))
 }
 
+// canonicalStrings 将条件文本去空白、去空项、排序并去重，便于稳定比较。
 func canonicalStrings(values []string) []string {
 	var result []string
 	for _, value := range values {
@@ -162,9 +166,9 @@ func canonicalStrings(values []string) []string {
 	return slices.Compact(result)
 }
 
-// ApplyDecisionFeedback updates accepted event history and the session projection
-// together in memory. The service must authorize live membership and transact
-// both writes in storage. actorID may differ from the session requester.
+// ApplyDecisionFeedback 同时更新决策的反馈历史和会话的当前状态。
+// 本方法只修改传入对象；服务层负责当前权限校验，并将两者原子保存。
+// 空间中的其他参与者也可反馈，actorID 不一定等于会话发起人。
 func (s *Session) ApplyDecisionFeedback(d *Decision, f Feedback, actorID string, now time.Time) error {
 	if s == nil || d == nil || s.ID == "" || d.SessionID != s.ID || d.SpaceID != s.SpaceID || d.RequesterID != s.RequesterID || d.Task != s.Task {
 		return fmt.Errorf("decision session scope mismatch")
@@ -216,8 +220,8 @@ func (s *Session) ApplyDecisionFeedback(d *Decision, f Feedback, actorID string,
 	return nil
 }
 
-// ApplyFeedback appends an immutable event and handles retries by event ID.
-// Callers must separately verify live space membership and trusted actorID.
+// ApplyFeedback 追加反馈事件，用事件 ID 识别重试；同 ID 的内容必须一致。
+// 调用前仍需校验当前空间成员资格，actorID 必须来自可信身份。
 func (d *Decision) ApplyFeedback(f Feedback, actorID string) error {
 	if d == nil || d.Task != TaskSelect {
 		return fmt.Errorf("feedback requires a supported decision")
@@ -260,8 +264,8 @@ func (d *Decision) ApplyFeedback(f Feedback, actorID string) error {
 	return nil
 }
 
-// AdoptedOptionID reduces accepted event order, not client clock timestamps.
-// The latest adoption wins across participants; rejecting it clears adoption.
+// AdoptedOptionID 按已接受事件的追加顺序，推导本轮决策最后采纳的方案。
+// 后一次采纳覆盖前一次，拒绝当前采纳会清除它；不按客户端时间排序。
 func (d Decision) AdoptedOptionID() string {
 	id := ""
 	for _, f := range d.Feedback {
