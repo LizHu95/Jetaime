@@ -1,0 +1,2175 @@
+{
+  "dataset": {
+    "spaces": [
+      {
+        "id": "personal-a",
+        "type": "personal",
+        "name": "A 的个人空间",
+        "creatorId": "user-a"
+      },
+      {
+        "id": "personal-b",
+        "type": "personal",
+        "name": "B 的个人空间",
+        "creatorId": "user-b"
+      },
+      {
+        "id": "couple-a-b",
+        "type": "couple",
+        "name": "A 与 B 的共同空间",
+        "creatorId": "user-a"
+      }
+    ],
+    "members": [
+      {
+        "spaceId": "personal-a",
+        "userId": "user-a",
+        "role": "owner"
+      },
+      {
+        "spaceId": "personal-b",
+        "userId": "user-b",
+        "role": "owner"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "userId": "user-a",
+        "role": "owner"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "userId": "user-b",
+        "role": "member"
+      }
+    ],
+    "notes": [
+      {
+        "id": "restaurant-01",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 01",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-02",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 02",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-03",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 03",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-04",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 04",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-05",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 05",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-06",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 06",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-07",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 07",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-08",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 08",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-09",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 09",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-10",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 10",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-11",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 11",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-12",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 12",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-13",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 13",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-14",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 14",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-15",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 15",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-16",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 16",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-17",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 17",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-18",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 18",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "restaurant-19",
+        "creatorId": "user-a",
+        "title": "虚构餐厅 19",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "restaurant-20",
+        "creatorId": "user-b",
+        "title": "虚构餐厅 20",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "restaurant",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-01",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 01",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-02",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 02",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-03",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 03",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-04",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 04",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-05",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 05",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-06",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 06",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-07",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 07",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-08",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 08",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-09",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 09",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-10",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 10",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-11",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 11",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-12",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 12",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-13",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 13",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "recipe-14",
+        "creatorId": "user-b",
+        "title": "虚构菜谱 14",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "recipe-15",
+        "creatorId": "user-a",
+        "title": "虚构菜谱 15",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "recipe",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-01",
+        "creatorId": "user-a",
+        "title": "虚构活动 01",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-02",
+        "creatorId": "user-b",
+        "title": "虚构活动 02",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "activity-03",
+        "creatorId": "user-a",
+        "title": "虚构活动 03",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-04",
+        "creatorId": "user-b",
+        "title": "虚构活动 04",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "activity-05",
+        "creatorId": "user-a",
+        "title": "虚构活动 05",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-06",
+        "creatorId": "user-b",
+        "title": "虚构活动 06",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "activity-07",
+        "creatorId": "user-a",
+        "title": "虚构活动 07",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-08",
+        "creatorId": "user-b",
+        "title": "虚构活动 08",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "activity-09",
+        "creatorId": "user-a",
+        "title": "虚构活动 09",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "清淡",
+          "安静",
+          "室内"
+        ]
+      },
+      {
+        "id": "activity-10",
+        "creatorId": "user-b",
+        "title": "虚构活动 10",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "activity",
+        "tags": [
+          "辣",
+          "户外"
+        ]
+      },
+      {
+        "id": "movie-01",
+        "creatorId": "user-a",
+        "title": "虚构电影 01",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "movie",
+        "tags": [
+          "喜剧",
+          "室内"
+        ]
+      },
+      {
+        "id": "movie-02",
+        "creatorId": "user-b",
+        "title": "虚构电影 02",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "movie",
+        "tags": [
+          "喜剧",
+          "室内"
+        ]
+      },
+      {
+        "id": "movie-03",
+        "creatorId": "user-a",
+        "title": "虚构电影 03",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "movie",
+        "tags": [
+          "喜剧",
+          "室内"
+        ]
+      },
+      {
+        "id": "movie-04",
+        "creatorId": "user-b",
+        "title": "虚构电影 04",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "movie",
+        "tags": [
+          "喜剧",
+          "室内"
+        ]
+      },
+      {
+        "id": "movie-05",
+        "creatorId": "user-a",
+        "title": "虚构电影 05",
+        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "type": "movie",
+        "tags": [
+          "喜剧",
+          "室内"
+        ]
+      }
+    ],
+    "collections": [
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-11",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-11",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-12",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-12",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-13",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-13",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-14",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-14",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-15",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-15",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-16",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-16",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-17",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-17",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-18",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-18",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "restaurant-19",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-19",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "restaurant-20",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-11",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-11",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-12",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-12",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-13",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-13",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "recipe-14",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-14",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-15",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-15",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "activity-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "activity-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "activity-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-06",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-07",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "activity-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-08",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-09",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "activity-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-10",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "movie-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "movie-01",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "movie-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "movie-02",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "movie-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "movie-03",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "personal-b",
+        "noteId": "movie-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "movie-04",
+        "addedBy": "user-b"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "movie-05",
+        "addedBy": "user-a"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "movie-05",
+        "addedBy": "user-a"
+      }
+    ],
+    "memories": [
+      {
+        "id": "user-a-memory-01",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢辣",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-02",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢安静",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-03",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢户外",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-04",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢喜剧",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-05",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢清淡",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-06",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "喜欢室内",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-07",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "偏好简单准备",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-08",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "偏好少排队",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-09",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "愿意尝试新内容",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-10",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "私有：偏爱深夜出行",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": []
+      },
+      {
+        "id": "user-a-memory-11",
+        "userId": "user-a",
+        "type": "preference",
+        "content": "推断：喜欢高价餐厅",
+        "strength": "medium",
+        "source": "inferred",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-a-memory-12",
+        "userId": "user-a",
+        "type": "feedback",
+        "content": "上次电影一般",
+        "strength": "low",
+        "source": "feedback",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-01",
+        "userId": "user-b",
+        "type": "constraint",
+        "content": "不吃花生",
+        "strength": "hard",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-02",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "喜欢清淡",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-03",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "喜欢安静",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-04",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "喜欢室内",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-05",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "喜欢喜剧",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-06",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "偏好短活动",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-07",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "偏好简单准备",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-08",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "愿意尝试新内容",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-09",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "推断：喜欢辣",
+        "strength": "medium",
+        "source": "inferred",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-10",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "私有：偏好独自出行",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": false,
+        "allowedSpaceIds": []
+      },
+      {
+        "id": "user-b-memory-11",
+        "userId": "user-b",
+        "type": "preference",
+        "content": "推断：喜欢户外",
+        "strength": "medium",
+        "source": "inferred",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "user-b-memory-12",
+        "userId": "user-b",
+        "type": "feedback",
+        "content": "上次活动一般",
+        "strength": "low",
+        "source": "feedback",
+        "confirmed": false,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      }
+    ]
+  },
+  "facts": {
+    "activity-01": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "activity-02": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "activity-03": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "activity-04": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "activity-05": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 9000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "activity-06": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 4000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "activity-07": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "activity-08": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "activity-09": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "activity-10": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "movie-01": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 95,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "movie-02": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 100,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "movie-03": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 105,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "movie-04": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 110,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "movie-05": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 9000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 115,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-01": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2100,
+      "people": 2,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-02": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2200,
+      "people": 2,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-03": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2300,
+      "people": 2,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-04": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2400,
+      "people": 2,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-05": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2500,
+      "people": 2,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-06": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2600,
+      "people": 2,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-07": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2700,
+      "people": 2,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "海鲜"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-08": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2800,
+      "people": 2,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-09": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 2900,
+      "people": 2,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-10": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3000,
+      "people": 2,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-11": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3100,
+      "people": 2,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-12": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3200,
+      "people": 2,
+      "durationMinutes": 40,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-13": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3300,
+      "people": 2,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "recipe-14": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3400,
+      "people": 2,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "海鲜"
+      ],
+      "indoor": false,
+      "accessible": null
+    },
+    "recipe-15": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": 3500,
+      "people": 2,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-01": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-02": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-03": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-04": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-05": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 9000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-06": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 4000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-07": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "海鲜"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-08": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-09": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-10": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-11": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 9000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-12": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 4000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-13": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-14": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 6000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "海鲜"
+      ],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-15": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 7000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-16": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 8000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-17": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 9000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-18": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 4000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 40,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": false,
+      "accessible": null
+    },
+    "restaurant-19": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": 5000,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 50,
+      "ingredientsKnown": true,
+      "ingredients": [],
+      "indoor": true,
+      "accessible": null
+    },
+    "restaurant-20": {
+      "verified": true,
+      "source": "人工定义的虚构资料 v1",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": 60,
+      "ingredientsKnown": false,
+      "ingredients": [
+        "花生"
+      ],
+      "indoor": false,
+      "accessible": null
+    }
+  },
+  "scenarios": [
+    {
+      "name": "normal",
+      "description": "两人晚餐：总预算150元、60分钟，B不吃花生",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人吃什么？",
+        "conditions": {
+          "noteTypes": [
+            "restaurant"
+          ],
+          "budgetMaxCents": 15000,
+          "durationMaxMinutes": 60,
+          "hardConstraints": [],
+          "softPreferences": []
+        }
+      },
+      "expected": "recommended"
+    },
+    {
+      "name": "conflict",
+      "description": "显式零预算：候选均有确定费用",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人做什么？",
+        "conditions": {
+          "noteTypes": [
+            "restaurant"
+          ],
+          "budgetMaxCents": 0,
+          "durationMaxMinutes": null,
+          "hardConstraints": [],
+          "softPreferences": []
+        }
+      },
+      "expected": "constraint_conflict"
+    },
+    {
+      "name": "unknown",
+      "description": "必须无障碍：候选缺少已确认设施信息",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人做什么？",
+        "conditions": {
+          "noteTypes": [
+            "movie"
+          ],
+          "budgetMaxCents": null,
+          "durationMaxMinutes": null,
+          "hardConstraints": [
+            "必须无障碍"
+          ],
+          "softPreferences": []
+        }
+      },
+      "expected": "insufficient_information"
+    },
+    {
+      "name": "empty",
+      "description": "当前空间没有 other 类型收藏",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人做什么？",
+        "conditions": {
+          "noteTypes": [
+            "other"
+          ],
+          "budgetMaxCents": null,
+          "durationMaxMinutes": null,
+          "hardConstraints": [],
+          "softPreferences": []
+        }
+      },
+      "expected": "no_candidates"
+    },
+    {
+      "name": "personal",
+      "description": "个人决策：只读取本人收藏与记忆",
+      "request": {
+        "spaceId": "personal-a",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "我自己吃什么？",
+        "conditions": {
+          "noteTypes": [
+            "restaurant"
+          ],
+          "budgetMaxCents": null,
+          "durationMaxMinutes": null,
+          "hardConstraints": [],
+          "softPreferences": []
+        }
+      },
+      "expected": "recommended"
+    },
+    {
+      "name": "contradiction",
+      "description": "同时要求室内和户外：已确认条件互相冲突",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人做什么？",
+        "conditions": {
+          "noteTypes": [
+            "activity"
+          ],
+          "budgetMaxCents": null,
+          "durationMaxMinutes": null,
+          "hardConstraints": [
+            "必须室内",
+            "必须户外"
+          ],
+          "softPreferences": []
+        }
+      },
+      "expected": "constraint_conflict"
+    },
+    {
+      "name": "short",
+      "description": "电影候选5条：第二批只剩2条未看选项",
+      "request": {
+        "spaceId": "couple-a-b",
+        "requesterId": "user-a",
+        "task": "select",
+        "query": "今晚两个人做什么？",
+        "conditions": {
+          "noteTypes": [
+            "movie"
+          ],
+          "budgetMaxCents": null,
+          "durationMaxMinutes": null,
+          "hardConstraints": [],
+          "softPreferences": []
+        }
+      },
+      "expected": "recommended"
+    }
+  ]
+}

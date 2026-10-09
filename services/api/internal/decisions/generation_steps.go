@@ -38,6 +38,7 @@ func (s *DecisionService) evaluateCandidates(ctx context.Context, input Context)
 	if err != nil {
 		return SelectEvaluation{}, err
 	}
+	// 当前 CLI 注入 demo.Checker，具体实现位于 internal/demo/checker.go。
 	evaluation, err := s.checker.Evaluate(ctx, owned)
 	if err != nil {
 		return SelectEvaluation{}, err
@@ -62,6 +63,8 @@ func (s *DecisionService) generateResult(ctx context.Context, input Context, eva
 		if err != nil {
 			return Result{}, err
 		}
+		// 实现由 cmd/decision/main.go 的 -provider 选择：
+		// mock → internal/demo/provider.go；ollama → internal/ollama/provider.go。
 		result, err = s.provider.Generate(ctx, owned)
 		if err != nil {
 			return Result{}, err

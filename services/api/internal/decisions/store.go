@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/notes"
@@ -81,6 +82,34 @@ func NewMemoryStore(data Dataset) (*MemoryStore, error) {
 		}
 	}
 	return &MemoryStore{data: owned, decisions: map[string]Decision{}, sessions: map[string]Session{}, commands: map[string]batchCommand{}}, nil
+}
+
+// WithDataset 为本地资料重载创建独立 Store，不修改正在使用的 Store。
+// 保留历史快照，将旧会话过期；调用方验证新一轮生成成功后再切换引用。
+// 这是内存演示的重载边界，不是数据库更新接口。
+func (s *MemoryStore) WithDataset(data Dataset, now time.Time) (*MemoryStore, error) {
+	updated, err := NewMemoryStore(data)
+	if err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	updated.decisions, err = copyValue(s.decisions)
+	if err != nil {
+		return nil, err
+	}
+	updated.sessions, err = copyValue(s.sessions)
+	if err != nil {
+		return nil, err
+	}
+	for id, session := range updated.sessions {
+		if session.ExpiresAt.After(now) {
+			session.ExpiresAt = now
+		}
+		updated.sessions[id] = session
+	}
+	// 旧换批命令不迁移，防止在新资料上继续旧操作；反馈历史仍在 Decision 中。
+	return updated, nil
 }
 
 // copyValue 用 JSON 做深复制，使嵌套切片和 map 也不与 Store 共享引用。

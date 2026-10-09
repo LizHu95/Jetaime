@@ -3,6 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,6 +31,35 @@ func TestCLIListDemoAndInteractive(t *testing.T) {
 	}
 	if strings.Contains(out.String(), "操作失败") || !strings.Contains(out.String(), "新 Session") {
 		t.Fatal(out.String())
+	}
+}
+
+func TestCLIOllamaProvider(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/chat" {
+			t.Error("wrong Ollama endpoint")
+		}
+		content := `{"outcome":"recommended","explanation":"本地模型推荐","options":[{"title":"虚构餐厅 01","selection":{"noteId":"restaurant-01"},"reason":"清淡安静","participantMatches":[{"userId":"user-a","explanation":"匹配清淡"},{"userId":"user-b","explanation":"满足硬约束"}],"unknowns":[]}]}`
+		if err := json.NewEncoder(w).Encode(map[string]any{"done": true, "done_reason": "stop", "message": map[string]string{"role": "assistant", "content": content}}); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer server.Close()
+	var out bytes.Buffer
+	if err := run(context.Background(), []string{"-provider", "ollama", "-ollama-url", server.URL, "-once"}, strings.NewReader(""), &out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "本地模型推荐") {
+		t.Fatal("Ollama provider not used")
+	}
+	// 没有满足硬约束的候选时，由服务端得出结论，不需要模型服务在线。
+	if err := run(context.Background(), []string{"-provider", "ollama", "-ollama-url", "http://127.0.0.1:1", "-scenario", "conflict", "-once"}, strings.NewReader(""), &out); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"-provider", "missing"}, {"-provider", "ollama", "-model-timeout", "0s"}, {"-provider", "ollama", "-context-tokens", "0"}, {"-provider", "ollama", "-ollama-url", "invalid"}} {
+		if err := run(context.Background(), args, strings.NewReader(""), &out); err == nil {
+			t.Fatalf("invalid config accepted: %v", args)
+		}
 	}
 }
 

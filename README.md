@@ -1,6 +1,6 @@
 # 今天干嘛
 
-面向个人与情侣的 AI 生活决策助手。V1 为微信小程序，以笔记收藏、空间共享、长期偏好、候选内 Top 3 和反馈形成闭环。当前已有实体规则、内存 DecisionService、默认 Mock 数据与 CLI，能运行 select → 反馈 → 换批。真实模型、HTTP 和数据库尚未接入。
+面向个人与情侣的 AI 生活决策助手。V1 为微信小程序，以笔记收藏、空间共享、长期偏好、候选内 Top 3 和反馈形成闭环。当前已有实体规则、内存 DecisionService、默认 Mock 数据与 CLI，能运行 select → 反馈 → 换批；推荐生成可选择本地 Ollama，真实模型效果待评测。HTTP 和数据库尚未接入。
 
 图片与多模态为 P1，分享、社区和多人空间属于后续版本。
 
@@ -26,7 +26,8 @@ services/
     │   ├── notes/         笔记内容与空间收藏关系
     │   ├── memory/        长期偏好、排斥项与硬约束
     │   ├── decisions/     决策流程、会话、历史与反馈
-    │   └── demo/          虚构资料、事实校验替身、固定 Provider
+    │   ├── demo/          虚构资料、事实校验替身、固定 Provider
+    │   └── ollama/        本地模型 HTTP 适配、提示词与输出 Schema
     └── db/
         ├── migrations/    数据库迁移
         └── queries/       SQL 查询
@@ -66,7 +67,39 @@ go run ./cmd/decision -scenario normal -json  # 每步输出一个 JSON 对象
 
 默认资料为50条虚构 Note（餐厅20、菜谱15、活动10、电影5）、双方各12条 Memory，以及各自个人空间和情侣空间的收藏。可用 `go run ./cmd/decision -dump-fixture > /tmp/jetaime-fixture.json` 导出，修改人工事实后通过 `-fixture /tmp/jetaime-fixture.json` 读取。资料生成见 `internal/demo/fixture.go`；没有真实商户、隐私或实时信息。
 
+可编辑资料已放在 `services/api/testdata/demo/fixture.json`。在仓库根目录执行：
+
+```bash
+cd services/api
+go run ./cmd/decision -fixture ./testdata/demo/fixture.json -provider ollama -interactive
+```
+
+保持 CLI 运行，编辑并保存这个 JSON，然后在 CLI 输入 `reload`。它重新读取 `dataset`（笔记、收藏、成员和记忆）与 `facts`（核实费用、时长、食材等），按当前需求立即生成新一轮。只有读取、实体校验和推荐生成都成功，才切换资料与新 Session；失败保留原资料和结果。修改笔记正文不会自动改写 facts，两者应按实际信息同步维护。
+
+重载沿用当前 query、预算等已确认条件；`scenarios` 只在启动时选择场景。成功后清除当前换批重试状态，旧会话过期，重新开始推荐/排除/采纳状态；旧 Decision 的笔记和反馈快照仍保留在进程内。`history <DecisionID>` 可查询旧批次，但仍按新资料中的成员和收藏权限授权，撤销权限后可能不可访问。未指定 `-fixture` 时 `reload` 会提示用文件模式重新启动；本期不自动监视文件，也不将对话自动写成 Memory。
+
 当前 store 和命令状态仅在进程内保留，退出后清空。固定 Provider 按已授权偏好与标签排序，独立 Checker 只支持预算、时长、不吃花生/海鲜、室内/户外和无障碍这些明确条件；未支持的硬条件返回未知，不默认为通过。此演示不代表真实语义理解、推荐质量或生产权限已经验收。
+
+## 使用本地 Ollama
+
+先启动 Ollama 服务并下载模型。如果已使用 `brew services start ollama` 后台运行，无需另开 `ollama serve`。
+
+```bash
+ollama pull qwen3.5:9b
+cd services/api
+go run ./cmd/decision -provider ollama -once
+go run ./cmd/decision -provider ollama -interactive
+```
+
+CLI 默认仍为 `-provider mock`。Ollama 默认地址为 `http://localhost:11434`，模型 `qwen3.5:9b`，上下文 8192 token，单次请求超时 3 分钟，最多生成 2048 token；思考与流式输出关闭，temperature 为 0。需要时通过 `-ollama-url`、`-model`、`-context-tokens` 和 `-model-timeout` 覆盖，例如：
+
+```bash
+go run ./cmd/decision -provider ollama -model qwen3.5:4b -context-tokens 8192 -model-timeout 5m -once
+```
+
+`internal/ollama/provider.go` 调用 `/api/chat`，`prompt.go` 定义中文提示词与 JSON Schema。模型只收到当前已授权、已通过硬约束检查的候选与记忆；不传完整 fixture。服务端继续生成 OptionID 并校验候选引用、参与者解释及硬约束结论。调用失败、超时、截断、损坏 JSON 或不合法推荐返回错误，不自动回退 Mock；无候选、约束冲突和必要信息不足不调用模型。
+
+当前只接入推荐生成；基础资料和事实检查仍是虚构数据，`query` 不会自动修改已确认条件。真实模型的解释准确性、偏好平衡和延迟需在下载完成后独立评测。上下文设置需容纳提示词、候选与输出；数据量增长时再引入检索与 token 管理。
 
 ## 代码阅读
 
@@ -79,6 +112,8 @@ go run ./cmd/decision -scenario normal -json  # 每步输出一个 JSON 对象
 | 单步实现：会话、三态评估、推荐生成与历史构建 | [generation_steps.go](services/api/internal/decisions/generation_steps.go) |
 | 采纳、拒绝和换批 | [feedback_service.go](services/api/internal/decisions/feedback_service.go) |
 | 内存复制、锁、版本检查与命令保存 | [store.go](services/api/internal/decisions/store.go) |
+| 当前模型实现的选择与注入 | [main.go](services/api/cmd/decision/main.go) |
+| Ollama 请求、响应解码与中文提示词 | [provider.go](services/api/internal/ollama/provider.go)、[prompt.go](services/api/internal/ollama/prompt.go) |
 
 第一次阅读先跟通 service.go 的调用顺序，再打开感兴趣的步骤。反馈服务同样按读取授权 → 检查采纳事实 → 应用规则并保存的顺序组织。锁和 map 操作集中在 MemoryStore 中。
 
@@ -107,7 +142,7 @@ Go 检查和 lint 会在工具缺失时自动安装 golangci-lint；版本固定
 
 更新工具版本时，修改 `.go-version` 或 Makefile 中的 `GOLANGCI_LINT_VERSION`，并同步本节说明；确认所选 golangci-lint 支持该 Go 版本后运行 `make check`。`services/api/go.mod` 的 `go` 指令仍为 1.22；该最低版本的兼容性目前未纳入 CI。
 
-已有实体规则、Mock Workflow、CLI 和失败恢复测试；`go test -race ./...` 可在 `services/api` 内检查并发访问。真实模型、HTTP 权限和通用语义约束验证仍待实现。
+已有实体规则、Mock Workflow、CLI 和失败恢复测试，以及 Ollama 测试服务的协议、权限过滤、异常响应和取消测试；`go test -race ./...` 可在 `services/api` 内检查并发访问。真实模型效果、HTTP 权限和通用语义约束验证仍待完成。
 
 ## 项目文档
 

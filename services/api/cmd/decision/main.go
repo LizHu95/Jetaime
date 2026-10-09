@@ -11,9 +11,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
+	"github.com/LizHu95/Jetaime/services/api/internal/ollama"
 )
 
 func main() {
@@ -33,6 +35,11 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	jsonOutput := flags.Bool("json", false, "按 JSON 输出每一步")
 	fixturePath := flags.String("fixture", "", "读取人工定义的本地 JSON fixture；省略则用默认虚构资料")
 	dump := flags.Bool("dump-fixture", false, "输出完整 fixture JSON")
+	providerName := flags.String("provider", "mock", "推荐生成实现：mock 或 ollama")
+	ollamaURL := flags.String("ollama-url", "http://localhost:11434", "Ollama 服务地址")
+	model := flags.String("model", "qwen3.5:9b", "Ollama 已下载的模型标签")
+	modelTimeout := flags.Duration("model-timeout", 3*time.Minute, "单次模型调用超时，包含加载时间")
+	contextTokens := flags.Int("context-tokens", 8192, "Ollama 上下文窗口 token 数")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -47,14 +54,11 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	}
 	fixture := demo.NewFixture()
 	if *fixturePath != "" {
-		data, err := os.ReadFile(*fixturePath)
+		loaded, err := loadFixture(*fixturePath)
 		if err != nil {
 			return err
 		}
-		fixture = demo.Fixture{}
-		if err := json.Unmarshal(data, &fixture); err != nil {
-			return err
-		}
+		fixture = loaded
 	}
 	if *dump {
 		encoder := json.NewEncoder(out)
@@ -77,7 +81,20 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	if err != nil {
 		return err
 	}
-	service, err := decisions.NewDecisionService(store, demo.Checker{Facts: fixture.Facts}, demo.FixedProvider{}, decisions.ServiceConfig{})
+	// 在这里选择具体生成实现；服务层通过 Provider 接口调用，不依赖 Ollama。
+	var provider decisions.Provider
+	switch *providerName {
+	case "mock":
+		provider = demo.FixedProvider{}
+	case "ollama":
+		provider, err = ollama.NewProvider(ollama.Config{BaseURL: *ollamaURL, Model: *model, Timeout: *modelTimeout, ContextTokens: *contextTokens})
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported provider %q; use mock or ollama", *providerName)
+	}
+	service, err := decisions.NewDecisionService(store, demo.Checker{Facts: fixture.Facts}, provider, decisions.ServiceConfig{})
 	if err != nil {
 		return err
 	}
@@ -111,7 +128,32 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 		return err
 	}
 	if *interactive {
-		return interact(ctx, service, scenario.Request, current, in, out, display)
+		// 新资料与新 Checker 在独立 Store 上试运行，成功后才切换；失败保留旧状态。
+		reload := func(ctx context.Context, request decisions.Request) (*decisions.DecisionService, decisions.Decision, error) {
+			if *fixturePath == "" {
+				return nil, decisions.Decision{}, fmt.Errorf("reload 需要启动时指定 -fixture 文件路径")
+			}
+			loaded, err := loadFixture(*fixturePath)
+			if err != nil {
+				return nil, decisions.Decision{}, err
+			}
+			updated, err := store.WithDataset(loaded.Dataset, time.Now())
+			if err != nil {
+				return nil, decisions.Decision{}, fmt.Errorf("资料校验失败：%w", err)
+			}
+			nextService, err := decisions.NewDecisionService(updated, demo.Checker{Facts: loaded.Facts}, provider, decisions.ServiceConfig{})
+			if err != nil {
+				return nil, decisions.Decision{}, err
+			}
+			request.SessionID = ""
+			generated, err := nextService.Generate(ctx, request, request.RequesterID)
+			if err != nil {
+				return nil, decisions.Decision{}, err
+			}
+			store = updated
+			return nextService, generated, nil
+		}
+		return interact(ctx, service, scenario.Request, current, in, out, display, reload)
 	}
 	if *once || len(current.Result.Options) == 0 {
 		return nil
@@ -176,8 +218,11 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	return display("新需求开启新 Session", fresh)
 }
 
-func interact(ctx context.Context, service *decisions.DecisionService, request decisions.Request, current decisions.Decision, in io.Reader, out io.Writer, display func(string, decisions.Decision) error) error {
-	if _, err := fmt.Fprintln(out, "命令：adopt N [user-a|user-b] / reject N [用户] / batch [用户] / retry / budget 元整数 / query 新需求 / history / session / quit。全部状态仅在本进程内保留。"); err != nil {
+// reloadFixture 返回试运行成功的新服务与决策，错误时调用方保留旧引用。
+type reloadFixture func(context.Context, decisions.Request) (*decisions.DecisionService, decisions.Decision, error)
+
+func interact(ctx context.Context, service *decisions.DecisionService, request decisions.Request, current decisions.Decision, in io.Reader, out io.Writer, display func(string, decisions.Decision) error, reload reloadFixture) error {
+	if _, err := fmt.Fprintln(out, "命令：adopt N [user-a|user-b] / reject N [用户] / batch [用户] / retry / budget 元整数 / query 新需求 / reload / history [DecisionID] / session / quit。全部状态仅在本进程内保留。"); err != nil {
 		return err
 	}
 	scanner := bufio.NewScanner(in)
@@ -204,6 +249,26 @@ func interact(ctx context.Context, service *decisions.DecisionService, request d
 		switch fields[0] {
 		case "quit", "exit":
 			return nil
+		case "reload":
+			if len(fields) != 1 {
+				if err := report(fmt.Errorf("用法：reload（重新读取启动时指定的 fixture 文件）")); err != nil {
+					return err
+				}
+				continue
+			}
+			nextService, generated, err := reload(ctx, request)
+			if err != nil {
+				if err := report(err); err != nil {
+					return err
+				}
+				continue
+			}
+			service, current = nextService, generated
+			request.SessionID = ""
+			pendingDecision, pendingActor, pendingID = "", "", ""
+			if err := display("资料已重载，新 Session", current); err != nil {
+				return err
+			}
 		case "adopt", "reject":
 			if len(fields) < 2 || len(fields) > 3 {
 				if err := report(fmt.Errorf("用法：%s N [用户]", fields[0])); err != nil {
@@ -299,7 +364,17 @@ func interact(ctx context.Context, service *decisions.DecisionService, request d
 				return err
 			}
 		case "history":
-			history, err := service.GetDecision(current.ID, request.RequesterID)
+			if len(fields) > 2 {
+				if err := report(fmt.Errorf("用法：history [DecisionID]")); err != nil {
+					return err
+				}
+				continue
+			}
+			id := current.ID
+			if len(fields) == 2 {
+				id = fields[1]
+			}
+			history, err := service.GetDecision(id, request.RequesterID)
 			if err != nil {
 				if err := report(err); err != nil {
 					return err
