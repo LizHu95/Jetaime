@@ -1,0 +1,18 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    staticcheck:
+      # Keep correctness checks; omit style and quick-fix suggestions.
+      checks:
+        - "SA*"

@@ -31,3 +31,17 @@ type SpaceNote struct {
 	NoteID  string `json:"noteId"`
 	AddedBy string `json:"addedBy"`
 }
+
+type CollectionSource string
+
+const CollectionSourceAuthor CollectionSource = "author"
+
+// CollectionAuthorization is a server-issued value scoped to one collection
+// operation. It is not a client DTO or a persisted share/publication grant.
+// Exported fields are not proof of permission; ValidateFor checks the source.
+type CollectionAuthorization struct {
+	Source        CollectionSource
+	NoteID        string
+	UserID        string
+	TargetSpaceID string
+}

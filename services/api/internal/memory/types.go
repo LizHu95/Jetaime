@@ -36,4 +36,7 @@ type Memory struct {
 	Strength  Strength `json:"strength"`
 	Source    Source   `json:"source"`
 	Confirmed bool     `json:"confirmed"`
+	// Empty means private. Shared consent includes use and relevant explanations
+	// visible to current members of that space; it does not expose the memory list.
+	AllowedSpaceIDs []string `json:"allowedSpaceIds"`
 }

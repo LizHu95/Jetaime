@@ -67,7 +67,8 @@ type ParticipantMatch struct {
 }
 
 // Option is one alternative within a decision. The service assigns its
-// OptionID after validating model output; it must be unique within the decision.
+// OptionID after decoding model output, before final Result validation; it must
+// be unique within the decision.
 // Exactly one payload is present: Selection for select, Itinerary for planning.
 // These are alternatives, not three consecutive steps in a single plan.
 type Option struct {
@@ -129,6 +130,7 @@ type Feedback struct {
 // It does not retain all private memories or the entire model prompt by default.
 type Decision struct {
 	ID             string       `json:"id"`
+	SessionID      string       `json:"sessionId"`
 	SpaceID        string       `json:"spaceId"`
 	RequesterID    string       `json:"requesterId"`
 	Task           Task         `json:"task"`
@@ -153,5 +155,16 @@ type Session struct {
 	RecommendedNoteIDs []string   `json:"recommendedNoteIds"`
 	ExcludedNoteIDs    []string   `json:"excludedNoteIds"`
 	LatestDecisionID   string     `json:"latestDecisionId,omitempty"`
+	AdoptedOption      *OptionRef `json:"adoptedOption,omitempty"`
 	ExpiresAt          time.Time  `json:"expiresAt"`
+}
+
+// OptionRef identifies the current adoption across batches within a session.
+// Decision.AdoptedOptionID remains a batch-local historical projection.
+type OptionRef struct {
+	DecisionID string `json:"decisionId"`
+	OptionID   string `json:"optionId"`
+	// Cached select note identity allows an old-batch rejection of the same note
+	// to clear the current adoption without loading another decision.
+	NoteID string `json:"noteId"`
 }

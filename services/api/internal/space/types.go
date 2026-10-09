@@ -20,4 +20,12 @@ type Space struct {
 type Member struct {
 	SpaceID string `json:"spaceId"`
 	UserID  string `json:"userId"`
+	Role    Role   `json:"role"`
 }
+
+type Role string
+
+const (
+	RoleOwner  Role = "owner"
+	RoleMember Role = "member"
+)
