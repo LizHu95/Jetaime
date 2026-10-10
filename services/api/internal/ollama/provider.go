@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // Config 是模型运行配置，不属于用户的决策条件。
@@ -68,15 +70,21 @@ type chatRequest struct {
 }
 
 type chatResponse struct {
-	Message    chatMessage `json:"message"`
-	Done       bool        `json:"done"`
-	DoneReason string      `json:"done_reason"`
-	Error      string      `json:"error"`
+	Message          chatMessage `json:"message"`
+	Done             bool        `json:"done"`
+	DoneReason       string      `json:"done_reason"`
+	Error            string      `json:"error"`
+	PromptTokens     *int        `json:"prompt_eval_count"`
+	CompletionTokens *int        `json:"eval_count"`
+	TotalDuration    *int64      `json:"total_duration"` // Ollama 返回纳秒；span 自身也记录端到端耗时。
 }
 
 // Generate 的顺序：构建提示词 → 请求 Ollama → 解码结果。
 // OptionID 和最终业务校验由 DecisionService.generateResult 负责。
-func (p *Provider) Generate(ctx context.Context, input decisions.Context) (decisions.Result, error) {
+func (p *Provider) Generate(ctx context.Context, input decisions.Context) (result decisions.Result, generationErr error) {
+	ctx, span := telemetry.Start(ctx, "ollama.generate", "LLM", nil)
+	span.SetAttributes(attribute.String("llm.system", "ollama"), attribute.String("llm.model_name", p.model), attribute.String("llm.prompt_template.version", "select-v1"))
+	defer func() { telemetry.Finish(span, generationErr) }()
 	if err := ctx.Err(); err != nil {
 		return decisions.Result{}, err
 	}
@@ -92,6 +100,13 @@ func (p *Provider) Generate(ctx context.Context, input decisions.Context) (decis
 		{Role: "user", Content: "以下 JSON 是本次决策数据：\n" + string(content)},
 	}}
 	request.Options.NumCtx, request.Options.NumPredict = p.tokens, 2048
+	telemetry.Input(span, request) // 包含实际 Prompt、Schema、候选与运行参数。
+	if span.IsRecording() {
+		for i, message := range request.Messages {
+			prefix := fmt.Sprintf("llm.input_messages.%d.message.", i)
+			span.SetAttributes(attribute.String(prefix+"role", message.Role), attribute.String(prefix+"content", message.Content))
+		}
+	}
 	body, err := json.Marshal(request)
 	if err != nil {
 		return decisions.Result{}, fmt.Errorf("ollama: encode request: %w", err)
@@ -112,6 +127,14 @@ func (p *Provider) Generate(ctx context.Context, input decisions.Context) (decis
 	if err != nil {
 		return decisions.Result{}, fmt.Errorf("ollama: read response: %w", err)
 	}
+	span.SetAttributes(attribute.Int("http.response.status_code", resp.StatusCode))
+	if len(data) <= maxResponseBytes {
+		if json.Valid(data) {
+			telemetry.Output(span, json.RawMessage(data))
+		} else {
+			telemetry.Output(span, string(data))
+		}
+	}
 	if resp.StatusCode != http.StatusOK {
 		if resp.StatusCode == http.StatusNotFound {
 			return decisions.Result{}, fmt.Errorf("ollama: HTTP 404; check model %q is downloaded and base URL is correct", p.model)
@@ -124,6 +147,19 @@ func (p *Provider) Generate(ctx context.Context, input decisions.Context) (decis
 	var response chatResponse
 	if err := json.Unmarshal(data, &response); err != nil {
 		return decisions.Result{}, fmt.Errorf("ollama: invalid response JSON: %w", err)
+	}
+	span.SetAttributes(attribute.String("llm.output_messages.0.message.role", response.Message.Role), attribute.String("llm.output_messages.0.message.content", response.Message.Content))
+	if response.PromptTokens != nil {
+		span.SetAttributes(attribute.Int("llm.token_count.prompt", *response.PromptTokens))
+	}
+	if response.CompletionTokens != nil {
+		span.SetAttributes(attribute.Int("llm.token_count.completion", *response.CompletionTokens))
+	}
+	if response.PromptTokens != nil && response.CompletionTokens != nil {
+		span.SetAttributes(attribute.Int("llm.token_count.total", *response.PromptTokens+*response.CompletionTokens))
+	}
+	if response.TotalDuration != nil {
+		span.SetAttributes(attribute.Int64("ollama.total_duration_ns", *response.TotalDuration))
 	}
 	if response.Error != "" || !response.Done || response.DoneReason == "length" || strings.TrimSpace(response.Message.Content) == "" {
 		return decisions.Result{}, fmt.Errorf("ollama: generation failed, incomplete or exceeded output token limit")

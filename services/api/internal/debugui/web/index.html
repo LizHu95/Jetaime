@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>今天干嘛 · 本地调试台</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <header>
+      <div>
+        <strong>今天干嘛</strong><span class="tag">LOCAL LAB</span>
+        <p>决策调试台 <span class="muted">/ 输入 → 推荐 → 观察</span></p>
+      </div>
+      <div class="header-right">
+        ● 本机 · 内存模式 <button id="reload" disabled>重载资料</button>
+      </div>
+    </header>
+    <div class="notice">
+      本地虚构资料 · 需求文本不会自动修改表单条件 · 参与人由空间成员确定 ·
+      重启后会话与 Trace 清空
+    </div>
+    <main>
+      <section class="panel">
+        <div class="heading">
+          <h1>01 <span>输入条件</span></h1>
+          <small>新需求 · 新会话</small>
+        </div>
+        <form id="form">
+          <label>固定场景<select id="scenario"></select></label>
+          <p id="description" class="hint"></p>
+          <div class="pair">
+            <label>空间<select id="space"></select></label
+            ><label>模拟发起人<select id="requester"></select></label>
+          </div>
+          <p id="participants" class="hint"></p>
+          <label
+            >需求文本<textarea id="query" rows="3" required></textarea>
+          </label>
+          <fieldset>
+            <legend>收藏类型</legend>
+            <div class="checks">
+              <label
+                ><input
+                  type="checkbox"
+                  name="type"
+                  value="restaurant"
+                />餐厅</label
+              ><label
+                ><input type="checkbox" name="type" value="recipe" />菜谱</label
+              ><label
+                ><input
+                  type="checkbox"
+                  name="type"
+                  value="activity"
+                />活动</label
+              ><label
+                ><input type="checkbox" name="type" value="movie" />电影</label
+              >
+            </div>
+          </fieldset>
+          <div class="pair">
+            <label
+              >总预算 / 元<input
+                id="budget"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="不限" /></label
+            ><label
+              >总时长 / 分钟<input
+                id="duration"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="不限"
+            /></label>
+          </div>
+          <label
+            >必须满足<textarea
+              id="hard"
+              rows="2"
+              placeholder="每行一条，例如：室内"
+            ></textarea></label
+          ><label
+            >偏好<textarea
+              id="soft"
+              rows="2"
+              placeholder="每行一条，例如：安静"
+            ></textarea>
+          </label>
+          <div class="pair">
+            <label
+              >推荐实现<select id="provider">
+                <option value="mock">Mock · 固定规则</option>
+                <option value="ollama">Ollama · 本地模型</option>
+              </select></label
+            ><label>模型<input id="model" /></label>
+          </div>
+          <button type="submit" class="primary">生成推荐 ↗</button>
+          <p id="runtime" class="hint"></p>
+        </form>
+      </section>
+      <section class="panel">
+        <div class="heading">
+          <h1>02 <span>推荐结果</span></h1>
+          <span id="outcome" class="tag">等待生成</span>
+        </div>
+        <div id="status" role="status" aria-live="polite">
+          选择场景，开始一次决策。
+        </div>
+        <div id="error" role="alert" hidden></div>
+        <div id="decision">
+          <div class="empty">
+            <span>◎</span>
+            <h2>今天，做个好选择</h2>
+            <p>推荐结果和参与人的理由会出现在这里。</p>
+          </div>
+        </div>
+        <div id="operations" hidden>
+          <div class="pair">
+            <label>模拟操作人<select id="actor"></select></label>
+            <div class="actions">
+              <button id="batch">换一批</button
+              ><button id="retry" disabled>重试换批</button>
+            </div>
+          </div>
+          <div id="session" class="hint"></div>
+        </div>
+        <div class="history-heading">
+          <h2>决策历史</h2>
+          <button id="refresh">刷新</button>
+        </div>
+        <label class="history-filter"
+          >查看身份<select id="history-actor">
+            <option>user-a</option>
+            <option>user-b</option>
+          </select></label
+        >
+        <div id="history"></div>
+      </section>
+      <section class="panel debug">
+        <div class="heading">
+          <h1>03 <span>调试过程</span></h1>
+          <button id="download" disabled>导出 JSON</button>
+        </div>
+        <div id="trace-summary" class="hint">
+          每次操作独立记录；保留最近 100 次。
+        </div>
+        <div class="tabs" role="tablist">
+          <button
+            data-tab="flow"
+            class="active"
+            role="tab"
+            aria-selected="true"
+          >
+            流程</button
+          ><button data-tab="context" role="tab" aria-selected="false">
+            候选 / 记忆</button
+          ><button data-tab="model" role="tab" aria-selected="false">
+            模型</button
+          ><button data-tab="raw" role="tab" aria-selected="false">
+            原始记录
+          </button>
+        </div>
+        <div id="trace-content">
+          <div class="empty">
+            <span>⌁</span>
+            <p>生成后查看每步输入、输出和耗时。</p>
+          </div>
+        </div>
+      </section>
+    </main>
+    <footer>
+      <span>JETAIME / DEVELOPMENT WORKSPACE</span
+      ><span id="fixture-path"></span>
+    </footer>
+  </body>
+</html>

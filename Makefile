@@ -5,10 +5,11 @@ GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: help tools fmt fmt-check build test vet lint check \
+.PHONY: debug help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
+	@echo "make debug      Start the local decision debug console"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -64,3 +65,7 @@ go-lint: go-tools
 	cd $(GO_DIR) && "$(GOLANGCI_LINT)" run --config .golangci.yml ./...
 
 go-check: go-fmt-check go-build go-vet go-test go-lint
+
+# Local browser console and API, backed by the editable fictional fixture.
+debug:
+	cd $(GO_DIR) && go run ./cmd/api -fixture ./testdata/demo/fixture.json

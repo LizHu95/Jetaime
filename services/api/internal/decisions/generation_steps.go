@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/notes"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 )
 
 // prepareSession 创建新会话，或验证已有会话的身份、条件与有效期。
@@ -84,7 +85,9 @@ func (s *DecisionService) generateResult(ctx context.Context, input Context, eva
 		return Result{}, err
 	}
 	// 同时检查结构、候选引用与硬约束状态，解释文字不能代替事实检查。
-	if err := evaluation.ValidateResult(input, result); err != nil {
+	if _, err := telemetry.Step(ctx, "validate_result", map[string]any{"context": input, "evaluation": evaluation, "result": result}, func(context.Context) (string, error) {
+		return "passed", evaluation.ValidateResult(input, result)
+	}); err != nil {
 		return Result{}, err
 	}
 	return result, nil

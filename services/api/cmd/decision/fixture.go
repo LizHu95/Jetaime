@@ -1,11 +1,14 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
 )
 
@@ -28,4 +31,15 @@ func loadFixture(path string) (demo.Fixture, error) {
 		return demo.Fixture{}, fmt.Errorf("资料文件必须只包含一个 JSON 对象")
 	}
 	return fixture, nil
+}
+
+// newFixtureService 将语义相同的 JSON 资料映射为相同版本；仅改排版不改变 SHA-256。
+// 每次 reload 重新计算，Trace 能区分修改前后的数据，版本不包含文件路径或正文。
+func newFixtureService(store *decisions.MemoryStore, fixture demo.Fixture, provider decisions.Provider) (*decisions.DecisionService, error) {
+	encoded, err := json.Marshal(fixture)
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.Sum256(encoded)
+	return decisions.NewDecisionService(store, demo.Checker{Facts: fixture.Facts}, provider, decisions.ServiceConfig{DataVersion: hex.EncodeToString(hash[:])})
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
 	"github.com/LizHu95/Jetaime/services/api/internal/ollama"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 )
 
 func main() {
@@ -40,6 +41,9 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	model := flags.String("model", "qwen3.5:9b", "Ollama 已下载的模型标签")
 	modelTimeout := flags.Duration("model-timeout", 3*time.Minute, "单次模型调用超时，包含加载时间")
 	contextTokens := flags.Int("context-tokens", 8192, "Ollama 上下文窗口 token 数")
+	traceEnabled := flags.Bool("trace", false, "向本地 Phoenix 记录完整调试输入输出")
+	traceEndpoint := flags.String("trace-endpoint", "http://127.0.0.1:6006/v1/traces", "完整 OTLP HTTP 追踪上报地址")
+	traceProject := flags.String("trace-project", "jetaime", "Phoenix 项目名称")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -77,6 +81,18 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	if err != nil {
 		return err
 	}
+	ctx, shutdown, err := telemetry.Init(ctx, telemetry.Config{Enabled: *traceEnabled, Endpoint: *traceEndpoint, Project: *traceProject, Warnings: os.Stderr})
+	if err != nil {
+		return err
+	}
+	defer func() {
+		// 即使业务 context 已取消，仍给最后的失败记录独立的导出时间。
+		flushCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		if err := shutdown(flushCtx); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, "trace: 退出时追踪未全部保存；业务结果不受影响")
+		}
+	}()
 	store, err := decisions.NewMemoryStore(fixture.Dataset)
 	if err != nil {
 		return err
@@ -94,7 +110,7 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	default:
 		return fmt.Errorf("unsupported provider %q; use mock or ollama", *providerName)
 	}
-	service, err := decisions.NewDecisionService(store, demo.Checker{Facts: fixture.Facts}, provider, decisions.ServiceConfig{})
+	service, err := newFixtureService(store, fixture, provider)
 	if err != nil {
 		return err
 	}
@@ -141,7 +157,7 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 			if err != nil {
 				return nil, decisions.Decision{}, fmt.Errorf("资料校验失败：%w", err)
 			}
-			nextService, err := decisions.NewDecisionService(updated, demo.Checker{Facts: loaded.Facts}, provider, decisions.ServiceConfig{})
+			nextService, err := newFixtureService(updated, loaded, provider)
 			if err != nil {
 				return nil, decisions.Decision{}, err
 			}

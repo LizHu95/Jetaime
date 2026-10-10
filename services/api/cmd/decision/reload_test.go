@@ -15,6 +15,9 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
 	"github.com/LizHu95/Jetaime/services/api/internal/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // 每次只提供一个命令，模拟用户在两轮操作之间编辑文件。
@@ -43,6 +46,10 @@ func writeFixture(t *testing.T, path string, fixture demo.Fixture) {
 }
 
 func TestInteractiveReloadAndHistory(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	tracerProvider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	t.Cleanup(func() { _ = tracerProvider.Shutdown(context.Background()) })
+	ctx := telemetry.WithTracer(context.Background(), tracerProvider.Tracer("reload-test"))
 	path := filepath.Join(t.TempDir(), "fixture.json")
 	fixture := demo.NewFixture()
 	writeFixture(t, path, fixture)
@@ -95,8 +102,21 @@ func TestInteractiveReloadAndHistory(t *testing.T) {
 			return "quit"
 		},
 	}}
-	if err := run(context.Background(), []string{"-fixture", path, "-interactive"}, input, &out); err != nil {
+	if err := run(ctx, []string{"-fixture", path, "-interactive"}, input, &out); err != nil {
 		t.Fatal(err)
+	}
+	var versions []string
+	for _, span := range exporter.GetSpans() {
+		if span.Name == "decision.generate" {
+			for _, attr := range span.Attributes {
+				if attr.Key == "fixture.sha256" {
+					versions = append(versions, attr.Value.AsString())
+				}
+			}
+		}
+	}
+	if len(versions) != 2 || versions[0] == versions[1] {
+		t.Fatal("reload did not change trace data version", versions)
 	}
 }
 
