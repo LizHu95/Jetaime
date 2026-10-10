@@ -16,7 +16,7 @@ func TestCLIListDemoAndInteractive(t *testing.T) {
 	for _, args := range [][]string{{"-list"}, {"-scenario", "normal"}, {"-scenario", "conflict", "-once"}, {"-scenario", "unknown", "-json"}, {"-scenario", "empty"}, {"-scenario", "short"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var out bytes.Buffer
-			if err := run(context.Background(), args, strings.NewReader(""), &out); err != nil {
+			if err := runWithTestModel(t, context.Background(), args, strings.NewReader(""), &out); err != nil {
 				t.Fatal(err, out.String())
 			}
 			if out.Len() == 0 {
@@ -26,7 +26,7 @@ func TestCLIListDemoAndInteractive(t *testing.T) {
 	}
 	var out bytes.Buffer
 	commands := "adopt 1\nreject 2 user-b\nbatch user-b\nretry\nsession\nbudget 200\nquery 周末做什么\nhistory\nquit\n"
-	if err := run(context.Background(), []string{"-interactive"}, strings.NewReader(commands), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-interactive"}, strings.NewReader(commands), &out); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(out.String(), "操作失败") || !strings.Contains(out.String(), "新 Session") {
@@ -46,18 +46,18 @@ func TestCLIOllamaProvider(t *testing.T) {
 	}))
 	defer server.Close()
 	var out bytes.Buffer
-	if err := run(context.Background(), []string{"-provider", "ollama", "-ollama-url", server.URL, "-once"}, strings.NewReader(""), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-provider", "ollama", "-ollama-url", server.URL, "-once"}, strings.NewReader(""), &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "本地模型推荐") {
 		t.Fatal("Ollama provider not used")
 	}
 	// 没有满足硬约束的候选时，由服务端得出结论，不需要模型服务在线。
-	if err := run(context.Background(), []string{"-provider", "ollama", "-ollama-url", "http://127.0.0.1:1", "-scenario", "conflict", "-once"}, strings.NewReader(""), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-provider", "ollama", "-ollama-url", "http://127.0.0.1:1", "-scenario", "conflict", "-once"}, strings.NewReader(""), &out); err != nil {
 		t.Fatal(err)
 	}
-	for _, args := range [][]string{{"-provider", "missing"}, {"-provider", "ollama", "-model-timeout", "0s"}, {"-provider", "ollama", "-context-tokens", "0"}, {"-provider", "ollama", "-ollama-url", "invalid"}} {
-		if err := run(context.Background(), args, strings.NewReader(""), &out); err == nil {
+	for _, args := range [][]string{{"-provider", "mock"}, {"-provider", "missing"}, {"-provider", "ollama", "-model-timeout", "0s"}, {"-provider", "ollama", "-context-tokens", "0"}, {"-provider", "ollama", "-ollama-url", "invalid"}} {
+		if err := runWithTestModel(t, context.Background(), args, strings.NewReader(""), &out); err == nil {
 			t.Fatalf("invalid config accepted: %v", args)
 		}
 	}
@@ -65,12 +65,12 @@ func TestCLIOllamaProvider(t *testing.T) {
 
 func TestCLIErrorsPreserveCurrentResult(t *testing.T) {
 	var out bytes.Buffer
-	if err := run(context.Background(), []string{"-scenario", "missing"}, strings.NewReader(""), &out); err == nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-scenario", "missing"}, strings.NewReader(""), &out); err == nil {
 		t.Fatal("unknown scenario ignored")
 	}
 	out.Reset()
 	commands := "adopt 999\nadopt 1 outsider\nbudget -1\nretry\nsession\nquit\n"
-	if err := run(context.Background(), []string{"-interactive"}, strings.NewReader(commands), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-interactive"}, strings.NewReader(commands), &out); err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(out.String(), "操作失败，原结果保留") != 4 || !strings.Contains(out.String(), "latestDecisionId") {
@@ -80,7 +80,7 @@ func TestCLIErrorsPreserveCurrentResult(t *testing.T) {
 
 func TestFixtureExportAndReload(t *testing.T) {
 	var exported bytes.Buffer
-	if err := run(context.Background(), []string{"-dump-fixture"}, strings.NewReader(""), &exported); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-dump-fixture"}, strings.NewReader(""), &exported); err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(t.TempDir(), "fixture.json")
@@ -88,7 +88,7 @@ func TestFixtureExportAndReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	var output bytes.Buffer
-	if err := run(context.Background(), []string{"-fixture", path, "-scenario", "personal", "-once"}, strings.NewReader(""), &output); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-fixture", path, "-scenario", "personal", "-once"}, strings.NewReader(""), &output); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(output.String(), "recommended") {

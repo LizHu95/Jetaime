@@ -1149,7 +1149,7 @@
         "id": "Jade-memory-08",
         "userId": "Jade",
         "type": "constraint",
-        "content": "破伤风过敏",
+        "content": "药物过敏：破伤风",
         "strength": "hard",
         "source": "explicit",
         "confirmed": true,
@@ -1161,7 +1161,7 @@
         "id": "Jade-memory-09",
         "userId": "Jade",
         "type": "constraint",
-        "content": "黄安过敏",
+        "content": "药物过敏：黄安",
         "strength": "hard",
         "source": "explicit",
         "confirmed": true,
@@ -1766,7 +1766,7 @@
     },
     {
       "name": "recipe",
-      "description": "Liz 和 Jade 从 Liz 收藏的五道菜谱中选择；过敏约束尚无法核验",
+      "description": "Liz 和 Jade 从 Liz 收藏的五道菜谱中选择，药物过敏的相关性由模型判断",
       "request": {
         "spaceId": "couple-a-b",
         "requesterId": "Liz",
@@ -1782,7 +1782,7 @@
           "softPreferences": []
         }
       },
-      "expected": "insufficient_information"
+      "expected": "recommended"
     },
     {
       "name": "personal",

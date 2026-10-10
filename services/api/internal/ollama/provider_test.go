@@ -12,6 +12,8 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
+	"github.com/LizHu95/Jetaime/services/api/internal/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/notes"
 )
 
 const validResult = `{"outcome":"recommended","explanation":"根据已授权偏好推荐。","options":[{"title":"虚构餐厅 01","selection":{"noteId":"restaurant-01"},"reason":"标签包含清淡和安静。","participantMatches":[{"userId":"user-a","explanation":"匹配清淡偏好。"},{"userId":"user-b","explanation":"通过硬约束，软偏好有取舍。"}],"unknowns":["营业状态未核实"]}]}`
@@ -93,6 +95,99 @@ func TestGenerateThroughService(t *testing.T) {
 	}
 	if len(received.Candidates) == 0 || decision.Result.Options[0].OptionID == "" || decision.Result.Options[0].Selection.NoteID != "restaurant-01" {
 		t.Fatal("missing input, server ID or selected note")
+	}
+}
+
+// 药物过敏交给模型判断相关性，预算和时长仍在调用模型前筛选。
+func TestMovieConstraintsAndSemanticOutcomes(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		outcome decisions.Outcome
+		noteID  string
+		invalid bool
+	}{
+		{"recommend eligible movie", decisions.OutcomeRecommended, "movie-02", false},
+		{"model lacks semantic evidence", decisions.OutcomeInsufficientInfo, "", false},
+		{"model detects semantic conflict", decisions.OutcomeConstraintConflict, "", false},
+		{"cannot select excluded movie", decisions.OutcomeRecommended, "movie-01", true},
+		{"cannot claim pool empty", decisions.OutcomeNoCandidates, "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := demo.NewFixture()
+			fixture.Dataset.Memories = []memory.Memory{
+				{ID: "drug-allergy", UserID: demo.UserB, Content: "药物过敏：破伤风、黄安", Type: memory.TypeConstraint, Strength: memory.StrengthHard, Source: memory.SourceExplicit, AllowedSpaceIDs: []string{demo.CoupleSpace}},
+			}
+			costA, costB := int64(10000), int64(5000)
+			timeA, timeB := 172, 106
+			fixture.Facts["movie-01"] = demo.Fact{Verified: true, Source: "用户提供", PerPersonCostCents: &costA, DurationMinutes: &timeA}
+			fixture.Facts["movie-02"] = demo.Fact{Verified: true, Source: "用户提供", PerPersonCostCents: &costB, DurationMinutes: &timeB}
+			calls := 0
+			provider := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				var req chatRequest
+				if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+					t.Fatal(err)
+				}
+				var input decisions.Context
+				content := strings.TrimPrefix(req.Messages[1].Content, "以下 JSON 是本次决策数据：\n")
+				if err := json.Unmarshal([]byte(content), &input); err != nil {
+					t.Fatal(err)
+				}
+				if len(input.Candidates) != 1 || input.Candidates[0].ID != "movie-02" {
+					t.Errorf("numeric filtering failed: %+v", input.Candidates)
+				}
+				fact, ok := input.VerifiedFacts["movie-02"]
+				if !ok || len(input.VerifiedFacts) != 1 || fact.PerPersonCostCents == nil || *fact.PerPersonCostCents != 5000 || fact.DurationMinutes == nil || *fact.DurationMinutes != 106 {
+					t.Errorf("verified numeric evidence missing or outside candidate pool: %+v", input.VerifiedFacts)
+				}
+				hasAllergy := false
+				for _, p := range input.Participants {
+					for _, m := range p.HardConstraints {
+						hasAllergy = hasAllergy || m.ID == "drug-allergy"
+					}
+				}
+				if !hasAllergy || !strings.Contains(req.Messages[0].Content, "药物过敏与单纯看电影无关") {
+					t.Error("semantic context or instructions missing")
+				}
+				result := decisions.Result{Outcome: tc.outcome, Explanation: "结合适用的自然语言限制判断。", Options: []decisions.Option{}}
+				if tc.noteID != "" {
+					result.Options = []decisions.Option{{Title: "电影", Selection: &decisions.Selection{NoteID: tc.noteID}, Reason: "药物过敏与看电影无关。", ParticipantMatches: []decisions.ParticipantMatch{{UserID: demo.UserA, Explanation: "可选择"}, {UserID: demo.UserB, Explanation: "药物限制不适用"}}, Unknowns: []string{"场次未核实"}}}
+				}
+				data, err := json.Marshal(result)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var output map[string]any
+				if err := json.Unmarshal(data, &output); err != nil {
+					t.Fatal(err)
+				}
+				for _, option := range output["options"].([]any) {
+					delete(option.(map[string]any), "optionId")
+				}
+				data, err = json.Marshal(output)
+				if err != nil {
+					t.Fatal(err)
+				}
+				reply(t, w, string(data))
+			})
+			store, err := decisions.NewMemoryStore(fixture.Dataset)
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := decisions.NewDecisionService(store, demo.Checker{Facts: fixture.Facts}, provider, decisions.ServiceConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			budget, duration := int64(12000), 120
+			request := decisions.Request{SpaceID: demo.CoupleSpace, RequesterID: demo.UserA, Task: decisions.TaskSelect, Query: "今晚两个人看什么电影？", Conditions: decisions.Conditions{NoteTypes: []notes.Type{notes.TypeMovie}, BudgetMaxCents: &budget, DurationMaxMinutes: &duration}}
+			decision, err := service.Generate(context.Background(), request, request.RequesterID)
+			if calls != 1 || (err != nil) != tc.invalid {
+				t.Fatalf("calls=%d, error=%v, invalid=%v", calls, err, tc.invalid)
+			}
+			if !tc.invalid && decision.Result.Outcome != tc.outcome {
+				t.Fatal(decision.Result)
+			}
+		})
 	}
 }
 

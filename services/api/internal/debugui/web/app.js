@@ -20,7 +20,7 @@ const labels = {
 const names = {
   prepare_session: "准备会话",
   build_context: "组装候选与记忆",
-  evaluate_candidates: "检查硬约束",
+  evaluate_candidates: "检查预算与时长",
   check_facts: "核对人工事实",
   generate_result: "生成推荐",
   validate_result: "校验推荐",
@@ -318,7 +318,7 @@ function renderTrace() {
   const box = $("trace-content");
   box.replaceChildren();
   $("trace-summary").textContent =
-    (t.provider === "mock" ? "Mock" : t.model) +
+    t.model +
     " · " +
     t.durationMs.toFixed(1) +
     " ms · " +
@@ -427,9 +427,7 @@ function renderTrace() {
       box.append(
         node(
           "p",
-          t.provider === "mock"
-            ? "当前使用 Mock，没有模型请求。"
-            : "本次操作未调用模型，或在调用前已失败。",
+          "本次操作未调用模型，或在调用前已失败。",
           "hint",
         ),
       );
@@ -584,7 +582,7 @@ async function init() {
       state.scenarios.map((s) => ({ value: s.name, label: s.name })),
     );
     $("model").value = state.config.model;
-    $("provider").value = "ollama";
+    $("provider").value = state.config.provider;
     applyScenario();
     const data = await api("current");
     if (data.decision) {

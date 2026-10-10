@@ -9,13 +9,13 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// FactChecker 根据可信事实评估完整合法候选池，判断硬约束是否满足。
+// FactChecker 根据可信事实评估完整合法候选池，判断确定性条件是否满足。
 // context.Context 用于取消和超时；本包的 Context 承载业务数据，两者含义不同。
 type FactChecker interface {
 	Evaluate(context.Context, Context) (SelectEvaluation, error)
 }
 
-// Provider 从满足硬约束的候选中生成推荐和解释；CLI 可注入 Mock 或 Ollama。
+// Provider 从通过确定性检查的候选中判断语义限制并生成结果；当前使用 Ollama，后续可接入云模型。
 // 服务端负责分配 OptionID 和校验结果，Provider 不能自行扩大候选或记忆范围。
 type Provider interface {
 	Generate(context.Context, Context) (Result, error)
@@ -31,7 +31,7 @@ type ServiceConfig struct {
 // DecisionService 保存执行流程所需的工具；具体需求和结果由方法参数、返回值承载。
 type DecisionService struct {
 	store       *MemoryStore     // 读取资料、会话和历史，并保存处理结果。
-	checker     FactChecker      // 检查预算、禁忌等硬约束的接口。
+	checker     FactChecker      // 检查预算、时长等确定性条件的接口。
 	provider    Provider         // 生成推荐的接口；创建服务时注入具体实现。
 	ttl         time.Duration    // 创建新 Session 时使用的有效期。
 	now         func() time.Time // 调用 s.now() 得到当前时间，便于验证过期行为。

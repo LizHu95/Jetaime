@@ -14,6 +14,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
+	"github.com/LizHu95/Jetaime/services/api/internal/testutil"
 )
 
 func call(t *testing.T, s http.Handler, method, path string, body any) *httptest.ResponseRecorder {
@@ -41,6 +42,9 @@ func decode(t *testing.T, w *httptest.ResponseRecorder) response {
 }
 func newServer(t *testing.T, c Config) *Server {
 	t.Helper()
+	if c.OllamaURL == "" {
+		c.OllamaURL = testutil.OllamaServer(t).URL
+	}
 	s, err := New(c)
 	if err != nil {
 		t.Fatal(err)
@@ -60,9 +64,33 @@ func generate(t *testing.T, s *Server, scenario, provider string) response {
 	}
 	return decode(t, w)
 }
+
+func TestOllamaDefaultAndRemovedProvider(t *testing.T) {
+	s := newServer(t, Config{})
+	config := call(t, s, "GET", "config", nil)
+	var values struct {
+		Provider  string   `json:"provider"`
+		Providers []string `json:"providers"`
+	}
+	if err := json.Unmarshal(config.Body.Bytes(), &values); err != nil {
+		t.Fatal(err)
+	}
+	if values.Provider != "ollama" || len(values.Providers) != 1 || values.Providers[0] != "ollama" {
+		t.Fatal(config.Body.String())
+	}
+	sc, _ := demo.NewFixture().Scenario("normal")
+	w := call(t, s, "POST", "decisions", input{Request: sc.Request})
+	if w.Code != 200 || decode(t, w).Trace.Provider != "ollama" {
+		t.Fatal(w.Body.String())
+	}
+	w = call(t, s, "POST", "decisions", input{Request: sc.Request, Provider: "mock"})
+	if w.Code != 422 {
+		t.Fatal("removed provider accepted", w.Body.String())
+	}
+}
 func TestWorkflowAndTrace(t *testing.T) {
 	s := newServer(t, Config{})
-	first := generate(t, s, "normal", "mock")
+	first := generate(t, s, "normal", "ollama")
 	d := first.Decision
 	if len(d.Result.Options) != 3 || first.Trace == nil {
 		t.Fatal("missing recommendations or trace")
@@ -111,7 +139,7 @@ func TestWorkflowAndTrace(t *testing.T) {
 }
 func TestTraceDownload(t *testing.T) {
 	s := newServer(t, Config{})
-	out := generate(t, s, "normal", "mock")
+	out := generate(t, s, "normal", "ollama")
 	w := call(t, s, "GET", "traces/"+out.Trace.ID+"/download", nil)
 	if w.Code != 200 || !strings.Contains(w.Header().Get("Content-Disposition"), "attachment;") {
 		t.Fatal(w.Code, w.Header())
@@ -125,7 +153,7 @@ func TestTraceDownload(t *testing.T) {
 func TestFixedScenarios(t *testing.T) {
 	for _, scenario := range demo.NewFixture().Scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
-			out := generate(t, newServer(t, Config{}), scenario.Name, "mock")
+			out := generate(t, newServer(t, Config{}), scenario.Name, "ollama")
 			if out.Decision.Result.Outcome != scenario.Expected {
 				t.Fatal(out.Decision.Result.Outcome)
 			}
@@ -144,7 +172,7 @@ func fixtureFile(t *testing.T) string {
 func TestReloadIsTransactional(t *testing.T) {
 	path := fixtureFile(t)
 	s := newServer(t, Config{FixturePath: path})
-	old := generate(t, s, "normal", "mock")
+	old := generate(t, s, "normal", "ollama")
 	if err := os.WriteFile(path, []byte("broken JSON"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -173,27 +201,29 @@ func TestReloadIsTransactional(t *testing.T) {
 		t.Fatal("expired session remained writable")
 	}
 }
-func TestOllamaFailureRetryAndSessionProvider(t *testing.T) {
+func TestOllamaFailureRetryAndSessionModel(t *testing.T) {
 	var requests atomic.Int32
 	var healthy atomic.Bool
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests.Add(1)
-		if healthy.Load() {
-			var request struct {
-				Messages []struct {
-					Content string `json:"content"`
-				} `json:"messages"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Error(err)
-				return
-			}
+		var request struct {
+			Model string `json:"model"`
+
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+			return
+		}
+		if healthy.Load() || request.Model == "working-model" {
 			var input decisions.Context
 			if err := json.Unmarshal([]byte(strings.SplitN(request.Messages[1].Content, "\n", 2)[1]), &input); err != nil {
 				t.Error(err)
 				return
 			}
-			result, err := (demo.FixedProvider{}).Generate(r.Context(), input)
+			result, err := (testutil.Provider{}).Generate(r.Context(), input)
 			if err != nil {
 				t.Error(err)
 				return
@@ -211,10 +241,11 @@ func TestOllamaFailureRetryAndSessionProvider(t *testing.T) {
 		_, _ = w.Write([]byte(`{"message":{"role":"assistant","content":"broken output"},"done":true}`))
 	}))
 	defer model.Close()
-	s := newServer(t, Config{OllamaURL: model.URL})
-	first := generate(t, s, "normal", "mock")
+	s := newServer(t, Config{OllamaURL: model.URL, Model: "working-model"})
+	first := generate(t, s, "normal", "ollama")
+	s.config.Model = "broken-model"
 	sc, _ := demo.NewFixture().Scenario("normal")
-	w := call(t, s, "POST", "decisions", input{Request: sc.Request, Provider: "ollama"})
+	w := call(t, s, "POST", "decisions", input{Request: sc.Request, Provider: "ollama", Model: "broken-model"})
 	out := decode(t, w)
 	if w.Code != 422 || out.Trace.Error == "" {
 		t.Fatal(w.Body.String())
@@ -232,14 +263,14 @@ func TestOllamaFailureRetryAndSessionProvider(t *testing.T) {
 	if current.Decision.ID != first.Decision.ID {
 		t.Fatal("failed generation replaced current")
 	}
-	// 无候选的 Ollama 会话成功创建；先前 Mock 会话换批仍使用自己的配置。
-	generate(t, s, "unknown", "ollama")
-	w = call(t, s, "POST", "sessions/"+first.Decision.SessionID+"/batch", input{ActorID: demo.UserA, DecisionID: first.Decision.ID, EventID: "keep-mock"})
-	if w.Code != 200 || requests.Load() != 1 || decode(t, w).Trace.Provider != "mock" {
+	// 创建无候选的新会话，旧会话换批仍使用原模型配置。
+	generate(t, s, "empty", "ollama")
+	w = call(t, s, "POST", "sessions/"+first.Decision.SessionID+"/batch", input{ActorID: demo.UserA, DecisionID: first.Decision.ID, EventID: "keep-model"})
+	if w.Code != 200 || requests.Load() != 3 || decode(t, w).Trace.Model != "working-model" {
 		t.Fatal(w.Body.String(), requests.Load())
 	}
 	// 把当前会话绑定到故障模型，验证失败后原命令保留并可重试。
-	s.bindings[first.Decision.SessionID] = sessionConfig{"ollama", s.model}
+	s.bindings[first.Decision.SessionID] = sessionConfig{"ollama", "broken-model"}
 	latest := decode(t, w).Decision
 	w = call(t, s, "POST", "sessions/"+latest.SessionID+"/batch", input{ActorID: demo.UserA, DecisionID: latest.ID, EventID: "failed-batch"})
 	if w.Code != 422 {
@@ -254,12 +285,12 @@ func TestOllamaFailureRetryAndSessionProvider(t *testing.T) {
 		t.Fatal("another actor retried command")
 	}
 	w = call(t, s, "POST", "sessions/"+latest.SessionID+"/retry", input{ActorID: demo.UserA})
-	if w.Code != 422 || s.pending[latest.SessionID] != pending || requests.Load() != 3 {
+	if w.Code != 422 || s.pending[latest.SessionID] != pending || requests.Load() != 5 {
 		t.Fatal(w.Body.String(), requests.Load())
 	}
 	healthy.Store(true)
 	w = call(t, s, "POST", "sessions/"+latest.SessionID+"/retry", input{ActorID: demo.UserA})
-	if w.Code != 200 || requests.Load() != 4 {
+	if w.Code != 200 || requests.Load() != 6 {
 		t.Fatal(w.Body.String(), requests.Load())
 	}
 	if _, ok := s.pending[latest.SessionID]; ok {
@@ -303,9 +334,9 @@ func TestGuardsAndBusyReads(t *testing.T) {
 }
 func TestTraceRetention(t *testing.T) {
 	s := newServer(t, Config{})
-	first := generate(t, s, "empty", "mock")
+	first := generate(t, s, "empty", "ollama")
 	for i := 0; i < 100; i++ {
-		generate(t, s, "empty", "mock")
+		generate(t, s, "empty", "ollama")
 	}
 	if w := call(t, s, "GET", "traces/"+first.Trace.ID, nil); w.Code != 404 {
 		t.Fatal("old trace retained")
@@ -320,8 +351,9 @@ func TestConcurrentReadsAndCancellation(t *testing.T) {
 	release := make(chan struct{})
 	model := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(started); <-release }))
 	defer model.Close()
-	s := newServer(t, Config{OllamaURL: model.URL})
-	first := generate(t, s, "normal", "mock")
+	s := newServer(t, Config{})
+	first := generate(t, s, "normal", "ollama")
+	s.config.OllamaURL = model.URL
 	sc, _ := demo.NewFixture().Scenario("normal")
 	body, _ := json.Marshal(input{Request: sc.Request, Provider: "ollama"})
 	ctx, cancel := context.WithCancel(context.Background())

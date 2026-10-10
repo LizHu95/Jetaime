@@ -57,7 +57,7 @@ func TestPageAndPhoenixShareSpans(t *testing.T) {
 	}))
 	defer receiver.Close()
 	s := newServer(t, Config{Trace: telemetry.Config{Enabled: true, Endpoint: receiver.URL + "/v1/traces", Project: "page-test"}})
-	first := generate(t, s, "normal", "mock")
+	first := generate(t, s, "normal", "ollama")
 	if err := s.tracerProvider.ForceFlush(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestPageAndPhoenixShareSpans(t *testing.T) {
 	if failed.Error == "" || failed.Trace == nil {
 		t.Fatal("missing failed trace")
 	}
-	second := generate(t, s, "normal", "mock")
+	second := generate(t, s, "normal", "ollama")
 	if err := s.Shutdown(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +117,7 @@ func TestPageAndPhoenixShareSpans(t *testing.T) {
 func TestOfflinePhoenixPreservesPage(t *testing.T) {
 	var warnings bytes.Buffer
 	s := newServer(t, Config{Trace: telemetry.Config{Enabled: true, Endpoint: "http://127.0.0.1:1/v1/traces", Project: "offline", Warnings: &warnings}})
-	out := generate(t, s, "normal", "mock")
+	out := generate(t, s, "normal", "ollama")
 	if out.Decision == nil || len(out.Trace.Stages) == 0 {
 		t.Fatal("missing page result")
 	}

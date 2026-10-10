@@ -1,6 +1,6 @@
 # 今天干嘛
 
-面向个人与情侣的 AI 生活决策助手。V1 为微信小程序，以笔记收藏、空间共享、长期偏好、候选内 Top 3 和反馈形成闭环。当前已有实体规则、内存 DecisionService、默认 Mock 数据与 CLI，能运行 select → 反馈 → 换批；推荐生成可选择本地 Ollama，真实模型效果待评测。已提供本机调试 API 与浏览器调试台；生产 HTTP、真实登录和数据库尚未接入。
+面向个人与情侣的 AI 生活决策助手。V1 为微信小程序，以笔记收藏、空间共享、长期偏好、候选内 Top 3 和反馈形成闭环。当前已有实体规则、内存 DecisionService、演示资料与 CLI，能运行 select → 反馈 → 换批；推荐生成使用本地 Ollama，真实模型效果待评测。模型生成通过 `decisions.Provider` 接口接入，后续云模型可实现该接口并加入 Web/CLI 的配置入口。已提供本机调试 API 与浏览器调试台；生产 HTTP、真实登录和数据库尚未接入。
 
 图片与多模态为 P1，分享、社区和多人空间属于后续版本。
 
@@ -43,7 +43,7 @@ docs/                     产品、技术方案与交互原型
 
 ## 本地决策演示
 
-在仓库根目录运行，无需外部账号、模型下载或数据库：
+在仓库根目录运行，推荐请求需要本机 Ollama 已启动并下载模型；列出场景、导出资料无需连接模型：
 
 ```bash
 cd services/api
@@ -54,7 +54,7 @@ go run ./cmd/decision -scenario unknown -once # 必要事实未知，不返回�
 go run ./cmd/decision -scenario normal -json  # 每步输出一个 JSON 对象
 ```
 
-交互命令：`adopt 1`、`reject 2 user-b`、`batch user-b`、`retry`、`budget 200`（全体参与人总预算，整数元）、`query 新需求`、`history`、`session`。需求或预算改变会新建 Session；失败保留原组。`query` 只改变需求文本，Mock 不解析自然语言，类型和其他表单条件仍来自所选场景。`history` 查看当前批次历史。身份是虚构 user-a/user-b，不代表已实现真实登录。
+交互命令：`adopt 1`、`reject 2 user-b`、`batch user-b`、`retry`、`budget 200`（全体参与人总预算，整数元）、`query 新需求`、`history`、`session`。需求或预算改变会新建 Session；失败保留原组。`query` 只改变需求文本，类型和其他表单条件仍来自所选场景；模型结合正文判断语义限制。`history` 查看当前批次历史。身份是虚构 user-a/user-b，不代表已实现真实登录。
 
 | 场景 | 验证内容 |
 | --- | --- |
@@ -79,7 +79,7 @@ go run ./cmd/decision -fixture ./testdata/demo/fixture.json -provider ollama -in
 
 重载沿用当前 query、预算等已确认条件；`scenarios` 只在启动时选择场景。成功后清除当前换批重试状态，旧会话过期，重新开始推荐/排除/采纳状态；旧 Decision 的笔记和反馈快照仍保留在进程内。`history <DecisionID>` 可查询旧批次，但仍按新资料中的成员和收藏权限授权，撤销权限后可能不可访问。未指定 `-fixture` 时 `reload` 会提示用文件模式重新启动；本期不自动监视文件，也不将对话自动写成 Memory。
 
-当前 store 和命令状态仅在进程内保留，退出后清空。固定 Provider 按已授权偏好与标签排序，独立 Checker 只支持预算、时长、不吃花生/海鲜、室内/户外和无障碍这些明确条件；未支持的硬条件返回未知，不默认为通过。此演示不代表真实语义理解、推荐质量或生产权限已经验收。
+当前 store 和命令状态仅在进程内保留，退出后清空。运行时仅使用 Ollama Provider；测试使用隔离的 HTTP 测试服务，不包含运行时固定规则推荐器。独立 Checker 只检查已填写的预算和时长，事实缺失仍返回未知。Ollama 接收已授权记忆与描述，判断自然语言限制的相关性；药物过敏不应阻塞电影推荐。模型可以因适用限制返回条件冲突或信息不足，不能绕过权限、类型和数值检查。此演示不代表真实语义理解、推荐质量或生产权限已经验收。
 
 ## 本地 Web 调试台
 
@@ -92,7 +92,7 @@ go run ./cmd/api -fixture ./testdata/demo/fixture.json -trace
 
 `make debug` 默认同时记录页面 Trace 并上报 Phoenix。先在另一个终端运行 `make trace`，再启动调试台；如果 Phoenix 已运行，无需重复启动。可以用 `make debug DEBUG_ARGS=` 仅记录页面，或用 `make debug DEBUG_ARGS="-trace -trace-project jetaime-debug"` 更换项目。手动运行 `cmd/api` 时需显式加 `-trace` 开启上报。
 
-打开 <http://127.0.0.1:8080>。Go 服务内嵌静态 HTML/CSS/JS，无需安装前端依赖或单独运行前端。默认使用 Mock，可以在页面切换 Ollama 并指定模型；模型需要预先下载，Ollama 需要运行。服务启动参数包括 `-addr 127.0.0.1:8080`、`-ollama-url`、`-model`、`-model-timeout` 和 `-context-tokens`，模型默认值与 CLI 相同。
+打开 <http://127.0.0.1:8080>。Go 服务内嵌静态 HTML/CSS/JS，无需安装前端依赖或单独运行前端。仅使用 Ollama，可以在页面指定模型；模型需要预先下载，Ollama 需要运行。服务启动参数包括 `-addr 127.0.0.1:8080`、`-ollama-url`、`-model`、`-model-timeout` 和 `-context-tokens`，模型默认值与 CLI 相同。
 
 页面支持：
 
@@ -136,13 +136,13 @@ go run ./cmd/decision -provider ollama -once
 go run ./cmd/decision -provider ollama -interactive
 ```
 
-CLI 默认仍为 `-provider mock`。Ollama 默认地址为 `http://localhost:11434`，模型 `qwen3.5:9b`，上下文 8192 token，单次请求超时 3 分钟，最多生成 2048 token；思考与流式输出关闭，temperature 为 0。需要时通过 `-ollama-url`、`-model`、`-context-tokens` 和 `-model-timeout` 覆盖，例如：
+CLI 默认使用 `-provider ollama`，不再支持 Mock。Ollama 默认地址为 `http://localhost:11434`，模型 `qwen3.5:9b`，上下文 8192 token，单次请求超时 3 分钟，最多生成 2048 token；思考与流式输出关闭，temperature 为 0。需要时通过 `-ollama-url`、`-model`、`-context-tokens` 和 `-model-timeout` 覆盖，例如：
 
 ```bash
 go run ./cmd/decision -provider ollama -model qwen3.5:4b -context-tokens 8192 -model-timeout 5m -once
 ```
 
-`internal/ollama/provider.go` 调用 `/api/chat`，`prompt.go` 定义中文提示词与 JSON Schema。模型只收到当前已授权、已通过硬约束检查的候选与记忆；不传完整 fixture。服务端继续生成 OptionID 并校验候选引用、参与者解释及硬约束结论。调用失败、超时、截断、损坏 JSON 或不合法推荐返回错误，不自动回退 Mock；无候选、约束冲突和必要信息不足不调用模型。
+`internal/ollama/provider.go` 调用 `/api/chat`，`prompt.go` 定义中文提示词与 JSON Schema。模型只收到当前已授权、已通过数值条件检查的候选与记忆；不传完整 fixture。服务端继续生成 OptionID 并校验候选引用、参与者解释及数值条件结论。调用失败、超时、截断、损坏 JSON 或不合法推荐返回错误，不使用模拟结果回退；无候选、数值条件全部违反或必要数值事实不足时不调用模型；自然语言限制由模型判断。
 
 当前只接入推荐生成；基础资料和事实检查仍是虚构数据，`query` 不会自动修改已确认条件。真实模型的解释准确性、偏好平衡和延迟需在下载完成后独立评测。上下文设置需容纳提示词、候选与输出；数据量增长时再引入检索与 token 管理。
 
@@ -211,7 +211,7 @@ Go 检查和 lint 会在工具缺失时自动安装 golangci-lint；版本固定
 
 更新工具版本时，修改 `.go-version` 或 Makefile 中的 `GOLANGCI_LINT_VERSION`，并同步本节说明；确认所选 golangci-lint 支持该 Go 版本后运行 `make check`。`services/api/go.mod` 的 `go` 指令仍为 1.22；该最低版本的兼容性目前未纳入 CI。
 
-已有实体规则、Mock Workflow、CLI 和失败恢复测试，以及 Ollama 测试服务的协议、权限过滤、异常响应和取消测试；`go test -race ./...` 可在 `services/api` 内检查并发访问。真实模型效果、HTTP 权限和通用语义约束验证仍待完成。
+已有实体规则、决策 Workflow、CLI 和失败恢复测试，以及 Ollama 测试服务的协议、权限过滤、异常响应和取消测试；`go test -race ./...` 可在 `services/api` 内检查并发访问。真实模型效果、HTTP 权限和通用语义约束验证仍待完成。
 
 ## 项目文档
 

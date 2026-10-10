@@ -89,9 +89,6 @@ func New(config Config) (*Server, error) {
 	if config.ContextTokens == 0 {
 		config.ContextTokens = 8192
 	}
-	if _, err := ollama.NewProvider(ollama.Config{BaseURL: config.OllamaURL, Model: config.Model, Timeout: config.ModelTimeout, ContextTokens: config.ContextTokens}); err != nil {
-		return nil, err
-	}
 	fixture := demo.NewFixture()
 	var err error
 	if config.FixturePath != "" {
@@ -104,11 +101,15 @@ func New(config Config) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	service, err := newService(store, fixture, demo.FixedProvider{})
+	provider, err := ollama.NewProvider(ollama.Config{BaseURL: config.OllamaURL, Model: config.Model, Timeout: config.ModelTimeout, ContextTokens: config.ContextTokens})
 	if err != nil {
 		return nil, err
 	}
-	s := &Server{config: config, fixture: fixture, store: store, service: service, providerName: "mock", model: config.Model, pending: map[string]batchCommand{}, bindings: map[string]sessionConfig{}, traces: map[string]Trace{}, history: []entry{}}
+	service, err := newService(store, fixture, provider)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{config: config, fixture: fixture, store: store, service: service, providerName: "ollama", model: config.Model, pending: map[string]batchCommand{}, bindings: map[string]sessionConfig{}, traces: map[string]Trace{}, history: []entry{}}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/", s.api)
 	files, err := fs.Sub(assets, "web")
@@ -227,7 +228,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 	if path == "decisions" {
 		trace.Provider = in.Provider
 		if trace.Provider == "" {
-			trace.Provider = "mock"
+			trace.Provider = "ollama"
 		}
 		trace.Model = in.Model
 		if trace.Model == "" {
@@ -281,7 +282,7 @@ func (s *Server) mutate(ctx context.Context, path string, parts []string, in inp
 	case path == "decisions":
 		name := in.Provider
 		if name == "" {
-			name = "mock"
+			name = "ollama"
 		}
 		model := in.Model
 		if model == "" {
@@ -431,12 +432,10 @@ func result(service *decisions.DecisionService, d decisions.Decision, actor stri
 }
 func (s *Server) makeProvider(name, model string) (decisions.Provider, error) {
 	switch name {
-	case "mock":
-		return demo.FixedProvider{}, nil
 	case "ollama":
 		return ollama.NewProvider(ollama.Config{BaseURL: s.config.OllamaURL, Model: model, Timeout: s.config.ModelTimeout, ContextTokens: s.config.ContextTokens})
 	default:
-		return nil, fmt.Errorf("provider must be mock or ollama")
+		return nil, fmt.Errorf("provider must be ollama")
 	}
 }
 func (s *Server) read(w http.ResponseWriter, r *http.Request) {
@@ -459,7 +458,7 @@ func (s *Server) read(w http.ResponseWriter, r *http.Request) {
 	}
 	switch {
 	case path == "config":
-		write(w, 200, map[string]any{"provider": name, "providers": []string{"mock", "ollama"}, "model": model, "ollamaUrl": s.config.OllamaURL, "modelTimeout": s.config.ModelTimeout.String(), "contextTokens": s.config.ContextTokens, "fixturePath": s.config.FixturePath, "spaces": fixture.Dataset.Spaces, "members": fixture.Dataset.Members, "traceLimit": 100, "pending": pending})
+		write(w, 200, map[string]any{"provider": name, "providers": []string{"ollama"}, "model": model, "ollamaUrl": s.config.OllamaURL, "modelTimeout": s.config.ModelTimeout.String(), "contextTokens": s.config.ContextTokens, "fixturePath": s.config.FixturePath, "spaces": fixture.Dataset.Spaces, "members": fixture.Dataset.Members, "traceLimit": 100, "pending": pending})
 		return
 	case path == "scenarios":
 		write(w, 200, fixture.Scenarios)

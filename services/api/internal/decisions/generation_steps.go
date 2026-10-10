@@ -60,12 +60,18 @@ func (s *DecisionService) generateResult(ctx context.Context, input Context, eva
 	result := Result{Outcome: outcome, Options: []Option{}, Explanation: outcomeExplanation(outcome)}
 	if outcome == OutcomeRecommended {
 		input.Candidates = recommendationCandidates(input.Candidates, evaluation, session.RecommendedNoteIDs)
+		input.VerifiedFacts = map[string]NumericFact{}
+		for _, n := range input.Candidates {
+			if fact, ok := evaluation.VerifiedFacts[n.ID]; ok {
+				input.VerifiedFacts[n.ID] = fact
+			}
+		}
 		owned, err := copyValue(input)
 		if err != nil {
 			return Result{}, err
 		}
 		// 实现由 cmd/decision/main.go 的 -provider 选择：
-		// mock → internal/demo/provider.go；ollama → internal/ollama/provider.go。
+		// 当前为 internal/ollama/provider.go；后续云模型实现同一 Provider 接口。
 		result, err = s.provider.Generate(ctx, owned)
 		if err != nil {
 			return Result{}, err
@@ -84,7 +90,7 @@ func (s *DecisionService) generateResult(ctx context.Context, input Context, eva
 	if err := ctx.Err(); err != nil {
 		return Result{}, err
 	}
-	// 同时检查结构、候选引用与硬约束状态，解释文字不能代替事实检查。
+	// 同时检查结构、候选引用与确定性检查状态，解释文字不能代替事实检查。
 	if _, err := telemetry.Step(ctx, "validate_result", map[string]any{"context": input, "evaluation": evaluation, "result": result}, func(context.Context) (string, error) {
 		return "passed", evaluation.ValidateResult(input, result)
 	}); err != nil {
@@ -93,7 +99,7 @@ func (s *DecisionService) generateResult(ctx context.Context, input Context, eva
 	return result, nil
 }
 
-// recommendationCandidates 只保留硬约束满足项，再优先提供未看过的笔记。
+// recommendationCandidates 只保留确定性检查满足项，再优先提供未看过的笔记。
 // 未看项不足三个时少返回；全部看过后才复用已看项，不复活明确拒绝的笔记。
 func recommendationCandidates(candidates []notes.Note, evaluation SelectEvaluation, seen []string) []notes.Note {
 	eligible := map[string]bool{}
@@ -170,9 +176,9 @@ func outcomeExplanation(outcome Outcome) string {
 	case OutcomeConstraintConflict:
 		return "已确认条件存在冲突，或所有候选都有明确硬约束违反；请调整条件或补充收藏。"
 	case OutcomeInsufficientInfo:
-		return "没有已验证满足全部硬约束的候选，必要事实未知，请补充费用、时长或成分信息。"
+		return "没有候选通过已填写的预算和时长检查，请补充有来源的费用或时长信息。"
 	default:
-		return "从已验证满足全部适用硬约束的候选中选择。"
+		return "从通过服务端确定性检查的候选中选择，并判断相关的自然语言限制。"
 	}
 }
 

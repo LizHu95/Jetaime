@@ -2,9 +2,9 @@ package decisions
 
 import "fmt"
 
-// ConstraintStatus 汇总某条候选对全部适用硬约束的满足情况。
-// 已证实违反优先于信息未知；没有硬约束时视为满足。
-// 此结论来自服务端事实检查，不接受模型或客户端自行声明。
+// ConstraintStatus 汇总某条候选对服务端确定性检查的满足情况。
+// 已证实违反优先于信息未知；没有数值限制时视为满足。
+// 此结论来自服务端事实检查；自然语言限制由 Provider 另行判断。
 type ConstraintStatus string
 
 const (
@@ -13,7 +13,7 @@ const (
 	ConstraintUnknown   ConstraintStatus = "unknown"
 )
 
-// CandidateAssessment 将一条候选笔记与它的硬约束检查结论关联。
+// CandidateAssessment 将一条候选笔记与它的确定性检查结论关联。
 type CandidateAssessment struct {
 	NoteID string
 	Status ConstraintStatus
@@ -24,6 +24,7 @@ type CandidateAssessment struct {
 type SelectEvaluation struct {
 	ConditionsConflict bool // 条件本身互相矛盾，与某条笔记是否满足无关。
 	Candidates         []CandidateAssessment
+	VerifiedFacts      map[string]NumericFact // 仅包含当前合法候选的有来源数值。
 }
 
 // Outcome 按优先级得出结论：条件矛盾、无候选、有满足项、信息未知、全部违反。
@@ -60,7 +61,7 @@ func (e SelectEvaluation) Outcome() (Outcome, error) {
 	return OutcomeConstraintConflict, nil
 }
 
-// ValidateResult 在结构校验之上，再核对业务结论与选中笔记的可信检查结果。
+// ValidateResult 在结构校验之上，再核对业务结论与选中笔记的确定性检查结果。
 // 提供给模型的 Context 候选可以是完整检查池中的一个子集。
 func (e SelectEvaluation) ValidateResult(ctx Context, result Result) error {
 	if err := result.ValidateSelect(ctx); err != nil {
@@ -70,7 +71,9 @@ func (e SelectEvaluation) ValidateResult(ctx Context, result Result) error {
 	if err != nil {
 		return err
 	}
-	if result.Outcome != outcome {
+	// Provider 可以因语义限制拒绝数值检查通过的候选，但不能绕过数值检查。
+	semanticDecline := outcome == OutcomeRecommended && (result.Outcome == OutcomeConstraintConflict || result.Outcome == OutcomeInsufficientInfo)
+	if result.Outcome != outcome && !semanticDecline {
 		return fmt.Errorf("result outcome differs from server evaluation")
 	}
 	statuses := make(map[string]ConstraintStatus)
@@ -84,7 +87,7 @@ func (e SelectEvaluation) ValidateResult(ctx Context, result Result) error {
 	}
 	for _, o := range result.Options {
 		if statuses[o.Selection.NoteID] != ConstraintSatisfied {
-			return fmt.Errorf("selected candidate has violated or unknown hard constraints")
+			return fmt.Errorf("selected candidate failed deterministic checks")
 		}
 	}
 	return nil

@@ -22,9 +22,9 @@ func TestVerifiedCostsAndEvidence(t *testing.T) {
 		{"total quote wrong group", Fact{Verified: true, Source: "fixture", TotalCostCents: pointer(int64(14000)), People: 1}, nil, decisions.ConstraintUnknown},
 		{"unverified price", Fact{Verified: false, Source: "model", PerPersonCostCents: pointer(int64(100))}, nil, decisions.ConstraintUnknown},
 		{"negative price", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(-1))}, nil, decisions.ConstraintUnknown},
-		{"known peanut even incomplete ingredients", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100)), Ingredients: []string{"花生"}}, []string{"不吃花生"}, decisions.ConstraintViolated},
-		{"missing ingredients", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100))}, []string{"不吃花生"}, decisions.ConstraintUnknown},
-		{"unsupported natural language", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100))}, []string{"我想吃特别的东西"}, decisions.ConstraintUnknown},
+		{"ingredient constraints delegated", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100)), Ingredients: []string{"花生"}}, []string{"不吃花生"}, decisions.ConstraintSatisfied},
+		{"incomplete ingredients delegated", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100))}, []string{"不吃花生"}, decisions.ConstraintSatisfied},
+		{"natural language delegated", Fact{Verified: true, Source: "fixture", PerPersonCostCents: pointer(int64(100))}, []string{"我想吃特别的东西"}, decisions.ConstraintSatisfied},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

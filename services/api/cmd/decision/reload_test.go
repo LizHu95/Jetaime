@@ -16,6 +16,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/demo"
 	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
+	"github.com/LizHu95/Jetaime/services/api/internal/testutil"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -79,7 +80,7 @@ func TestInteractiveReloadAndHistory(t *testing.T) {
 		},
 		func() string {
 			parts := strings.Split(out.String(), "[资料已重载，新 Session]")
-			if len(parts) != 2 || !strings.Contains(parts[1], "1. 重载-虚构餐厅 03") || strings.Contains(parts[1], "[restaurant-01]") {
+			if len(parts) != 2 || !strings.Contains(parts[1], "1. 重载-虚构餐厅 02") || strings.Contains(parts[1], "[restaurant-01]") {
 				t.Fatal("new notes/facts were not used", out.String())
 			}
 			newSession = strings.Split(strings.Split(parts[1], "Session: ")[1], "\n")[0]
@@ -102,7 +103,7 @@ func TestInteractiveReloadAndHistory(t *testing.T) {
 			return "quit"
 		},
 	}}
-	if err := run(ctx, []string{"-fixture", path, "-interactive"}, input, &out); err != nil {
+	if err := runWithTestModel(t, ctx, []string{"-fixture", path, "-interactive"}, input, &out); err != nil {
 		t.Fatal(err)
 	}
 	var versions []string
@@ -122,7 +123,7 @@ func TestInteractiveReloadAndHistory(t *testing.T) {
 
 func TestReloadRequiresFileAndRejectsMalformedJSON(t *testing.T) {
 	var out bytes.Buffer
-	if err := run(context.Background(), []string{"-interactive"}, strings.NewReader("reload\nsession\nquit\n"), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-interactive"}, strings.NewReader("reload\nsession\nquit\n"), &out); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "需要启动时指定 -fixture") || !strings.Contains(out.String(), "latestDecisionId") {
@@ -162,7 +163,7 @@ func TestReloadModelFailureKeepsOldDataAndCanRetry(t *testing.T) {
 			t.Error(err)
 			return
 		}
-		result, err := (demo.FixedProvider{}).Generate(r.Context(), input)
+		result, err := (testutil.Provider{}).Generate(r.Context(), input)
 		if err != nil {
 			t.Error(err)
 			return
@@ -210,7 +211,7 @@ func TestReloadModelFailureKeepsOldDataAndCanRetry(t *testing.T) {
 			return "quit"
 		},
 	}}
-	if err := run(context.Background(), []string{"-fixture", path, "-provider", "ollama", "-ollama-url", server.URL, "-interactive"}, input, &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-fixture", path, "-provider", "ollama", "-ollama-url", server.URL, "-interactive"}, input, &out); err != nil {
 		t.Fatal(err)
 	}
 }

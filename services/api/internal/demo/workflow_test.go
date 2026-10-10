@@ -12,6 +12,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/decisions"
 	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/notes"
+	"github.com/LizHu95/Jetaime/services/api/internal/testutil"
 )
 
 type providerFunc func(context.Context, decisions.Context) (decisions.Result, error)
@@ -73,14 +74,14 @@ func TestFixtureCountsAndOutcomes(t *testing.T) {
 			calls := 0
 			p := providerFunc(func(ctx context.Context, input decisions.Context) (decisions.Result, error) {
 				calls++
-				return (FixedProvider{}).Generate(ctx, input)
+				return (testutil.Provider{}).Generate(ctx, input)
 			})
 			service := serviceFor(t, f, p, nil)
 			d, err := service.Generate(context.Background(), scenario.Request, scenario.Request.RequesterID)
 			if err != nil || d.Result.Outcome != scenario.Expected {
 				t.Fatal(d.Result.Outcome, err)
 			}
-			if scenario.Expected != decisions.OutcomeRecommended && (calls != 0 || len(d.Result.Options) != 0) {
+			if scenario.Expected != decisions.OutcomeRecommended && (len(d.Result.Options) != 0 || calls != 0 && scenario.Name != "unknown" && scenario.Name != "contradiction") {
 				t.Fatal("non-recommended outcome called provider")
 			}
 		})
@@ -92,7 +93,7 @@ func TestContextPrivacyAndAuthorization(t *testing.T) {
 	var captured decisions.Context
 	p := providerFunc(func(ctx context.Context, input decisions.Context) (decisions.Result, error) {
 		captured = input
-		return (FixedProvider{}).Generate(ctx, input)
+		return (testutil.Provider{}).Generate(ctx, input)
 	})
 	s := serviceFor(t, f, p, nil)
 	d, err := s.Generate(context.Background(), requestFor(t, f, "normal"), UserA)
@@ -121,8 +122,8 @@ func TestContextPrivacyAndAuthorization(t *testing.T) {
 	}
 	for _, n := range captured.Candidates {
 		fact := f.Facts[n.ID]
-		if !fact.IngredientsKnown || slices.Contains(fact.Ingredients, "花生") {
-			t.Fatal("unsafe/unknown note reached provider")
+		if fact.PerPersonCostCents == nil || *fact.PerPersonCostCents*2 > *captured.Conditions.BudgetMaxCents {
+			t.Fatal("over-budget/unknown-cost note reached provider")
 		}
 	}
 	if _, err := s.Generate(context.Background(), requestFor(t, f, "personal"), UserA); err != nil {
@@ -155,7 +156,7 @@ func TestContextPrivacyAndAuthorization(t *testing.T) {
 
 func TestFeedbackBatchAndFreshSession(t *testing.T) {
 	f := NewFixture()
-	s := serviceFor(t, f, FixedProvider{}, nil)
+	s := serviceFor(t, f, testutil.Provider{}, nil)
 	ctx := context.Background()
 	request := requestFor(t, f, "normal")
 	first, err := s.Generate(ctx, request, UserA)
@@ -236,7 +237,7 @@ func TestFailedBatchCanResumeWithoutLosingOldResult(t *testing.T) {
 		if calls == 2 {
 			return decisions.Result{}, errors.New("simulated timeout")
 		}
-		return (FixedProvider{}).Generate(ctx, input)
+		return (testutil.Provider{}).Generate(ctx, input)
 	})
 	s := serviceFor(t, f, p, nil)
 	ctx := context.Background()
@@ -267,7 +268,7 @@ func TestFailedBatchCanResumeWithoutLosingOldResult(t *testing.T) {
 
 func TestSnapshotsCancellationAndPlanningRejection(t *testing.T) {
 	f := NewFixture()
-	s := serviceFor(t, f, FixedProvider{}, nil)
+	s := serviceFor(t, f, testutil.Provider{}, nil)
 	ctx := context.Background()
 	first, err := s.Generate(ctx, requestFor(t, f, "normal"), UserA)
 	if err != nil {
@@ -298,7 +299,7 @@ func TestSnapshotsCancellationAndPlanningRejection(t *testing.T) {
 func TestExpiryAndAdoptionRechecksFacts(t *testing.T) {
 	f := NewFixture()
 	now := time.Now()
-	s := serviceFor(t, f, FixedProvider{}, func() time.Time { return now })
+	s := serviceFor(t, f, testutil.Provider{}, func() time.Time { return now })
 	ctx := context.Background()
 	d, err := s.Generate(ctx, requestFor(t, f, "normal"), UserA)
 	if err != nil {
@@ -306,13 +307,13 @@ func TestExpiryAndAdoptionRechecksFacts(t *testing.T) {
 	}
 	id := d.Result.Options[0].Selection.NoteID
 	fact := f.Facts[id]
-	fact.IngredientsKnown = false
+	fact.PerPersonCostCents = pointer(int64(10000))
 	f.Facts[id] = fact
 	event := decisions.Feedback{ID: "adopt", DecisionID: d.ID, Action: decisions.FeedbackAdopt, OptionID: d.Result.Options[0].OptionID}
 	if _, err := s.Feedback(ctx, event, UserA); err == nil {
-		t.Fatal("unknown hard constraint adopted")
+		t.Fatal("over-budget candidate adopted")
 	}
-	fact.IngredientsKnown = true
+	fact.PerPersonCostCents = pointer(int64(5000))
 	f.Facts[id] = fact
 	state := feedback(t, s, d, "adopt", decisions.FeedbackAdopt, 0, UserA)
 	now = state.ExpiresAt
@@ -331,7 +332,7 @@ func TestExpiryAndAdoptionRechecksFacts(t *testing.T) {
 
 func TestShortBatchAndExhaustion(t *testing.T) {
 	f := NewFixture()
-	s := serviceFor(t, f, FixedProvider{}, nil)
+	s := serviceFor(t, f, testutil.Provider{}, nil)
 	ctx := context.Background()
 	first, err := s.Generate(ctx, requestFor(t, f, "short"), UserA)
 	if err != nil || len(first.Result.Options) != 3 {
@@ -355,7 +356,7 @@ func TestShortBatchAndExhaustion(t *testing.T) {
 func TestInvalidModelAndIncompleteEvaluation(t *testing.T) {
 	f := NewFixture()
 	p := providerFunc(func(ctx context.Context, input decisions.Context) (decisions.Result, error) {
-		r, err := (FixedProvider{}).Generate(ctx, input)
+		r, err := (testutil.Provider{}).Generate(ctx, input)
 		if err != nil {
 			return r, err
 		}
@@ -373,7 +374,7 @@ func TestInvalidModelAndIncompleteEvaluation(t *testing.T) {
 	checker := checkerFunc(func(context.Context, decisions.Context) (decisions.SelectEvaluation, error) {
 		return decisions.SelectEvaluation{}, nil
 	})
-	s, err = decisions.NewDecisionService(store, checker, FixedProvider{}, decisions.ServiceConfig{})
+	s, err = decisions.NewDecisionService(store, checker, testutil.Provider{}, decisions.ServiceConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,7 +393,7 @@ func TestLateGenerationDoesNotOverwriteFeedback(t *testing.T) {
 			close(entered)
 			<-release
 		}
-		return (FixedProvider{}).Generate(ctx, input)
+		return (testutil.Provider{}).Generate(ctx, input)
 	})
 	s := serviceFor(t, f, p, nil)
 	ctx := context.Background()

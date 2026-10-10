@@ -53,11 +53,21 @@ type Participant struct {
 // Context 是服务端组装的决策上下文，不是数据库实体。
 // Candidates 携带用于事实检查、推荐解释与结果校验的笔记内容。
 type Context struct {
-	Task         Task          `json:"task"`
-	Query        string        `json:"query"`
-	Conditions   Conditions    `json:"conditions"`
-	Participants []Participant `json:"participants"`
-	Candidates   []notes.Note  `json:"candidates"`
+	Task          Task                   `json:"task"`
+	Query         string                 `json:"query"`
+	Conditions    Conditions             `json:"conditions"`
+	Participants  []Participant          `json:"participants"`
+	Candidates    []notes.Note           `json:"candidates"`
+	VerifiedFacts map[string]NumericFact `json:"verifiedFacts,omitempty"`
+}
+
+// NumericFact 是事实检查器提供的有来源数值，不包含模型推断。
+type NumericFact struct {
+	Source             string `json:"source"`
+	PerPersonCostCents *int64 `json:"perPersonCostCents"`
+	TotalCostCents     *int64 `json:"totalCostCents"`
+	People             int    `json:"people"`
+	DurationMinutes    *int   `json:"durationMinutes"`
 }
 
 // ParticipantMatch 解释一个方案为何适合某位参与者；每位参与者都需要有说明。

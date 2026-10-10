@@ -25,7 +25,7 @@ type Config struct {
 	ContextTokens int           // 上下文窗口大小，包含输入和输出。
 }
 
-// Provider 只接收服务层已授权、已通过硬约束检查的 Context。
+// Provider 只接收服务层已授权、已通过确定性检查的 Context。
 // 不读取 Store，也不自行扩大候选、查询记忆或执行工具。
 type Provider struct {
 	endpoint string       // 完整 /api/chat 地址。
@@ -83,7 +83,7 @@ type chatResponse struct {
 // OptionID 和最终业务校验由 DecisionService.generateResult 负责。
 func (p *Provider) Generate(ctx context.Context, input decisions.Context) (result decisions.Result, generationErr error) {
 	ctx, span := telemetry.Start(ctx, "ollama.generate", "LLM", nil)
-	span.SetAttributes(attribute.String("llm.system", "ollama"), attribute.String("llm.model_name", p.model), attribute.String("llm.prompt_template.version", "select-v1"))
+	span.SetAttributes(attribute.String("llm.system", "ollama"), attribute.String("llm.model_name", p.model), attribute.String("llm.prompt_template.version", "select-v2"))
 	defer func() { telemetry.Finish(span, generationErr) }()
 	if err := ctx.Err(); err != nil {
 		return decisions.Result{}, err

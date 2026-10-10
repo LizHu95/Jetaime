@@ -48,11 +48,11 @@ func TestCLIExportsWorkflowAndModelFailures(t *testing.T) {
 	defer model.Close()
 	var out bytes.Buffer
 	args := []string{"-trace", "-trace-endpoint", receiver.URL + "/v1/traces", "-trace-project", "test-jetaime", "-once"}
-	if err := run(context.Background(), args, strings.NewReader(""), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), args, strings.NewReader(""), &out); err != nil {
 		t.Fatal(err)
 	}
 	args = append(args, "-provider", "ollama", "-ollama-url", model.URL)
-	if err := run(context.Background(), args, strings.NewReader(""), &out); err == nil {
+	if err := runWithTestModel(t, context.Background(), args, strings.NewReader(""), &out); err == nil {
 		t.Fatal("invalid model output accepted")
 	}
 	mu.Lock()
@@ -120,7 +120,7 @@ func TestCLIExportsWorkflowAndModelFailures(t *testing.T) {
 
 func TestUnavailablePhoenixDoesNotFailDecision(t *testing.T) {
 	var out bytes.Buffer
-	if err := run(context.Background(), []string{"-trace", "-trace-endpoint", "http://127.0.0.1:1/v1/traces", "-once"}, strings.NewReader(""), &out); err != nil {
+	if err := runWithTestModel(t, context.Background(), []string{"-trace", "-trace-endpoint", "http://127.0.0.1:1/v1/traces", "-once"}, strings.NewReader(""), &out); err != nil {
 		t.Fatal("telemetry changed business result", err)
 	}
 	if !strings.Contains(out.String(), "recommended") {

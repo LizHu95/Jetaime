@@ -36,7 +36,7 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	jsonOutput := flags.Bool("json", false, "按 JSON 输出每一步")
 	fixturePath := flags.String("fixture", "", "读取人工定义的本地 JSON fixture；省略则用默认虚构资料")
 	dump := flags.Bool("dump-fixture", false, "输出完整 fixture JSON")
-	providerName := flags.String("provider", "mock", "推荐生成实现：mock 或 ollama")
+	providerName := flags.String("provider", "ollama", "推荐生成实现：ollama（后续可扩展云模型）")
 	ollamaURL := flags.String("ollama-url", "http://localhost:11434", "Ollama 服务地址")
 	model := flags.String("model", "qwen3.5:9b", "Ollama 已下载的模型标签")
 	modelTimeout := flags.Duration("model-timeout", 3*time.Minute, "单次模型调用超时，包含加载时间")
@@ -100,15 +100,13 @@ func run(ctx context.Context, args []string, in io.Reader, out io.Writer) error 
 	// 在这里选择具体生成实现；服务层通过 Provider 接口调用，不依赖 Ollama。
 	var provider decisions.Provider
 	switch *providerName {
-	case "mock":
-		provider = demo.FixedProvider{}
 	case "ollama":
 		provider, err = ollama.NewProvider(ollama.Config{BaseURL: *ollamaURL, Model: *model, Timeout: *modelTimeout, ContextTokens: *contextTokens})
 		if err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("unsupported provider %q; use mock or ollama", *providerName)
+		return fmt.Errorf("unsupported provider %q; use ollama", *providerName)
 	}
 	service, err := newFixtureService(store, fixture, provider)
 	if err != nil {

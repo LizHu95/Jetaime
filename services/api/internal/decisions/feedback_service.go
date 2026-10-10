@@ -105,7 +105,7 @@ func (s *DecisionService) GetSession(sessionID, actorID string) (Session, error)
 	return snapshot.Session, nil
 }
 
-// validateAdoption 在新的采纳事件应用前，重新检查选中笔记的当前硬约束。
+// validateAdoption 在新的采纳事件应用前，重新检查选中笔记的当前确定性条件。
 func (s *DecisionService) validateAdoption(ctx context.Context, data Dataset, decision Decision, session Session, feedback Feedback, actorID string) error {
 	var noteID string
 	for _, option := range decision.Result.Options {
