@@ -24,6 +24,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ollama"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
 //go:embed web/*
@@ -35,6 +37,7 @@ type Config struct {
 	Model         string
 	ModelTimeout  time.Duration
 	ContextTokens int
+	Trace         telemetry.Config // Phoenix 上报可选；页面记录始终保留。
 }
 type batchCommand struct{ DecisionID, ActorID, EventID string }
 type sessionConfig struct{ Provider, Model string }
@@ -54,6 +57,7 @@ type Server struct {
 	traces              map[string]Trace
 	traceOrder          []string
 	handler             http.Handler
+	tracerProvider      *sdktrace.TracerProvider
 }
 type input struct {
 	Request    decisions.Request        `json:"request"`
@@ -113,8 +117,16 @@ func New(config Config) (*Server, error) {
 	}
 	mux.Handle("/", http.FileServer(http.FS(files)))
 	s.handler = s.localOnly(mux)
+	s.tracerProvider, err = telemetry.NewProvider(context.Background(), config.Trace, sdktrace.WithSpanProcessor(&recordingRouter{}))
+	if err != nil {
+		return nil, err
+	}
 	return s, nil
 }
+
+// Shutdown 在 HTTP 请求结束后关闭共享 exporter，导出剩余追踪。
+func (s *Server) Shutdown(ctx context.Context) error { return s.tracerProvider.Shutdown(ctx) }
+
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.handler.ServeHTTP(w, r) }
 
 // 本机工具含完整调试数据；拒绝非本机 Host 与跨源请求。
@@ -186,7 +198,7 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		write(w, 404, response{Error: "unknown API route"})
 		return
 	}
-	ctx, rec, provider := record(r.Context())
+	ctx, rec := record(r.Context(), s.tracerProvider)
 	trace := Trace{ID: uuid.NewString(), Operation: path, Provider: s.providerName, Model: s.model, StartedAt: time.Now()}
 	if len(parts) == 3 && parts[0] == "sessions" {
 		if binding, ok := s.bindings[parts[1]]; ok {
@@ -205,10 +217,11 @@ func (s *Server) api(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	ctx, span := telemetry.Start(ctx, "debug."+path, "CHAIN", in)
+	trace.OTelTraceID = span.SpanContext().TraceID().String()
+	span.SetAttributes(attribute.String("debug.trace_id", trace.ID))
 	out, err := s.mutate(ctx, path, parts, in)
 	telemetry.Output(span, out)
 	telemetry.Finish(span, err)
-	_ = provider.Shutdown(context.Background())
 	trace.DurationMS = float64(time.Since(trace.StartedAt)) / float64(time.Millisecond)
 	trace.Stages = rec.snapshot()
 	if path == "decisions" {

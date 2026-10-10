@@ -24,17 +24,18 @@ type Stage struct {
 }
 
 type Trace struct {
-	ID         string    `json:"id"`
-	Operation  string    `json:"operation"`
-	Provider   string    `json:"provider"`
-	Model      string    `json:"model"`
-	StartedAt  time.Time `json:"startedAt"`
-	DurationMS float64   `json:"durationMs"`
-	Error      string    `json:"error,omitempty"`
-	Stages     []Stage   `json:"stages"`
+	ID          string    `json:"id"`
+	OTelTraceID string    `json:"otelTraceId"`
+	Operation   string    `json:"operation"`
+	Provider    string    `json:"provider"`
+	Model       string    `json:"model"`
+	StartedAt   time.Time `json:"startedAt"`
+	DurationMS  float64   `json:"durationMs"`
+	Error       string    `json:"error,omitempty"`
+	Stages      []Stage   `json:"stages"`
 }
 
-// 每个操作使用独立同步 recorder；不依赖 Phoenix，也不修改全局 tracer。
+// 每个操作保留独立同步 recorder；本地记录不依赖 Phoenix 网络上报。
 type recorder struct {
 	mu     sync.Mutex
 	stages []Stage
@@ -65,10 +66,34 @@ func (r *recorder) OnEnd(span sdktrace.ReadOnlySpan) {
 }
 func (*recorder) Shutdown(context.Context) error   { return nil }
 func (*recorder) ForceFlush(context.Context) error { return nil }
-func record(ctx context.Context) (context.Context, *recorder, *sdktrace.TracerProvider) {
+
+// 服务共用一个 provider，按请求 context 把同步 span 分发到各自的页面记录。
+// Phoenix 的批量队列由服务持有，不会在每个请求结束时关闭或等待网络导出。
+type recorderKey struct{}
+type recordingRouter struct{ pending sync.Map }
+
+func recordingKey(span sdktrace.ReadOnlySpan) string {
+	ctx := span.SpanContext()
+	return ctx.TraceID().String() + ctx.SpanID().String()
+}
+
+func (r *recordingRouter) OnStart(ctx context.Context, span sdktrace.ReadWriteSpan) {
+	if rec, ok := ctx.Value(recorderKey{}).(*recorder); ok {
+		r.pending.Store(recordingKey(span), rec)
+	}
+}
+func (r *recordingRouter) OnEnd(span sdktrace.ReadOnlySpan) {
+	if value, ok := r.pending.LoadAndDelete(recordingKey(span)); ok {
+		value.(*recorder).OnEnd(span)
+	}
+}
+func (*recordingRouter) Shutdown(context.Context) error   { return nil }
+func (*recordingRouter) ForceFlush(context.Context) error { return nil }
+
+func record(ctx context.Context, provider *sdktrace.TracerProvider) (context.Context, *recorder) {
 	r := &recorder{stages: []Stage{}}
-	p := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(r), sdktrace.WithSampler(sdktrace.AlwaysSample()))
-	return telemetry.WithTracer(ctx, p.Tracer("jetaime.debugui")), r, p
+	ctx = context.WithValue(ctx, recorderKey{}, r)
+	return telemetry.WithTracer(ctx, provider.Tracer("jetaime.debugui")), r
 }
 func (r *recorder) snapshot() []Stage {
 	r.mu.Lock()

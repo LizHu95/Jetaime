@@ -1,15 +1,17 @@
 .DEFAULT_GOAL := help
 
 GO_DIR := services/api
+DEBUG_ARGS ?= -trace
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: debug help tools fmt fmt-check build test vet lint check \
+.PHONY: debug trace help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
 	@echo "make debug      Start the local decision debug console"
+	@echo "make trace      Start local Phoenix at http://127.0.0.1:6006"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -68,4 +70,8 @@ go-check: go-fmt-check go-build go-vet go-test go-lint
 
 # Local browser console and API, backed by the editable fictional fixture.
 debug:
-	cd $(GO_DIR) && go run ./cmd/api -fixture ./testdata/demo/fixture.json
+	cd $(GO_DIR) && go run ./cmd/api -fixture ./testdata/demo/fixture.json $(DEBUG_ARGS)
+
+# Keep Phoenix running in a separate terminal while using the debug console.
+trace:
+	bash deploy/phoenix/start.sh

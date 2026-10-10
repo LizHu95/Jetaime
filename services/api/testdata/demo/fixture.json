@@ -4,1397 +4,1215 @@
       {
         "id": "personal-a",
         "type": "personal",
-        "name": "A 的个人空间",
-        "creatorId": "user-a"
+        "name": "Liz 的个人空间",
+        "creatorId": "Liz"
       },
       {
         "id": "personal-b",
         "type": "personal",
-        "name": "B 的个人空间",
-        "creatorId": "user-b"
+        "name": "Jade 的个人空间",
+        "creatorId": "Jade"
       },
       {
         "id": "couple-a-b",
         "type": "couple",
-        "name": "A 与 B 的共同空间",
-        "creatorId": "user-a"
+        "name": "洋芋之家",
+        "creatorId": "Liz"
       }
     ],
     "members": [
       {
         "spaceId": "personal-a",
-        "userId": "user-a",
+        "userId": "Liz",
         "role": "owner"
       },
       {
         "spaceId": "personal-b",
-        "userId": "user-b",
+        "userId": "Jade",
         "role": "owner"
       },
       {
         "spaceId": "couple-a-b",
-        "userId": "user-a",
+        "userId": "Liz",
         "role": "owner"
       },
       {
         "spaceId": "couple-a-b",
-        "userId": "user-b",
+        "userId": "Jade",
         "role": "member"
       }
     ],
     "notes": [
       {
         "id": "restaurant-01",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 01",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "哥哥的深夜食堂",
+        "description": "日式烧鸟，轻量",
         "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
+        "tags": []
       },
       {
         "id": "restaurant-02",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 02",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "王富贵海鲜火锅",
+        "description": "海鲜火锅，价格实惠，锅底可选，一人一锅，比较有特色的是粥底火锅",
         "type": "restaurant",
         "tags": [
-          "辣",
-          "户外"
+          "海鲜",
+          "火锅"
         ]
       },
       {
         "id": "restaurant-03",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 03",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "青川重庆火锅",
+        "description": "重庆火锅，环境很好，江景可以看到东方明珠",
         "type": "restaurant",
         "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "重庆火锅"
         ]
       },
       {
         "id": "restaurant-04",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 04",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "红盔甲",
+        "description": "小龙虾，十三香汤汁可以拌面，冰镇口味的虾肉很鲜美，虾头的膏也很香，提供剥虾服务，价格略贵",
         "type": "restaurant",
         "tags": [
-          "辣",
-          "户外"
+          "小龙虾"
         ]
       },
       {
         "id": "restaurant-05",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 05",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "小骆驼西安烧烤",
+        "description": "有冒菜和烧烤，烧烤味道不错，价格实惠",
         "type": "restaurant",
         "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "烧烤"
         ]
       },
       {
         "id": "restaurant-06",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 06",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "土鸡火锅",
+        "description": "广州清远鸡，鸡汤搭配海苔和小米椒很好喝，鸡肉很嫩，烧烤很不错，免费的西瓜很好吃，价格不便宜",
         "type": "restaurant",
         "tags": [
-          "辣",
-          "户外"
+          "鸡肉",
+          "火锅"
         ]
       },
       {
         "id": "restaurant-07",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 07",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "鸿姐重庆火锅",
+        "description": "重庆火锅",
         "type": "restaurant",
         "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "重庆火锅"
         ]
       },
       {
         "id": "restaurant-08",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 08",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "马厂重庆火锅",
+        "description": "重庆火锅，腰片很好吃",
         "type": "restaurant",
         "tags": [
-          "辣",
-          "户外"
+          "重庆火锅"
         ]
       },
       {
         "id": "restaurant-09",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 09",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "很久以前羊肉串",
+        "description": "羊肉串很好吃，扎啤很不错，烧烤种类不算多",
         "type": "restaurant",
         "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-10",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 10",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "restaurant-11",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 11",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-12",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 12",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "restaurant-13",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 13",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-14",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 14",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "restaurant-15",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 15",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-16",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 16",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "restaurant-17",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 17",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-18",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 18",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "restaurant-19",
-        "creatorId": "user-a",
-        "title": "虚构餐厅 19",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "restaurant-20",
-        "creatorId": "user-b",
-        "title": "虚构餐厅 20",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "restaurant",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-01",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 01",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-02",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 02",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-03",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 03",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-04",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 04",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-05",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 05",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-06",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 06",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-07",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 07",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-08",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 08",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-09",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 09",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-10",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 10",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-11",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 11",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-12",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 12",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-13",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 13",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "recipe-14",
-        "creatorId": "user-b",
-        "title": "虚构菜谱 14",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "recipe-15",
-        "creatorId": "user-a",
-        "title": "虚构菜谱 15",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "recipe",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "羊肉串"
         ]
       },
       {
         "id": "activity-01",
-        "creatorId": "user-a",
-        "title": "虚构活动 01",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "看画展",
+        "description": "",
         "type": "activity",
         "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "画展"
         ]
       },
       {
         "id": "activity-02",
-        "creatorId": "user-b",
-        "title": "虚构活动 02",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "泰勒演唱会",
+        "description": "",
         "type": "activity",
         "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "activity-03",
-        "creatorId": "user-a",
-        "title": "虚构活动 03",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "activity-04",
-        "creatorId": "user-b",
-        "title": "虚构活动 04",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "activity-05",
-        "creatorId": "user-a",
-        "title": "虚构活动 05",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "activity-06",
-        "creatorId": "user-b",
-        "title": "虚构活动 06",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "activity-07",
-        "creatorId": "user-a",
-        "title": "虚构活动 07",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
-        ]
-      },
-      {
-        "id": "activity-08",
-        "creatorId": "user-b",
-        "title": "虚构活动 08",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "辣",
-          "户外"
-        ]
-      },
-      {
-        "id": "activity-09",
-        "creatorId": "user-a",
-        "title": "虚构活动 09",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "activity",
-        "tags": [
-          "清淡",
-          "安静",
-          "室内"
+          "演唱会",
+          "泰勒"
         ]
       },
       {
         "id": "activity-10",
-        "creatorId": "user-b",
-        "title": "虚构活动 10",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "话剧喜剧",
+        "description": "Liz 收藏的游玩项目。",
         "type": "activity",
         "tags": [
-          "辣",
-          "户外"
+          "话剧"
+        ]
+      },
+      {
+        "id": "activity-11",
+        "creatorId": "Liz",
+        "title": "曾沛慈演唱会",
+        "description": "",
+        "type": "activity",
+        "tags": [
+          "演唱会",
+          "曾沛慈"
         ]
       },
       {
         "id": "movie-01",
-        "creatorId": "user-a",
-        "title": "虚构电影 01",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Jade",
+        "title": "奥德赛电影",
+        "description": "动作电影",
         "type": "movie",
         "tags": [
-          "喜剧",
-          "室内"
+          "电影"
         ]
       },
       {
         "id": "movie-02",
-        "creatorId": "user-b",
-        "title": "虚构电影 02",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
+        "creatorId": "Liz",
+        "title": "什么意思夫妇电影",
+        "description": "喜剧电影，小沈阳主演",
         "type": "movie",
         "tags": [
-          "喜剧",
-          "室内"
+          "电影"
         ]
       },
       {
-        "id": "movie-03",
-        "creatorId": "user-a",
-        "title": "虚构电影 03",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "movie",
+        "id": "activity-03",
+        "creatorId": "Liz",
+        "title": "上海世博园",
+        "description": "",
+        "type": "activity",
+        "tags": []
+      },
+      {
+        "id": "activity-04",
+        "creatorId": "Liz",
+        "title": "Switch 游戏：分手厨房",
+        "description": "双人合作游戏，考验两人配合能力。宅家必备。",
+        "type": "activity",
         "tags": [
-          "喜剧",
-          "室内"
+          "Switch",
+          "游戏"
         ]
       },
       {
-        "id": "movie-04",
-        "creatorId": "user-b",
-        "title": "虚构电影 04",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "movie",
+        "id": "activity-06",
+        "creatorId": "Liz",
+        "title": "看综艺",
+        "description": "Liz 收藏的游玩项目。",
+        "type": "activity",
         "tags": [
-          "喜剧",
-          "室内"
+          "综艺"
         ]
       },
       {
-        "id": "movie-05",
-        "creatorId": "user-a",
-        "title": "虚构电影 05",
-        "description": "仅用于本地验证的虚构内容，不对应真实商户、菜谱或上映信息。",
-        "type": "movie",
+        "id": "activity-07",
+        "creatorId": "Liz",
+        "title": "拼豆",
+        "description": "需要打车去门店，能产出实物的手工活动。",
+        "type": "activity",
         "tags": [
-          "喜剧",
-          "室内"
+          "手工"
+        ]
+      },
+      {
+        "id": "activity-08",
+        "creatorId": "Liz",
+        "title": "乐高",
+        "description": "在家拼乐高，能产出实物的手工活动。",
+        "type": "activity",
+        "tags": [
+          "乐高"
+        ]
+      },
+      {
+        "id": "activity-09",
+        "creatorId": "Liz",
+        "title": "拼图",
+        "description": "在家玩拼图，能产出实物的手工活动。",
+        "type": "activity",
+        "tags": [
+          "拼图"
+        ]
+      },
+      {
+        "id": "other-01",
+        "creatorId": "Jade",
+        "title": "澳门",
+        "description": "需要港澳通行证",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-02",
+        "creatorId": "Liz",
+        "title": "澳大利亚",
+        "description": "费用贵。耗时长",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-03",
+        "creatorId": "Liz",
+        "title": "马来西亚",
+        "description": "免签",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-04",
+        "creatorId": "Liz",
+        "title": "新加坡",
+        "description": "免签",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-05",
+        "creatorId": "Liz",
+        "title": "印度尼西亚",
+        "description": "免签",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-06",
+        "creatorId": "Liz",
+        "title": "日本",
+        "description": "签证不便宜",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-07",
+        "creatorId": "Liz",
+        "title": "首尔",
+        "description": "需要办签证",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-08",
+        "creatorId": "Liz",
+        "title": "济州岛",
+        "description": "免签",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-09",
+        "creatorId": "Liz",
+        "title": "泰国",
+        "description": "免签",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-10",
+        "creatorId": "Liz",
+        "title": "深圳",
+        "description": "国内旅游",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-11",
+        "creatorId": "Liz",
+        "title": "土耳其",
+        "description": "免签，机票贵，消费不高",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-12",
+        "creatorId": "Liz",
+        "title": "冰岛",
+        "description": "费用高，冷，看极光",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-13",
+        "creatorId": "Liz",
+        "title": "大理",
+        "description": "老家。开销主要在机票",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "other-14",
+        "creatorId": "Liz",
+        "title": "西双版纳",
+        "description": "水果很好吃",
+        "type": "other",
+        "tags": [
+          "旅游"
+        ],
+        "attributes": {
+          "category": "travel"
+        }
+      },
+      {
+        "id": "recipe-01",
+        "creatorId": "Liz",
+        "title": "云朵蛋糕",
+        "description": "需要蛋清、牛奶、面粉，使用烤箱制作，口感很蓬松。",
+        "type": "recipe",
+        "tags": [
+          "蛋清",
+          "牛奶",
+          "面粉",
+          "烤箱",
+          "蓬松"
+        ]
+      },
+      {
+        "id": "recipe-02",
+        "creatorId": "Liz",
+        "title": "舒芙蕾",
+        "description": "需要蛋清、鸡蛋、牛奶、面粉，使用煎锅制作。",
+        "type": "recipe",
+        "tags": [
+          "蛋清",
+          "鸡蛋",
+          "牛奶",
+          "面粉",
+          "煎锅"
+        ]
+      },
+      {
+        "id": "recipe-03",
+        "creatorId": "Liz",
+        "title": "六婆菠菜",
+        "description": "需要六婆辣椒粉和菠菜，辣味，Jade 很爱吃。",
+        "type": "recipe",
+        "tags": [
+          "六婆辣椒粉",
+          "菠菜",
+          "辣味"
+        ]
+      },
+      {
+        "id": "recipe-04",
+        "creatorId": "Liz",
+        "title": "番茄炒蛋",
+        "description": "Jade 爱吃番茄炒蛋。",
+        "type": "recipe",
+        "tags": [
+          "番茄",
+          "鸡蛋"
+        ]
+      },
+      {
+        "id": "recipe-05",
+        "creatorId": "Liz",
+        "title": "黏糊麻辣烫",
+        "description": "用麻辣烫速食搭配家里现有的蔬菜；Liz 比较喜欢加裙带菜和火腿肠，Jade 爱吃。",
+        "type": "recipe",
+        "tags": [
+          "麻辣烫",
+          "速食",
+          "蔬菜",
+          "裙带菜",
+          "火腿肠"
         ]
       }
     ],
     "collections": [
       {
-        "spaceId": "personal-a",
+        "spaceId": "personal-b",
         "noteId": "restaurant-01",
-        "addedBy": "user-a"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-01",
-        "addedBy": "user-a"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-b",
         "noteId": "restaurant-02",
-        "addedBy": "user-b"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-02",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-03",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-03",
-        "addedBy": "user-a"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-b",
+        "noteId": "restaurant-03",
+        "addedBy": "Jade"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "restaurant-03",
+        "addedBy": "Jade"
+      },
+      {
+        "spaceId": "personal-a",
         "noteId": "restaurant-04",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-04",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-a",
         "noteId": "restaurant-05",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-05",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
-        "spaceId": "personal-b",
+        "spaceId": "personal-a",
         "noteId": "restaurant-06",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-06",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-a",
         "noteId": "restaurant-07",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-07",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
-        "spaceId": "personal-b",
+        "spaceId": "personal-a",
         "noteId": "restaurant-08",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-08",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-a",
         "noteId": "restaurant-09",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "restaurant-09",
-        "addedBy": "user-a"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-b",
-        "noteId": "restaurant-10",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-10",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-11",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-11",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "restaurant-12",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-12",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-13",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-13",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "restaurant-14",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-14",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-15",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-15",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "restaurant-16",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-16",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-17",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-17",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "restaurant-18",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-18",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "restaurant-19",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "restaurant-19",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "restaurant-20",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-01",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-01",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-02",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-02",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-03",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-03",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-04",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-04",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-05",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-05",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-06",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-06",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-07",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-07",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-08",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-08",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-09",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-09",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-10",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-10",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-11",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-11",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-12",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-12",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-13",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-13",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "recipe-14",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-14",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "recipe-15",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "recipe-15",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-a",
         "noteId": "activity-01",
-        "addedBy": "user-a"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "activity-01",
-        "addedBy": "user-a"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-b",
         "noteId": "activity-02",
-        "addedBy": "user-b"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "activity-02",
-        "addedBy": "user-b"
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-a",
-        "noteId": "activity-03",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-03",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "activity-04",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-04",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "activity-05",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-05",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "activity-06",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-06",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "activity-07",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-07",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
-        "noteId": "activity-08",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-08",
-        "addedBy": "user-b"
-      },
-      {
-        "spaceId": "personal-a",
-        "noteId": "activity-09",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "couple-a-b",
-        "noteId": "activity-09",
-        "addedBy": "user-a"
-      },
-      {
-        "spaceId": "personal-b",
         "noteId": "activity-10",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
         "noteId": "activity-10",
-        "addedBy": "user-b"
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-a",
-        "noteId": "movie-01",
-        "addedBy": "user-a"
+        "noteId": "activity-11",
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
-        "noteId": "movie-01",
-        "addedBy": "user-a"
+        "noteId": "activity-11",
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-b",
-        "noteId": "movie-02",
-        "addedBy": "user-b"
+        "noteId": "movie-01",
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
-        "noteId": "movie-02",
-        "addedBy": "user-b"
+        "noteId": "movie-01",
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-a",
-        "noteId": "movie-03",
-        "addedBy": "user-a"
+        "noteId": "movie-02",
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
-        "noteId": "movie-03",
-        "addedBy": "user-a"
+        "noteId": "movie-02",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-06",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-06",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-07",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-07",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-08",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-08",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "activity-09",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "activity-09",
+        "addedBy": "Liz"
       },
       {
         "spaceId": "personal-b",
-        "noteId": "movie-04",
-        "addedBy": "user-b"
+        "noteId": "other-01",
+        "addedBy": "Jade"
       },
       {
         "spaceId": "couple-a-b",
-        "noteId": "movie-04",
-        "addedBy": "user-b"
+        "noteId": "other-01",
+        "addedBy": "Jade"
       },
       {
         "spaceId": "personal-a",
-        "noteId": "movie-05",
-        "addedBy": "user-a"
+        "noteId": "other-02",
+        "addedBy": "Liz"
       },
       {
         "spaceId": "couple-a-b",
-        "noteId": "movie-05",
-        "addedBy": "user-a"
+        "noteId": "other-02",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-05",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-05",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-06",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-06",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-07",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-07",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-08",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-08",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-09",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-09",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-10",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-10",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-11",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-11",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-12",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-12",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-13",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-13",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "other-14",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "other-14",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-01",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-01",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-02",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-02",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-03",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-04",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "personal-a",
+        "noteId": "recipe-05",
+        "addedBy": "Liz"
+      },
+      {
+        "spaceId": "couple-a-b",
+        "noteId": "recipe-05",
+        "addedBy": "Liz"
       }
     ],
     "memories": [
       {
-        "id": "user-a-memory-01",
-        "userId": "user-a",
+        "id": "Liz-memory-01",
+        "userId": "Liz",
         "type": "preference",
-        "content": "喜欢辣",
+        "content": "喜欢串串",
         "strength": "medium",
         "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-02",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "喜欢安静",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-03",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "喜欢户外",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-04",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "喜欢喜剧",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-05",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "喜欢清淡",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-06",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "喜欢室内",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-07",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "偏好简单准备",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-08",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "偏好少排队",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-09",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "愿意尝试新内容",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-10",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "私有：偏爱深夜出行",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": []
-      },
-      {
-        "id": "user-a-memory-11",
-        "userId": "user-a",
-        "type": "preference",
-        "content": "推断：喜欢高价餐厅",
-        "strength": "medium",
-        "source": "inferred",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-a-memory-12",
-        "userId": "user-a",
-        "type": "feedback",
-        "content": "上次电影一般",
-        "strength": "low",
-        "source": "feedback",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-01",
-        "userId": "user-b",
-        "type": "constraint",
-        "content": "不吃花生",
-        "strength": "hard",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-02",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "喜欢清淡",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-03",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "喜欢安静",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-04",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "喜欢室内",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-05",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "喜欢喜剧",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-06",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "偏好短活动",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-07",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "偏好简单准备",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-08",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "愿意尝试新内容",
-        "strength": "medium",
-        "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": [
-          "couple-a-b"
-        ]
-      },
-      {
-        "id": "user-b-memory-09",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "推断：喜欢辣",
-        "strength": "medium",
-        "source": "inferred",
         "confirmed": true,
         "allowedSpaceIds": [
           "couple-a-b"
         ]
       },
       {
-        "id": "user-b-memory-10",
-        "userId": "user-b",
+        "id": "Liz-memory-02",
+        "userId": "Liz",
         "type": "preference",
-        "content": "私有：偏好独自出行",
+        "content": "喜欢火锅",
         "strength": "medium",
         "source": "explicit",
-        "confirmed": false,
-        "allowedSpaceIds": []
-      },
-      {
-        "id": "user-b-memory-11",
-        "userId": "user-b",
-        "type": "preference",
-        "content": "推断：喜欢户外",
-        "strength": "medium",
-        "source": "inferred",
-        "confirmed": false,
+        "confirmed": true,
         "allowedSpaceIds": [
           "couple-a-b"
         ]
       },
       {
-        "id": "user-b-memory-12",
-        "userId": "user-b",
-        "type": "feedback",
-        "content": "上次活动一般",
-        "strength": "low",
-        "source": "feedback",
-        "confirmed": false,
+        "id": "Liz-memory-03",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢烧烤",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-04",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢甜食",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-05",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢辣条",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-06",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢软糖",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-07",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢果汁",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-08",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "喜欢鱼肉",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-09",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "不怎么爱三文鱼",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-10",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "不喜欢韭菜",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-11",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "最近在健身",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-12",
+        "userId": "Liz",
+        "type": "constraint",
+        "content": "胆固醇有点高",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Liz-memory-13",
+        "userId": "Liz",
+        "type": "preference",
+        "content": "Liz 是字节跳动的前端程序员",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-01",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "喜欢三文鱼刺身",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-02",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "喜欢咖啡",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-03",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "喜欢可乐",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-04",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "喜欢鸡肉",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-05",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "对牛肉喜好一般",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-06",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "对鱼肉喜好一般",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-07",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "不喜欢肥肉",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-08",
+        "userId": "Jade",
+        "type": "constraint",
+        "content": "破伤风过敏",
+        "strength": "hard",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-09",
+        "userId": "Jade",
+        "type": "constraint",
+        "content": "黄安过敏",
+        "strength": "hard",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-10",
+        "userId": "Jade",
+        "type": "constraint",
+        "content": "肠胃不太好",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-11",
+        "userId": "Jade",
+        "type": "constraint",
+        "content": "晚上 21:00 后吃饭容易胃疼",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-12",
+        "userId": "Jade",
+        "type": "preference",
+        "content": "Jade 在上海财经读研究生",
+        "strength": "medium",
+        "source": "explicit",
+        "confirmed": true,
+        "allowedSpaceIds": [
+          "couple-a-b"
+        ]
+      },
+      {
+        "id": "Jade-memory-13",
+        "userId": "Jade",
+        "type": "constraint",
+        "content": "没有收入",
+        "strength": "strong",
+        "source": "explicit",
+        "confirmed": true,
         "allowedSpaceIds": [
           "couple-a-b"
         ]
@@ -1402,636 +1220,494 @@
     ]
   },
   "facts": {
-    "activity-01": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
+    "restaurant-01": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 50,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-02": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-03": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-04": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-05": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-06": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-07": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-08": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "restaurant-09": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "activity-01": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
       "accessible": null
     },
     "activity-02": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 60,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "activity-03": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "activity-04": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "activity-05": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 9000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "activity-06": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 4000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "activity-07": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "activity-08": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "activity-09": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": true,
+      "indoor": null,
       "accessible": null
     },
     "activity-10": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 50,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
+      "indoor": null,
+      "accessible": null
+    },
+    "activity-11": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
       "accessible": null
     },
     "movie-01": {
       "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
+      "source": "用户提供：电影票价（每人一张）及电影时长",
+      "perPersonCostCents": 10000,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 95,
+      "durationMinutes": 172,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
       "accessible": null
     },
     "movie-02": {
       "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
+      "source": "用户提供：电影票价（每人一张）及电影时长",
+      "perPersonCostCents": 5000,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 100,
+      "durationMinutes": 106,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
+      "indoor": null,
       "accessible": null
     },
-    "movie-03": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
+    "activity-03": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 105,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
       "accessible": null
     },
-    "movie-04": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
+    "activity-04": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 110,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
+      "indoor": null,
       "accessible": null
     },
-    "movie-05": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 9000,
+    "activity-06": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
       "totalCostCents": null,
       "people": 0,
-      "durationMinutes": 115,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
+      "accessible": null
+    },
+    "activity-07": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "activity-08": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "activity-09": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-01": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-02": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-03": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-04": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-05": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-06": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-07": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-08": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-09": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-10": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-11": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-12": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-13": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
+      "accessible": null
+    },
+    "other-14": {
+      "verified": false,
+      "source": "",
+      "perPersonCostCents": null,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
+      "ingredients": [],
+      "indoor": null,
       "accessible": null
     },
     "recipe-01": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
+      "verified": false,
+      "source": "",
       "perPersonCostCents": null,
-      "totalCostCents": 2100,
-      "people": 2,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
       "accessible": null
     },
     "recipe-02": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
+      "verified": false,
+      "source": "",
       "perPersonCostCents": null,
-      "totalCostCents": 2200,
-      "people": 2,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
+      "indoor": null,
       "accessible": null
     },
     "recipe-03": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
+      "verified": false,
+      "source": "",
       "perPersonCostCents": null,
-      "totalCostCents": 2300,
-      "people": 2,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
+      "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": true,
+      "indoor": null,
       "accessible": null
     },
     "recipe-04": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
+      "verified": false,
+      "source": "",
       "perPersonCostCents": null,
-      "totalCostCents": 2400,
-      "people": 2,
-      "durationMinutes": 50,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
+      "indoor": null,
       "accessible": null
     },
     "recipe-05": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
+      "verified": false,
+      "source": "",
       "perPersonCostCents": null,
-      "totalCostCents": 2500,
-      "people": 2,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "recipe-06": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 2600,
-      "people": 2,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "recipe-07": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 2700,
-      "people": 2,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "海鲜"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "recipe-08": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 2800,
-      "people": 2,
-      "durationMinutes": 60,
+      "totalCostCents": null,
+      "people": 0,
+      "durationMinutes": null,
       "ingredientsKnown": false,
       "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "recipe-09": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 2900,
-      "people": 2,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "recipe-10": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3000,
-      "people": 2,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": false,
-      "accessible": null
-    },
-    "recipe-11": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3100,
-      "people": 2,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "recipe-12": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3200,
-      "people": 2,
-      "durationMinutes": 40,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "recipe-13": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3300,
-      "people": 2,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "recipe-14": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3400,
-      "people": 2,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "海鲜"
-      ],
-      "indoor": false,
-      "accessible": null
-    },
-    "recipe-15": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": 3500,
-      "people": 2,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-01": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-02": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-03": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-04": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-05": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 9000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-06": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 4000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-07": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "海鲜"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-08": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-09": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-10": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-11": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 9000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-12": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 4000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-13": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-14": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 6000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "海鲜"
-      ],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-15": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 7000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-16": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 8000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": false,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-17": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 9000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-18": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 4000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 40,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": false,
-      "accessible": null
-    },
-    "restaurant-19": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": 5000,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 50,
-      "ingredientsKnown": true,
-      "ingredients": [],
-      "indoor": true,
-      "accessible": null
-    },
-    "restaurant-20": {
-      "verified": true,
-      "source": "人工定义的虚构资料 v1",
-      "perPersonCostCents": null,
-      "totalCostCents": null,
-      "people": 0,
-      "durationMinutes": 60,
-      "ingredientsKnown": false,
-      "ingredients": [
-        "花生"
-      ],
-      "indoor": false,
+      "indoor": null,
       "accessible": null
     }
   },
   "scenarios": [
     {
       "name": "normal",
-      "description": "两人晚餐：总预算150元、60分钟，B不吃花生",
+      "description": "Liz 和 Jade 的晚餐：总预算150元、60分钟；收藏未提供价格、耗时，过敏约束尚无法核验",
       "request": {
         "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
         "query": "今晚两个人吃什么？",
         "conditions": {
@@ -2044,14 +1720,14 @@
           "softPreferences": []
         }
       },
-      "expected": "recommended"
+      "expected": "insufficient_information"
     },
     {
       "name": "conflict",
-      "description": "显式零预算：候选均有确定费用",
+      "description": "显式零预算：餐厅费用未知，无法确定是否超预算",
       "request": {
         "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
         "query": "今晚两个人做什么？",
         "conditions": {
@@ -2064,14 +1740,14 @@
           "softPreferences": []
         }
       },
-      "expected": "constraint_conflict"
+      "expected": "insufficient_information"
     },
     {
       "name": "unknown",
-      "description": "必须无障碍：候选缺少已确认设施信息",
+      "description": "必须无障碍：收藏未提供已确认设施信息",
       "request": {
         "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
         "query": "今晚两个人做什么？",
         "conditions": {
@@ -2089,16 +1765,16 @@
       "expected": "insufficient_information"
     },
     {
-      "name": "empty",
-      "description": "当前空间没有 other 类型收藏",
+      "name": "recipe",
+      "description": "Liz 和 Jade 从 Liz 收藏的五道菜谱中选择；过敏约束尚无法核验",
       "request": {
         "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
-        "query": "今晚两个人做什么？",
+        "query": "今晚两个人在家做什么吃？",
         "conditions": {
           "noteTypes": [
-            "other"
+            "recipe"
           ],
           "budgetMaxCents": null,
           "durationMaxMinutes": null,
@@ -2106,14 +1782,14 @@
           "softPreferences": []
         }
       },
-      "expected": "no_candidates"
+      "expected": "insufficient_information"
     },
     {
       "name": "personal",
-      "description": "个人决策：只读取本人收藏与记忆",
+      "description": "Liz 的个人决策：只读取 Liz 的餐厅收藏与记忆",
       "request": {
         "spaceId": "personal-a",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
         "query": "我自己吃什么？",
         "conditions": {
@@ -2133,7 +1809,7 @@
       "description": "同时要求室内和户外：已确认条件互相冲突",
       "request": {
         "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "requesterId": "Liz",
         "task": "select",
         "query": "今晚两个人做什么？",
         "conditions": {
@@ -2153,12 +1829,12 @@
     },
     {
       "name": "short",
-      "description": "电影候选5条：第二批只剩2条未看选项",
+      "description": "Liz 的电影收藏只有什么意思夫妇电影一项，候选不足三条",
       "request": {
-        "spaceId": "couple-a-b",
-        "requesterId": "user-a",
+        "spaceId": "personal-a",
+        "requesterId": "Liz",
         "task": "select",
-        "query": "今晚两个人做什么？",
+        "query": "我想看电影",
         "conditions": {
           "noteTypes": [
             "movie"

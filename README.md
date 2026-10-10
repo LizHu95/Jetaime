@@ -87,8 +87,10 @@ go run ./cmd/decision -fixture ./testdata/demo/fixture.json -provider ollama -in
 
 ```bash
 cd services/api
-go run ./cmd/api -fixture ./testdata/demo/fixture.json
+go run ./cmd/api -fixture ./testdata/demo/fixture.json -trace
 ```
+
+`make debug` 默认同时记录页面 Trace 并上报 Phoenix。先在另一个终端运行 `make trace`，再启动调试台；如果 Phoenix 已运行，无需重复启动。可以用 `make debug DEBUG_ARGS=` 仅记录页面，或用 `make debug DEBUG_ARGS="-trace -trace-project jetaime-debug"` 更换项目。手动运行 `cmd/api` 时需显式加 `-trace` 开启上报。
 
 打开 <http://127.0.0.1:8080>。Go 服务内嵌静态 HTML/CSS/JS，无需安装前端依赖或单独运行前端。默认使用 Mock，可以在页面切换 Ollama 并指定模型；模型需要预先下载，Ollama 需要运行。服务启动参数包括 `-addr 127.0.0.1:8080`、`-ollama-url`、`-model`、`-model-timeout` 和 `-context-tokens`，模型默认值与 CLI 相同。
 
@@ -100,7 +102,9 @@ go run ./cmd/api -fixture ./testdata/demo/fixture.json
 - 按模拟身份查看跨会话历史、各轮条件、反馈、采纳及排除状态。切换到旧批次时不能从它发起新换批。
 - 查看每步输入输出、耗时、合法候选的硬约束结论、人工事实与授权记忆；Ollama 调用展示实际 Prompt、Schema、原始响应和可用 Token 统计。失败也保留 Trace，可导出 JSON。Trace 仅保留最近 100 次操作，不依赖 Phoenix。
 
-这是本机开发工具，模拟身份由请求提供，没有真实认证。服务仅允许监听 loopback IP，并拒绝非本机 Host、跨源请求；完整调试记录可由本机调试者读取。状态仅在进程内保留，多浏览器窗口共享同一服务；变更操作串行化，执行模型请求期间仍可读取配置和历史。重启清空会话、历史与 Trace。前端修改需要重启 Go 服务并刷新，因为静态资源通过 `go:embed` 编译进程序。
+这是本机开发工具，模拟身份由请求提供，没有真实认证。服务仅允许监听 loopback IP，并拒绝非本机 Host、跨源请求；完整调试记录可由本机调试者读取。状态仅在进程内保留，多浏览器窗口共享同一服务；变更操作串行化，执行模型请求期间仍可读取配置和历史。重启清空页面中的会话、历史与 Trace；已上报 Phoenix 的记录仍持久保存。前端修改需要重启 Go 服务并刷新，因为静态资源通过 `go:embed` 编译进程序。
+
+开启上报后，页面操作在 Phoenix 中以 `debug.decisions`、`debug.sessions/{id}/batch`、`debug.decisions/{id}/feedback`、`debug.fixture/reload` 等根 span 展示，生成流程和 Ollama 调用是子 span；读取页面、历史和 Trace 不产生新追踪。页面响应及导出 JSON 的 `otelTraceId` 与 Phoenix Trace ID 一致，根 span 的 `debug.trace_id` 对应页面记录 ID。两边共享同一批 span；Phoenix 使用服务级异步队列，离线不影响页面结果，Ctrl+C 正常停止服务时最多等待 3 秒导出剩余记录。
 
 本地 API 使用 JSON；成功响应含 `decision`、`session`、`trace`，失败响应含 `error` 与已记录的 `trace`。模拟操作人使用 `actorId`；反馈、换批的 `eventId` 必须在同一操作重试时复用。
 
@@ -147,7 +151,7 @@ go run ./cmd/decision -provider ollama -model qwen3.5:4b -context-tokens 8192 -m
 本地 Phoenix 固定为 20.20.0，使用 uv 的隔离工具环境，不修改系统 Python；初次启动会下载依赖。在仓库根目录开一个终端运行：
 
 ```bash
-bash deploy/phoenix/start.sh
+make trace
 ```
 
 保持这个终端运行，打开 http://127.0.0.1:6006。SQLite 数据保存在 Git 忽略的 `deploy/data/phoenix/`，停止后仍保留；服务仅监听本机，关闭 Phoenix 自身的遥测。另一个终端运行：
@@ -159,7 +163,7 @@ go run ./cmd/decision -fixture ./testdata/demo/fixture.json -provider ollama -tr
 
 在 Phoenix 选择 `jetaime` 项目，打开 `decision.generate` Trace。树形步骤包括 `prepare_session`、`build_context`、`evaluate_candidates`、`generate_result`、`validate_result` 和 `commit`；`ollama.generate` 是生成步骤中的 LLM 子 span。只有实际执行的步骤才出现，模型解码失败时不会进入最终校验或保存，无满足候选时不会出现 LLM 调用。点击步骤查看 Input/Output 和错误；LLM span 保存实际请求、完整 Prompt、原始响应，以及服务返回的 Token 数。没有返回用量时不伪造数值。
 
-`-trace` 默认关闭；显式开启才向 Phoenix 发送完整调试输入输出。只记录本轮已授权的 Context，不记录整个 fixture；根 span 的 `fixture.sha256` 是当前资料的内容版本，`reload` 成功后下一轮使用新版本。每次生成一条 Trace，包含新需求和换批；已完成换批的幂等重试复用结果，不再次生成 Trace。当前不包含独立反馈操作追踪，也不实现实时流式内容显示。
+CLI 的 `-trace` 默认关闭；显式开启才向 Phoenix 发送完整调试输入输出。只记录本轮已授权的 Context，不记录整个 fixture；根 span 的 `fixture.sha256` 是当前资料的内容版本，`reload` 成功后下一轮使用新版本。每次生成一条 Trace，包含新需求和换批；已完成换批的幂等重试复用结果，不再次生成 Trace。CLI 当前不包含独立反馈操作追踪（Web 调试台会记录反馈操作），也不实现实时流式内容显示。
 
 可用 `-trace-endpoint http://127.0.0.1:6006/v1/traces` 和 `-trace-project jetaime` 修改上报地址与项目。OTel SDK 固定为 1.34.0，以保持当前 Go 1.22 系列的兼容性。采用异步有界队列，Phoenix 离线会在 stderr 提示追踪丢失，业务继续运行；CLI 正常退出时最多等待 3 秒导出。使用 Ctrl+C 强制中断 CLI 可能丢失尚未导出的记录；Phoenix 在自己的终端中使用 Ctrl+C 停止。
 

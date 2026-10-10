@@ -584,7 +584,7 @@ async function init() {
       state.scenarios.map((s) => ({ value: s.name, label: s.name })),
     );
     $("model").value = state.config.model;
-    $("provider").value = state.config.provider;
+    $("provider").value = "ollama";
     applyScenario();
     const data = await api("current");
     if (data.decision) {

@@ -34,12 +34,26 @@ func Init(ctx context.Context, config Config) (context.Context, func(context.Con
 	if !config.Enabled {
 		return ctx, func(context.Context) error { return nil }, nil
 	}
+	provider, err := NewProvider(ctx, config)
+	if err != nil {
+		return ctx, nil, err
+	}
+	return WithTracer(ctx, provider.Tracer("jetaime.workflow")), provider.Shutdown, nil
+}
+
+// NewProvider 让页面的同步 recorder 与 Phoenix 的异步 exporter 共用同一批 span。
+// options 中的本地 processor 即使关闭 Phoenix 也继续记录；调用方负责服务退出时 Shutdown。
+func NewProvider(ctx context.Context, config Config, options ...sdktrace.TracerProviderOption) (*sdktrace.TracerProvider, error) {
+	options = append(options, sdktrace.WithSampler(sdktrace.AlwaysSample()))
+	if !config.Enabled {
+		return sdktrace.NewTracerProvider(options...), nil
+	}
 	u, err := url.Parse(config.Endpoint)
 	if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Path == "" {
-		return ctx, nil, fmt.Errorf("trace: invalid OTLP HTTP endpoint")
+		return nil, fmt.Errorf("trace: invalid OTLP HTTP endpoint")
 	}
 	if config.Project == "" {
-		return ctx, nil, fmt.Errorf("trace: project name is required")
+		return nil, fmt.Errorf("trace: project name is required")
 	}
 	exporter, err := otlptracehttp.New(ctx,
 		otlptracehttp.WithEndpointURL(config.Endpoint),
@@ -47,13 +61,13 @@ func Init(ctx context.Context, config Config) (context.Context, func(context.Con
 		otlptracehttp.WithRetry(otlptracehttp.RetryConfig{Enabled: false}),
 	)
 	if err != nil {
-		return ctx, nil, fmt.Errorf("trace: initialize exporter: %w", err)
+		return nil, fmt.Errorf("trace: initialize exporter: %w", err)
 	}
-	provider := sdktrace.NewTracerProvider(
+	options = append(options,
 		sdktrace.WithResource(resource.NewSchemaless(attribute.String("service.name", "jetaime-api"), attribute.String("openinference.project.name", config.Project))),
 		sdktrace.WithBatcher(&bestEffortExporter{SpanExporter: exporter, warnings: config.Warnings}, sdktrace.WithBatchTimeout(500*time.Millisecond), sdktrace.WithMaxQueueSize(512)),
 	)
-	return WithTracer(ctx, provider.Tracer("jetaime.workflow")), provider.Shutdown, nil
+	return sdktrace.NewTracerProvider(options...), nil
 }
 
 // bestEffortExporter 将上报故障与业务故障隔离；报告丢失但不伪造业务失败。

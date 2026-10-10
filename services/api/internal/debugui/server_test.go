@@ -45,6 +45,7 @@ func newServer(t *testing.T, c Config) *Server {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = s.Shutdown(context.Background()) })
 	return s
 }
 func generate(t *testing.T, s *Server, scenario, provider string) response {
