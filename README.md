@@ -146,6 +146,10 @@ go run ./cmd/decision -provider ollama -model qwen3.5:4b -context-tokens 8192 -m
 
 当前只接入推荐生成；基础资料和事实检查仍是虚构数据，`query` 不会自动修改已确认条件。真实模型的解释准确性、偏好平衡和延迟需在下载完成后独立评测。上下文设置需容纳提示词、候选与输出；数据量增长时再引入检索与 token 管理。
 
+## 用 Ollama 评测推荐结果
+
+评测统一使用根目录 Make 入口，支持 Phoenix 实验和独立 JSONL 评分。运行前准备、命令与参数统一见 [评测说明](docs/ollama-evaluation.md)。
+
 ## 用 Phoenix 查看每轮输入输出
 
 本地 Phoenix 固定为 20.20.0，使用 uv 的隔离工具环境，不修改系统 Python；初次启动会下载依赖。在仓库根目录开一个终端运行：
@@ -188,18 +192,20 @@ CLI 的 `-trace` 默认关闭；显式开启才向 Phoenix 发送完整调试输
 
 ## 开发与检查
 
-仓库采用多语言单仓结构：Go 后端位于 `services/api`，TS 客户端预留在 `apps/client`。各项目维护自己的依赖、配置与检查命令，根目录 Makefile 提供统一入口。当前客户端尚无 `package.json` 或 TS 工具链，统一入口只执行已实现的 Go 检查。
+仓库采用多语言单仓结构：Go 后端位于 `services/api`，TS 客户端预留在 `apps/client`。各项目维护自己的依赖、配置与检查命令，根目录 Makefile 提供统一入口。当前客户端尚无 `package.json` 或 TS 工具链，统一检查执行 Go 检查和 Python 评测器测试。
 
-开发与 CI 使用的 Go 版本记录在 `.go-version`，当前为 Go 1.27.1。请先安装该版本的 Go，以及 Make、curl；以下命令在仓库根目录执行。
+开发与 CI 使用的 Go 版本记录在 `.go-version`，当前为 Go 1.27.1。请先安装该版本的 Go，以及 Make、curl、uv；以下命令在仓库根目录执行。
 
 ```bash
 make tools      # 安装开发工具，首次需要联网
 make fmt        # 格式化当前已实现的项目
-make check      # 检查当前已实现的项目
+make check      # Go 检查 + Python 评测器测试
 make go-check   # 仅检查 Go：格式、编译、vet、测试和 lint
 ```
 
-`make build`、`make test`、`make lint` 和 `make fmt-check` 也是仓库统一入口。Go 专用命令为 `make go-tools`、`make go-fmt`、`make go-fmt-check`、`make go-build`、`make go-test`、`make go-vet` 和 `make go-lint`；`make vet` 保留为 `make go-vet` 的快捷入口。
+`make test` 运行 Go 与 Python 测试；`make eval-test` 仅运行评测器的隔离 HTTP 测试，无需启动 Phoenix、调试 API 或 Ollama。uv 使用隔离环境安装测试依赖，首次运行需要联网。`make eval-check` 检查真实评测的服务和数据集前置条件，不属于 `make check`。
+
+`make build`、`make lint` 和 `make fmt-check` 也是仓库统一入口。Go 专用命令为 `make go-tools`、`make go-fmt`、`make go-fmt-check`、`make go-build`、`make go-test`、`make go-vet` 和 `make go-lint`；`make vet` 保留为 `make go-vet` 的快捷入口。
 
 Go 检查和 lint 会在工具缺失时自动安装 golangci-lint；版本固定为 v2.14.0，安装到已被 Git 忽略的 `services/api/bin/golangci-lint/v2.14.0/`，无需全局安装。
 

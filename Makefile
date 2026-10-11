@@ -2,16 +2,22 @@
 
 GO_DIR := services/api
 DEBUG_ARGS ?= -trace
+EVAL_ARGS ?=
+UV ?= uv
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: debug trace help tools fmt fmt-check build test vet lint check \
+.PHONY: debug trace eval eval-check eval-jsonl eval-test help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
 	@echo "make debug      Start the local decision debug console"
 	@echo "make trace      Start local Phoenix at http://127.0.0.1:6006"
+	@echo "make eval       Run Phoenix experiments (optional EVAL_ARGS)"
+	@echo "make eval-check Check experiment prerequisites without model generation"
+	@echo "make eval-jsonl Score existing JSONL or Phoenix CSV output (optional EVAL_ARGS)"
+	@echo "make eval-test  Run isolated Python evaluator tests"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -19,7 +25,7 @@ help:
 	@echo "make test       Run project tests"
 	@echo "make vet        Run Go-specific vet checks"
 	@echo "make lint       Run the configured linters"
-	@echo "make check      Run all implemented project checks (currently Go)"
+	@echo "make check      Run Go checks and Python evaluator tests"
 	@echo "make go-check   Run only Go checks"
 	@echo "Go targets: go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint"
 
@@ -28,10 +34,10 @@ tools: go-tools
 fmt: go-fmt
 fmt-check: go-fmt-check
 build: go-build
-test: go-test
+test: go-test eval-test
 vet: go-vet
 lint: go-lint
-check: go-check
+check: go-check eval-test
 
 go-tools: $(GOLANGCI_LINT)
 
@@ -75,3 +81,17 @@ debug:
 # Keep Phoenix running in a separate terminal while using the debug console.
 trace:
 	bash deploy/phoenix/start.sh
+
+# Evaluation entry points. Script CLIs own their defaults and validation.
+eval:
+	$(UV) run scripts/phoenix_experiment.py $(EVAL_ARGS)
+
+eval-check:
+	$(UV) run scripts/phoenix_experiment.py $(EVAL_ARGS) --check-only
+
+eval-jsonl:
+	$(UV) run scripts/ollama_evaluator.py $(EVAL_ARGS)
+
+# Mock HTTP tests; no running Phoenix, API, or Ollama services are needed.
+eval-test:
+	$(UV) run --python '>=3.10' --with httpx==0.28.1 python -m unittest discover -s scripts -p 'test_*.py'

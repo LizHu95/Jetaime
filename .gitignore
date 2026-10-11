@@ -43,3 +43,5 @@ test-results/
 /services/api/uploads/
 /deploy/data/
 /deploy/backups/
+
+__pycache__
