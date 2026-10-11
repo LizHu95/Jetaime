@@ -70,12 +70,14 @@ type Extraction struct {
 	Suggestions []Suggestion `json:"suggestions"`
 }
 type Step struct {
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	DurationMS int64  `json:"durationMs"`
-	Input      any    `json:"input,omitempty"`
-	Output     any    `json:"output,omitempty"`
-	Error      string `json:"error,omitempty"`
+	StartedAt  time.Time `json:"startedAt"`
+	DurationNS int64     `json:"durationNs"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	DurationMS int64     `json:"durationMs"`
+	Input      any       `json:"input,omitempty"`
+	Output     any       `json:"output,omitempty"`
+	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
 	ID            string       `json:"id"`

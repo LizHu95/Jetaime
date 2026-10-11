@@ -17,13 +17,13 @@ import (
 
 func main() {
 	addr := flag.String("addr", "127.0.0.1:8081", "loopback listen address")
-	fixture := flag.String("fixture", "testdata/assistant/history.json", "editable history fixture")
+	fixture := flag.String("fixture", "../../outputs/chat-history/history.fixture.json", "editable history fixture")
 	state := flag.String("state", "data/assistant/state.json", "persisted messages and tasks")
 	logs := flag.String("log", "data/assistant/runs.jsonl", "workflow trace log")
 	base := flag.String("ollama-url", "http://127.0.0.1:11434", "Ollama base URL")
 	model := flag.String("model", "qwen3.5:9b", "model name")
-	timeout := flag.Duration("model-timeout", 3*time.Minute, "model timeout")
-	tokens := flag.Int("context-tokens", 8192, "context capacity")
+	timeout := flag.Duration("model-timeout", 5*time.Minute, "model timeout")
+	tokens := flag.Int("context-tokens", 98304, "context capacity")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		log.Fatal("unexpected arguments")

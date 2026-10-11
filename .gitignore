@@ -45,3 +45,7 @@ test-results/
 /deploy/backups/
 
 __pycache__
+/evals/.venv/
+/evals/output/
+
+/evals/.venv-server/

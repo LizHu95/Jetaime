@@ -21,7 +21,14 @@ func (m *stubModel) Call(_ context.Context, r ModelRequest) (ModelResult, error)
 }
 func setup(t *testing.T, content string) (*Store, *Workflow, *stubModel) {
 	t.Helper()
-	s, err := OpenStore("../../testdata/assistant/history.json", filepath.Join(t.TempDir(), "state.json"))
+	dir := t.TempDir()
+	fixture := filepath.Join(dir, "history.json")
+	// Minimal test-only records; never loaded by the debug console.
+	data := `{"users":[{"id":"lin","nickname":"测试用户 A"},{"id":"xia","nickname":"测试用户 B"},{"id":"chen","nickname":"测试用户 C"}],"groups":[{"id":"daily","name":"测试群 A"},{"id":"other","name":"测试群 B"}],"members":[{"groupId":"daily","userId":"lin"},{"groupId":"daily","userId":"xia"},{"groupId":"other","userId":"chen"}],"messages":[{"id":"m1","groupId":"daily","senderId":"lin","sentAt":"2026-10-10T10:00:00+08:00","text":"测试消息"},{"id":"m6","groupId":"daily","senderId":"lin","sentAt":"2026-10-10T10:01:00+08:00","text":"我明天负责测试任务"},{"id":"m8","groupId":"other","senderId":"chen","sentAt":"2026-10-10T10:02:00+08:00","text":"隔离测试消息"}]}`
+	if err := os.WriteFile(fixture, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenStore(fixture, filepath.Join(dir, "state.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,20 +40,20 @@ func setup(t *testing.T, content string) (*Store, *Workflow, *stubModel) {
 	return s, w, m
 }
 func TestGroupIsolationAndSourceValidation(t *testing.T) {
-	_, w, m := setup(t, `{"status":"answered","answer":"预算800","sourceMessageIds":["m8"]}`)
-	run, err := w.Execute(context.Background(), "daily", "lin", "qa", "预算？", "")
+	_, w, m := setup(t, `{"status":"answered","answer":"隔离测试消息","sourceMessageIds":["m8"]}`)
+	run, err := w.Execute(context.Background(), "daily", "lin", "qa", "测试问题？", "")
 	if err == nil || run.Answer != nil || run.Status != "failed" {
 		t.Fatalf("cross-group source accepted: %+v %v", run, err)
 	}
 	if strings.Contains(m.request.Messages[1].Content, `"m8"`) {
 		t.Fatal("other group leaked into context")
 	}
-	if _, err = w.Execute(context.Background(), "daily", "chen", "qa", "预算？", ""); err == nil {
+	if _, err = w.Execute(context.Background(), "daily", "chen", "qa", "测试问题？", ""); err == nil {
 		t.Fatal("non-member allowed")
 	}
 }
 func TestConfirmPersistenceIdempotenceAndOwnership(t *testing.T) {
-	s, w, _ := setup(t, `{"suggestions":[{"title":"准备午餐","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`)
+	s, w, _ := setup(t, `{"suggestions":[{"title":"测试任务","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`)
 	r, err := w.Execute(context.Background(), "daily", "lin", "extract", "", "")
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +118,7 @@ func TestLocalHTTPBoundary(t *testing.T) {
 func TestMalformedModelOutputRejected(t *testing.T) {
 	for _, output := range []string{`{"status":"answered","answer":"没有来源","sourceMessageIds":[]}`, `{"status":"answered","answer":"来源重复","sourceMessageIds":["m1","m1"]}`, `{"status":"answered","answer":"a","sourceMessageIds":["m1"],"extra":1}`, `not JSON`} {
 		_, w, _ := setup(t, output)
-		r, err := w.Execute(context.Background(), "daily", "lin", "qa", "预算？", "")
+		r, err := w.Execute(context.Background(), "daily", "lin", "qa", "测试问题？", "")
 		if err == nil || r.Answer != nil {
 			t.Fatalf("accepted: %s", output)
 		}

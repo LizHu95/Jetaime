@@ -117,7 +117,7 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 		err = e
 		return
 	}
-	run.Steps = append(run.Steps, Step{Name: "build_context", Status: "succeeded", DurationMS: time.Since(start).Milliseconds(), Input: map[string]string{"actorId": actor, "groupId": group}, Output: input})
+	run.Steps = append(run.Steps, Step{Name: "build_context", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: map[string]string{"actorId": actor, "groupId": group}, Output: input})
 	payload := struct {
 		Context  Context `json:"context"`
 		Question string  `json:"question,omitempty"`
@@ -136,12 +136,12 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	bound := len(request.Messages[0].Content) + len(request.Messages[1].Content) + 2048 + 512
 	if bound > w.Tokens {
 		err = fmt.Errorf("上下文超过保守容量限制（%d / %d），请缩小历史或提高 context-tokens；没有截断消息", bound, w.Tokens)
-		run.Steps = append(run.Steps, Step{Name: "budget", Status: "failed", Input: map[string]int{"byteUpperEstimate": bound, "contextTokens": w.Tokens}, Error: err.Error()})
+		run.Steps = append(run.Steps, Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Input: map[string]int{"byteUpperEstimate": bound, "contextTokens": w.Tokens}, Error: err.Error()})
 		return
 	}
 	start = time.Now()
 	output, e := w.Model.Call(ctx, request)
-	step := Step{Name: "model_call", Status: "succeeded", DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
+	step := Step{Name: "model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
 	if e != nil {
 		step.Status = "failed"
 		step.Error = e.Error()
@@ -236,7 +236,7 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 			}
 		}
 	}
-	step = Step{Name: "validate_result", Status: "succeeded", DurationMS: time.Since(start).Milliseconds()}
+	step = Step{Name: "validate_result", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds()}
 	if err != nil {
 		step.Status = "failed"
 		step.Error = err.Error()
