@@ -1,0 +1,134 @@
+package assistant
+
+import (
+	"context"
+	"encoding/json"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+type stubModel struct {
+	content string
+	request ModelRequest
+}
+
+func (m *stubModel) Call(_ context.Context, r ModelRequest) (ModelResult, error) {
+	m.request = r
+	return ModelResult{Content: m.content, Raw: map[string]string{"content": m.content}}, nil
+}
+func setup(t *testing.T, content string) (*Store, *Workflow, *stubModel) {
+	t.Helper()
+	s, err := OpenStore("../../testdata/assistant/history.json", filepath.Join(t.TempDir(), "state.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &stubModel{content: content}
+	w, err := NewWorkflow(s, m, "test", 8192, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s, w, m
+}
+func TestGroupIsolationAndSourceValidation(t *testing.T) {
+	_, w, m := setup(t, `{"status":"answered","answer":"预算800","sourceMessageIds":["m8"]}`)
+	run, err := w.Execute(context.Background(), "daily", "lin", "qa", "预算？", "")
+	if err == nil || run.Answer != nil || run.Status != "failed" {
+		t.Fatalf("cross-group source accepted: %+v %v", run, err)
+	}
+	if strings.Contains(m.request.Messages[1].Content, `"m8"`) {
+		t.Fatal("other group leaked into context")
+	}
+	if _, err = w.Execute(context.Background(), "daily", "chen", "qa", "预算？", ""); err == nil {
+		t.Fatal("non-member allowed")
+	}
+}
+func TestConfirmPersistenceIdempotenceAndOwnership(t *testing.T) {
+	s, w, _ := setup(t, `{"suggestions":[{"title":"准备午餐","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`)
+	r, err := w.Execute(context.Background(), "daily", "lin", "extract", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, _ := s.Context("daily", "lin")
+	if len(c.Tasks) != 0 {
+		t.Fatal("extraction wrote tasks")
+	}
+	sug := r.Suggestions[0]
+	task, err := s.Confirm("daily", "lin", sug.ID, sug, sug.Title, "lin", sug.DueAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenStore(s.fixturePath, s.statePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := reopened.Confirm("daily", "lin", sug.ID, sug, sug.Title, "lin", sug.DueAt)
+	if err != nil || again.ID != task.ID {
+		t.Fatalf("confirmation not idempotent: %v", err)
+	}
+	if _, err = reopened.Complete("daily", "xia", task.ID, true); err == nil {
+		t.Fatal("non-assignee completed task")
+	}
+	if _, err = reopened.Complete("daily", "lin", task.ID, true); err != nil {
+		t.Fatal(err)
+	}
+}
+func TestFailedPersistenceDoesNotChangeMemory(t *testing.T) {
+	s, _, _ := setup(t, "")
+	before, _ := s.Context("daily", "lin")
+	block := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(block, []byte("blocked"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	s.statePath = filepath.Join(block, "state.json")
+	if _, err := s.AppendMessage("daily", "lin", "不能保存"); err == nil {
+		t.Fatal("expected disk failure")
+	}
+	after, _ := s.Context("daily", "lin")
+	if len(after.Messages) != len(before.Messages) {
+		t.Fatal("failed write changed memory")
+	}
+}
+func TestLocalHTTPBoundary(t *testing.T) {
+	_, w, _ := setup(t, "")
+	s := NewServer(w)
+	for _, tc := range []struct {
+		host, origin, path string
+		status             int
+	}{{"evil.example", "", "/api/catalog", 403}, {"127.0.0.1:8081", "https://evil.example", "/api/catalog", 403}, {"127.0.0.1:8081", "", "/api/state?groupId=daily&actorId=chen", 403}, {"127.0.0.1:8081", "", "/api/state?groupId=daily&actorId=lin", 200}} {
+		r := httptest.NewRequest("GET", tc.path, nil)
+		r.Host = tc.host
+		r.Header.Set("Origin", tc.origin)
+		out := httptest.NewRecorder()
+		s.ServeHTTP(out, r)
+		if out.Code != tc.status {
+			t.Fatalf("%+v: %d %s", tc, out.Code, out.Body.String())
+		}
+	}
+}
+func TestMalformedModelOutputRejected(t *testing.T) {
+	for _, output := range []string{`{"status":"answered","answer":"没有来源","sourceMessageIds":[]}`, `{"status":"answered","answer":"来源重复","sourceMessageIds":["m1","m1"]}`, `{"status":"answered","answer":"a","sourceMessageIds":["m1"],"extra":1}`, `not JSON`} {
+		_, w, _ := setup(t, output)
+		r, err := w.Execute(context.Background(), "daily", "lin", "qa", "预算？", "")
+		if err == nil || r.Answer != nil {
+			t.Fatalf("accepted: %s", output)
+		}
+	}
+}
+
+func TestRequestSchemasValid(t *testing.T) {
+	for _, schema := range []json.RawMessage{qaSchema, extractSchema} {
+		if !json.Valid(schema) {
+			t.Fatalf("invalid schema: %s", schema)
+		}
+	}
+	_, w, m := setup(t, `{"suggestions":[]}`)
+	if _, err := w.Execute(context.Background(), "daily", "lin", "extract", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := json.Marshal(m.request); err != nil {
+		t.Fatal(err)
+	}
+}
