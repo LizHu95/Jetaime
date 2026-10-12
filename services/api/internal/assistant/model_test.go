@@ -45,3 +45,31 @@ func TestOllamaProtocolAndFailureTrace(t *testing.T) {
 		})
 	}
 }
+
+func TestOllamaReviewCacheUsesCurrentDigestAndEndpoint(t *testing.T) {
+	digest := "first"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/tags" || r.Method != "GET" {
+			t.Error("wrong fingerprint endpoint")
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"models": []map[string]string{{"name": "test:latest", "digest": digest}}})
+	}))
+	defer server.Close()
+	model, err := NewOllama(server.URL, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := model.ReviewCacheIdentity(context.Background(), "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest = "second"
+	second, err := model.ReviewCacheIdentity(context.Background(), "test")
+	if err != nil || first == second {
+		t.Fatal("mutable model alias did not change identity")
+	}
+	digest = ""
+	if identity, err := model.ReviewCacheIdentity(context.Background(), "test"); err == nil || identity != "" {
+		t.Fatal("missing digest accepted")
+	}
+}

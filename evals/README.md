@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-用户导入的441条消息是原始证据。评测集从中截取片段，包含17条问答和6条待办提取；未新增聊天内容。所有参考均为AI编写、待人工审核（reviewed=false）。问题被用户确认或修改，不代表参考答案也已审核。
+用户导入的441条消息是原始证据。评测集从中截取片段，包含17条问答和6条待办提取；未新增聊天内容。初稿参考为AI编写。用户于2026-10-12明确确认全部参考审核通过，当前工作稿为reviewed=true，已冻结chat-v1.1-reviewed-r1及其extract6子集；历史草稿与评分保持原状态。
 
 `local/data/evals/cases.json` 是工作稿。正式对比使用 `local/data/evals/versions/<suiteVersion>/cases.json` 的冻结快照；不要覆盖、重新生成或直接修改冻结目录。原始输入文件和调试台状态不因评测而变化。
 
@@ -82,3 +82,11 @@ python3 scripts/report-chat-eval.py local/data/evals/output/experiment-340d01bb.
 ```
 
 当前管理与本地快照流程已验证；完整产品评测说明见 ../docs/v2/Phoenix评测说明.md。
+
+## 2026-10-12耗时优化试验
+
+基于extract-v4尝试v5（删去状态核对解释）和v6（最多24字解释），同一已审核extract6集各运行3次。观测平均耗时约4.26/4.32秒，旧基线约10.07秒；但骑回家被错误判为已完成或出现不一致过滤，所以两个版本均未部署，当前保留v4。缓存与机器负载未控制，不能把全部提速归因于修改。见 [试验报告](../local/data/chat-eval/latency-optimization-trial.md)。
+
+## 缓存探索暂不接入
+
+2026-10-12完成状态核对缓存探索，测试和报告保留于代码及local/data/chat-eval/review-cache-check.md。用户决定暂不接入；常规Workflow、make assistant与Phoenix评测默认关闭缓存，使用extract-v4，不执行缓存模型指纹查询。scripts/check-review-cache.py显式开启experimental-review-cache，专门复现探索结果。

@@ -35,6 +35,8 @@ def load_cases(path):
             raise ValueError("extract 不能配置 answerStatus")
         if input["kind"] == "qa" and "suggestionCount" in expected:
             raise ValueError("qa 不能配置 suggestionCount")
+        if input["kind"] == "qa" and any(key in expected for key in ["requiredSuggestions", "forbiddenSuggestions"]):
+            raise ValueError("qa 不能配置待办行动断言")
     return cases, hashlib.sha256(raw).hexdigest()
 
 

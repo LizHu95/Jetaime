@@ -75,16 +75,52 @@ func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, c
 	if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > w.Tokens {
 		return nil, fmt.Errorf("行动核对上下文超过容量限制；没有截断证据")
 	}
-	start := time.Now()
-	output, callErr := w.Model.Call(ctx, request)
-	step := Step{Name: "review_model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
-	if callErr != nil {
-		step.Status = "failed"
-		step.Error = callErr.Error()
+	cacheStart := time.Now()
+	key, cacheEnabled, bypassReason := "", false, "provider has no model fingerprint"
+	if provider, ok := w.Model.(reviewCacheModel); w.EnableReviewCache && ok {
+		identity, identityErr := provider.ReviewCacheIdentity(ctx, run.Model)
+		if identityErr == nil && identity != "" {
+			key, err = actionReviewCacheKey(identity, input, candidates, request)
+			if err != nil {
+				return nil, err
+			}
+			cacheEnabled = true
+		} else {
+			bypassReason = "model fingerprint unavailable; perform full review"
+		}
 	}
-	run.Steps = append(run.Steps, step)
-	if callErr != nil {
-		return nil, callErr
+	content, cacheHit := "", false
+	if cacheEnabled {
+		content, cacheHit = w.reviewCache.get(key)
+	}
+	cacheStatus := "bypass"
+	if cacheEnabled {
+		cacheStatus = "miss"
+		if cacheHit {
+			cacheStatus = "hit"
+		}
+	}
+	cacheOutput := map[string]any{"status": cacheStatus, "key": key}
+	if !cacheEnabled {
+		cacheOutput["reason"] = bypassReason
+	}
+	if w.EnableReviewCache {
+		run.Steps = append(run.Steps, Step{Name: "review_cache", Status: "succeeded", StartedAt: cacheStart, DurationNS: time.Since(cacheStart).Nanoseconds(), DurationMS: time.Since(cacheStart).Milliseconds(), Output: cacheOutput})
+	}
+	output := ModelResult{Content: content}
+	if !cacheHit {
+		start := time.Now()
+		var callErr error
+		output, callErr = w.Model.Call(ctx, request)
+		step := Step{Name: "review_model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
+		if callErr != nil {
+			step.Status = "failed"
+			step.Error = callErr.Error()
+		}
+		run.Steps = append(run.Steps, step)
+		if callErr != nil {
+			return nil, callErr
+		}
 	}
 	var response struct {
 		Reviews []actionReview `json:"reviews"`
@@ -113,6 +149,27 @@ func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, c
 	if err != nil {
 		return nil, err
 	}
-	run.Steps = append(run.Steps, Step{Name: "review_actions", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"reviews": response.Reviews, "candidateCount": len(candidates), "keptCount": len(filtered), "semanticAccuracy": "model judgment; requires human review"}})
+	if cacheEnabled && !cacheHit {
+		cacheable := true
+		for _, review := range response.Reviews {
+			if review.Status == "uncertain" {
+				cacheable = false
+				break
+			}
+		}
+		// Do not store a verdict if the provider changed weights during inference.
+		identity, identityErr := w.Model.(reviewCacheModel).ReviewCacheIdentity(ctx, run.Model)
+		currentKey, keyErr := actionReviewCacheKey(identity, input, candidates, request)
+		if cacheable && identityErr == nil && keyErr == nil && currentKey == key {
+			w.reviewCache.put(key, output.Content)
+			cacheOutput["stored"] = true
+		} else {
+			cacheOutput["stored"] = false
+			if !cacheable {
+				cacheOutput["reason"] = "uncertain review is not cached"
+			}
+		}
+	}
+	run.Steps = append(run.Steps, Step{Name: "review_actions", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"reviews": response.Reviews, "candidateCount": len(candidates), "keptCount": len(filtered), "cacheHit": cacheHit, "semanticAccuracy": "model judgment; requires human review"}})
 	return filtered, nil
 }

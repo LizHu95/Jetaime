@@ -72,11 +72,22 @@ def source_integrity(input, output):
     return verdict(True, "来源 ID / 成员检查通过；不代表引用支持内容")
 
 
+def suggestion_matches(suggestion, rule):
+    title = suggestion.get("title", "")
+    return (
+        all(word in title for word in rule["titleContains"])
+        and ("assigneeId" not in rule or suggestion.get("assigneeId") == rule["assigneeId"])
+        and ("timeExpression" not in rule or suggestion.get("timeExpression") == rule["timeExpression"])
+        and set(rule.get("requiredSourceMessageIds", [])) <= set(suggestion.get("sourceMessageIds", []))
+    )
+
+
 def reference_rules(input, output, expected):
     if not expected or not expected.get("reviewed"):
         return skipped("缺少人工审核预期结果", "pending_reference")
     run = output.get("run", {})
     checks = []
+    failures = []
     if "workflowStatus" in expected:
         checks.append((run.get("status", "failed") or "failed") == expected["workflowStatus"])
     if "answerStatus" in expected:
@@ -90,9 +101,37 @@ def reference_rules(input, output, expected):
         checks.append(set(expected["requiredSourceMessageIds"]) <= ids)
     if "forbiddenSourceMessageIds" in expected:
         checks.append(not set(expected["forbiddenSourceMessageIds"]) & ids)
+    suggestions = run.get("suggestions", [])
+    required = expected.get("requiredSuggestions", [])
+    # Match each expected action to a distinct suggestion; a merged task cannot
+    # satisfy two independent commitments, nor can one task hide another's owner.
+    matches = [[i for i, s in enumerate(suggestions) if suggestion_matches(s, rule)] for rule in required]
+    assigned = {}
+
+    def assign(index, seen):
+        for candidate in matches[index]:
+            if candidate in seen:
+                continue
+            seen.add(candidate)
+            if candidate not in assigned or assign(assigned[candidate], seen):
+                assigned[candidate] = index
+                return True
+        return False
+
+    for index, rule in enumerate(required):
+        matched = assign(index, set())
+        checks.append(run.get("status") == "succeeded" and matched)
+        if not matched:
+            failures.append("缺失或字段不符的独立行动：" + json.dumps(rule, ensure_ascii=False))
+    for rule in expected.get("forbiddenSuggestions", []):
+        found = any(suggestion_matches(s, rule) for s in suggestions)
+        checks.append(not found)
+        if found:
+            failures.append("出现禁止行动：" + json.dumps(rule, ensure_ascii=False))
     if not checks:
         return skipped("参考仅含语义内容，无配置的确定性断言")
-    return verdict(all(checks), f"{sum(checks)}/{len(checks)} 条人工参考规则满足；不作语义结论")
+    detail = "；".join(failures)
+    return verdict(all(checks), f"{sum(checks)}/{len(checks)} 条人工参考规则满足；不作语义结论" + ("；" + detail if detail else ""))
 
 
 class OllamaJudge:

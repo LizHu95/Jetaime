@@ -11,12 +11,16 @@ import (
 )
 
 type stubModel struct {
-	content string
-	request ModelRequest
+	content       string
+	request       ModelRequest
+	reviewContent string
 }
 
 func (m *stubModel) Call(_ context.Context, r ModelRequest) (ModelResult, error) {
 	if strings.HasPrefix(r.Messages[0].Content, actionReviewPrompt) {
+		if m.reviewContent != "" {
+			return ModelResult{Content: m.reviewContent}, nil
+		}
 		return ModelResult{Content: `{"reviews":[{"candidateIndex":0,"status":"active","evidenceMessageIds":["m6"],"reason":"明确安排且未完成"}]}`}, nil
 	}
 	m.request = r
@@ -129,7 +133,7 @@ func TestMalformedModelOutputRejected(t *testing.T) {
 }
 
 func TestRequestSchemasValid(t *testing.T) {
-	for _, schema := range []json.RawMessage{qaSchema, extractSchema} {
+	for _, schema := range []json.RawMessage{qaSchema, extractSchema, actionReviewSchema} {
 		if !json.Valid(schema) {
 			t.Fatalf("invalid schema: %s", schema)
 		}
@@ -140,5 +144,21 @@ func TestRequestSchemasValid(t *testing.T) {
 	}
 	if _, err := json.Marshal(m.request); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestMalformedActionReviewCannotExposeSuggestions(t *testing.T) {
+	for _, review := range []string{
+		`{"reviews":[]}`,
+		`{"reviews":[{"status":"active","evidenceMessageIds":["m6"]}]}`,
+		`{"reviews":[{"candidateIndex":null,"status":"active","evidenceMessageIds":["m6"]}]}`,
+		`{"reviews":[{"candidateIndex":0,"status":"active","evidenceMessageIds":["m6"],"reason":"依据","extra":true}]}`,
+	} {
+		_, w, m := setup(t, `{"suggestions":[{"title":"测试任务","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`)
+		m.reviewContent = review
+		run, err := w.Execute(context.Background(), "daily", "lin", "extract", "", "")
+		if err == nil || run.Status != "failed" || len(run.Suggestions) != 0 {
+			t.Fatalf("unverified candidates exposed: %+v %v", run, err)
+		}
 	}
 }

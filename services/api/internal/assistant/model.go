@@ -79,3 +79,38 @@ func (o *Ollama) Call(ctx context.Context, input ModelRequest) (ModelResult, err
 	}
 	return result, nil
 }
+
+// Resolve the current digest on each lookup so replacing a model under the same
+// alias cannot reuse a cached verdict. Failure disables caching, not inference.
+func (o *Ollama) ReviewCacheIdentity(ctx context.Context, name string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	endpoint := strings.TrimSuffix(o.endpoint, "/api/chat") + "/api/tags"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	resp, err := o.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("model fingerprint HTTP %d", resp.StatusCode)
+	}
+	var tags struct {
+		Models []struct {
+			Name   string `json:"name"`
+			Digest string `json:"digest"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&tags); err != nil {
+		return "", err
+	}
+	for _, model := range tags.Models {
+		if model.Digest != "" && (model.Name == name || model.Name == name+":latest") {
+			return o.endpoint + "|" + model.Name + "|" + model.Digest, nil
+		}
+	}
+	return "", fmt.Errorf("model fingerprint unavailable")
+}

@@ -31,15 +31,17 @@ var qaSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"r
 var extractSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["suggestions"],"properties":{"suggestions":{"type":"array","maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["title","assigneeId","timeExpression","sourceMessageIds"],"properties":{"title":{"type":"string","minLength":1},"assigneeId":{"type":["string","null"]},"timeExpression":{"type":"string"},"sourceMessageIds":{"type":"array","minItems":1,"items":{"type":"string"}}}}}}}`)
 
 type Workflow struct {
-	Store        *Store
-	Model        Model
-	DefaultModel string
-	Tokens       int
-	LogPath      string
-	opMu         sync.Mutex
-	mu           sync.RWMutex
-	runs         []Run
-	dismissed    map[string]bool
+	Store             *Store
+	Model             Model
+	DefaultModel      string
+	Tokens            int
+	LogPath           string
+	EnableReviewCache bool // Experimental opt-in; disabled in the normal workflow.
+	opMu              sync.Mutex
+	mu                sync.RWMutex
+	runs              []Run
+	dismissed         map[string]bool
+	reviewCache       reviewCache
 }
 
 func NewWorkflow(store *Store, model Model, name string, tokens int, logPath string) (*Workflow, error) {
@@ -114,6 +116,9 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	run = Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: kind, Question: question, Model: model, PromptVersion: kind + "-v1", StartedAt: time.Now(), Status: "running", Steps: []Step{}}
 	if kind == "extract" {
 		run.PromptVersion = "extract-v4"
+		if w.EnableReviewCache {
+			run.PromptVersion = "extract-v7-cache"
+		}
 	}
 	defer func() {
 		run.DurationMS = time.Since(run.StartedAt).Milliseconds()

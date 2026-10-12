@@ -334,6 +334,86 @@
           },
           "notes": {
             "type": "string"
+          },
+          "requiredSuggestions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "titleContains"
+              ],
+              "properties": {
+                "titleContains": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "assigneeId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timeExpression": {
+                  "type": "string"
+                },
+                "requiredSourceMessageIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              }
+            }
+          },
+          "forbiddenSuggestions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "titleContains"
+              ],
+              "properties": {
+                "titleContains": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                },
+                "assigneeId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "timeExpression": {
+                  "type": "string"
+                },
+                "requiredSourceMessageIds": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "uniqueItems": true
+                }
+              }
+            }
           }
         }
       },

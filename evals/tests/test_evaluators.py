@@ -50,6 +50,43 @@ class EvaluatorsTests(unittest.TestCase):
         expected['requiredSourceMessageIds'] = ['m6']
         self.assertEqual(reference_rules(INPUT, OUTPUT, expected)['score'], 0)
 
+    def test_action_assertions_catch_omission_substitution_and_wrong_fields(self):
+        input = {**INPUT, 'kind': 'extract'}
+        required = {'titleContains': ['回家'], 'assigneeId': 'lin', 'timeExpression': '晚上', 'requiredSourceMessageIds': ['m2']}
+        expected = {'reviewed': True, 'suggestionCount': 1, 'requiredSuggestions': [required], 'forbiddenSuggestions': [{'titleContains': ['教材']}]}
+        valid = {'title': '骑车回家', 'assigneeId': 'lin', 'timeExpression': '晚上', 'sourceMessageIds': ['m2']}
+        output = {'run': {'status': 'succeeded', 'suggestions': [valid]}}
+        self.assertEqual(reference_rules(input, output, expected)['score'], 1)
+        for name, changes in {
+            'wrong action with same count': {'title': '买教材'},
+            'wrong owner': {'assigneeId': 'chen'},
+            'wrong time': {'timeExpression': '明天'},
+            'wrong source': {'sourceMessageIds': ['m8']},
+        }.items():
+            with self.subTest(name=name):
+                out = {'run': {'status': 'succeeded', 'suggestions': [{**valid, **changes}]}}
+                result = reference_rules(input, out, expected)
+                self.assertEqual(result['score'], 0)
+                self.assertIn('缺失或字段不符', result['explanation'])
+        self.assertEqual(reference_rules(input, {'run': {'status': 'succeeded', 'suggestions': []}}, expected)['score'], 0)
+
+    def test_one_merged_suggestion_cannot_satisfy_two_actions(self):
+        expected = {'reviewed': True, 'requiredSuggestions': [{'titleContains': ['健身']}, {'titleContains': ['理发']}]}
+        input = {**INPUT, 'kind': 'extract'}
+        merged = {'title': '健身并理发', 'sourceMessageIds': ['m2']}
+        result = reference_rules(input, {'run': {'status': 'succeeded', 'suggestions': [merged]}}, expected)
+        self.assertEqual(result['score'], 0)
+        separate = [{'title': '理发'}, {'title': '健身'}]
+        self.assertEqual(reference_rules(input, {'run': {'status': 'succeeded', 'suggestions': separate}}, expected)['score'], 1)
+
+    def test_forbidden_action_is_checked_without_required_actions(self):
+        expected = {'reviewed': True, 'forbiddenSuggestions': [{'titleContains': ['教材']}]}
+        input = {**INPUT, 'kind': 'extract'}
+        output = {'run': {'status': 'succeeded', 'suggestions': [{'title': '购买教材'}]}}
+        result = reference_rules(input, output, expected)
+        self.assertEqual(result['score'], 0)
+        self.assertIn('出现禁止行动', result['explanation'])
+
     def test_judge_requires_reviewed_reference_and_isolates_group(self):
         judge = OllamaJudge('http://test.invalid', 'judge', NoOpTracer())
         with patch('evaluators.httpx.post') as post:
