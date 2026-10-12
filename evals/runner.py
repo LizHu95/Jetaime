@@ -77,11 +77,11 @@ def emit_steps(tracer, output):
     for step in output.get("run", {}).get("steps", []):
         start = datetime.fromisoformat(step["startedAt"].replace("Z", "+00:00"))
         start_ns = int(start.timestamp() * 1_000_000_000)
-        attrs = {"openinference.span.kind": "LLM" if step["name"] == "model_call" else "CHAIN",
+        attrs = {"openinference.span.kind": "LLM" if step["name"].endswith("model_call") else "CHAIN",
                  "workflow.observed_step": True, "workflow.step_status": step["status"],
                  "input.value": dumps(step.get("input")), "input.mime_type": "application/json",
                  "output.value": dumps(step.get("output")), "output.mime_type": "application/json"}
-        if step["name"] == "model_call":
+        if step["name"].endswith("model_call"):
             request, result = step["input"], step.get("output", {})
             attrs["llm.model_name"] = request["model"]
             attrs["llm.invocation_parameters"] = dumps(request.get("options", {}))
@@ -116,6 +116,13 @@ def run_experiment(args, cases, digest):
     version = preflight(args)
     client = Client(base_url=args.phoenix_url)
     suffix = uuid.uuid4().hex[:8]
+    args.output.mkdir(parents=True, exist_ok=True)
+    snapshot = args.output / ("snapshot-" + suffix)
+    snapshot.mkdir()
+    case_bytes = args.cases.read_bytes()
+    if hashlib.sha256(case_bytes).hexdigest() != digest:
+        raise ValueError("案例文件在载入后已改变，拒绝运行")
+    (snapshot / "cases.json").write_bytes(case_bytes)
     # Fresh immutable snapshot per launch avoids append/upsert changes to older experiment inputs.
     name = args.dataset + "-" + digest[:10] + "-" + suffix
     dataset = client.datasets.create_dataset(name=name, inputs=[c["input"] for c in cases],
@@ -127,11 +134,27 @@ def run_experiment(args, cases, digest):
     source_hash = hashlib.sha256()
     for path in sorted(list((ROOT / "services/api/internal/assistant").glob("*.go")) + list((ROOT / "services/api/cmd/workflow-eval").glob("*.go"))):
         source_hash.update(path.name.encode()); source_hash.update(path.read_bytes())
+        saved = snapshot / "source" / path.relative_to(ROOT)
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(path.read_bytes())
+    (snapshot / "evaluators.py").write_bytes((EVAL_DIR / "evaluators.py").read_bytes())
+    (snapshot / "runner.py").write_bytes(Path(__file__).read_bytes())
+    (snapshot / "cases.schema.json").write_bytes((EVAL_DIR / "cases.schema.json").read_bytes())
+    for path in [ROOT / "services/api/go.mod", ROOT / "services/api/go.sum", EVAL_DIR / "pyproject.toml", EVAL_DIR / "uv.lock"]:
+        saved = snapshot / path.relative_to(ROOT)
+        saved.parent.mkdir(parents=True, exist_ok=True)
+        saved.write_bytes(path.read_bytes())
+    run_metadata = {"suiteVersion": args.suite_version, "casesSha256": digest,
+        "casesPath": str(args.cases.resolve()), "workflowSourceSha256": source_hash.hexdigest(),
+        "gitRevision": revision, "gitDirty": dirty, "model": args.model,
+        "contextTokens": args.context_tokens, "timeoutSeconds": args.timeout,
+        "repetitions": args.repetitions, "judgeModel": args.judge_model,
+        "judgeRubric": JUDGE_VERSION, "serviceVersions": version,
+        "evaluatorSourceSha256": hashlib.sha256((EVAL_DIR / "evaluators.py").read_bytes()).hexdigest()}
+    (snapshot / "manifest.json").write_text(json.dumps(run_metadata, ensure_ascii=False, indent=2) + "\n")
     experiment = client.experiments.create(dataset_id=dataset.id, dataset_version_id=dataset.version_id,
         experiment_name=args.name or "v2-" + utcnow().strftime("%Y%m%dT%H%M%SZ"), repetitions=args.repetitions,
-        experiment_metadata={"casesSha256": digest, "workflowSourceSha256": source_hash.hexdigest(),
-            "gitRevision": revision, "gitDirty": dirty, "model": args.model, "contextTokens": args.context_tokens,
-            "judgeModel": args.judge_model, "judgeRubric": JUDGE_VERSION, "serviceVersions": version, "evaluatorSourceSha256": hashlib.sha256((EVAL_DIR / "evaluators.py").read_bytes()).hexdigest()})
+        experiment_metadata=run_metadata)
     task_provider = register(endpoint=args.phoenix_url.rstrip("/") + "/v1/traces", protocol="http/protobuf",
         project_name="jetaime-v2-experiments", batch=True, set_global_tracer_provider=False, verbose=False)
     eval_provider = register(endpoint=args.phoenix_url.rstrip("/") + "/v1/traces", protocol="http/protobuf",
@@ -210,7 +233,8 @@ def run_experiment(args, cases, digest):
     summary = {"experimentId": experiment["id"], "datasetId": dataset.id, "datasetVersionId": dataset.version_id,
         "url": client.experiments.get_experiment_url(dataset_id=dataset.id, experiment_id=experiment["id"]),
         "caseCount": len(cases), "repetitions": args.repetitions, "metrics": totals, "errors": errors,
-        "results": str(logfile), "semanticScoresAreModelJudgments": True}
+        "results": str(logfile), "snapshot": str(snapshot), "metadata": run_metadata,
+        "semanticScoresAreModelJudgments": True}
     summary_path = args.output / ("summary-" + suffix + ".json")
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2) + "\n")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
@@ -219,7 +243,8 @@ def run_experiment(args, cases, digest):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--cases", type=Path, default=EVAL_DIR / "cases.json")
+    parser.add_argument("--cases", type=Path, default=ROOT / "local/data/evals/cases.json")
+    parser.add_argument("--suite-version", default="unversioned-draft", help="Frozen case bundle version; recorded in experiment metadata")
     parser.add_argument("--phoenix-url", default="http://127.0.0.1:6006")
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     parser.add_argument("--model", default="qwen3.5:9b")
@@ -229,13 +254,23 @@ def main():
     parser.add_argument("--repetitions", type=int, default=1)
     parser.add_argument("--dataset", default="jetaime-v2-workflow")
     parser.add_argument("--name")
-    parser.add_argument("--output", type=Path, default=EVAL_DIR / "output")
+    parser.add_argument("--output", type=Path, default=ROOT / "local/data/evals/output")
     parser.add_argument("--check-only", action="store_true", help="Offline schema validation only; no upload or model invocation")
     parser.add_argument("--check-services", action="store_true", help="Read-only service / model checks; no upload or generation")
     args = parser.parse_args()
     if args.repetitions < 1 or args.timeout < 1 or args.context_tokens < 4096:
         parser.error("repetitions/timeout 必须为正，context-tokens >=4096")
     cases, digest = load_cases(args.cases)
+    manifest_path = args.cases.parent / "manifest.json"
+    if manifest_path.is_file():
+        manifest = json.loads(manifest_path.read_text())
+        if manifest.get("casesSha256") != digest:
+            parser.error("冻结案例的内容已改变，哈希与manifest不符；请创建新版本")
+        suite = manifest.get("suiteVersion")
+        if args.suite_version == "unversioned-draft":
+            args.suite_version = suite or args.suite_version
+        elif suite and args.suite_version != suite:
+            parser.error("suite-version与冻结案例manifest不一致")
     if args.check_only or args.check_services:
         print(f"案例文件结构合法：{len(cases)} 条；sha256={digest}")
         if args.check_services:

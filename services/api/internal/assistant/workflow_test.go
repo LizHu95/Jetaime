@@ -16,6 +16,9 @@ type stubModel struct {
 }
 
 func (m *stubModel) Call(_ context.Context, r ModelRequest) (ModelResult, error) {
+	if strings.HasPrefix(r.Messages[0].Content, actionReviewPrompt) {
+		return ModelResult{Content: `{"reviews":[{"candidateIndex":0,"status":"active","evidenceMessageIds":["m6"],"reason":"明确安排且未完成"}]}`}, nil
+	}
 	m.request = r
 	return ModelResult{Content: m.content, Raw: map[string]string{"content": m.content}}, nil
 }

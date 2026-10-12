@@ -28,9 +28,9 @@ def main():
     parser.add_argument("--model", default="qwen3.5:9b")
     parser.add_argument("--ollama-url", default="http://127.0.0.1:11434")
     parser.add_argument("--reuse-model-results", action="store_true", help="Reuse verified real-model results from the output report")
-    parser.add_argument("--output", type=Path, default=ROOT / "outputs/agent-check/acceptance.json")
+    parser.add_argument("--output", type=Path, default=ROOT / "local/data/agent-check/acceptance.json")
     args = parser.parse_args()
-    fixture = ROOT / "outputs/chat-history/history.fixture.json"
+    fixture = ROOT / "local/data/chat-history/history.fixture.json"
     history = json.loads(fixture.read_text())
     group, actor = "wechat-zzj1031", "wechat-l"
     if not any(m["id"] == "wx-0165" for m in history["messages"]):

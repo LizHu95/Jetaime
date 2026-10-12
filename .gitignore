@@ -49,3 +49,11 @@ __pycache__
 /evals/output/
 
 /evals/.venv-server/
+
+local/
+
+# Private chat transcripts, fixtures, evaluation inputs and generated reports
+/outputs/
+/evals/cases.json
+/evals/chat-cases-review.md
+/evals/versions/

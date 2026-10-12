@@ -1,6 +1,8 @@
 # V2 Workflow 的 Phoenix 评测试验
 
-更新：2026-10-11。`evals/cases.json` 已基于用户导入聊天准备 23 条案例（17 条问答、6 条待办提取）。参考答案是 AI 阅读转录证据后的待审草稿，全部 `reviewed: false`，不能当成人工金标准。逐条原消息及审核说明见 [聊天案例审核稿](../../evals/chat-cases-review.md)。
+更新：2026-10-11。`local/data/evals/cases.json` 已基于用户导入聊天准备 23 条案例（17 条问答、6 条待办提取）。参考答案是 AI 阅读转录证据后的待审草稿，全部 `reviewed: false`，不能当成人工金标准。逐条原消息及审核说明见 [聊天案例审核稿](../../local/data/evals/chat-cases-review.md)。
+
+案例冻结、输入/参考版本、四轮历史逻辑变更和后续执行规则见 [评测集版本管理](../../evals/README.md)。
 
 ## 1. 采用的规范与边界
 
@@ -38,23 +40,23 @@ make eval-test
 make eval-smoke
 ```
 
-Phoenix 仅监听本机，SQLite 数据保存在 Git 忽略的 `deploy/data/phoenix-v2/`。Ctrl+C 停止；再次启动保留数据。协议测试实验以 `PROTOCOL TEST ONLY` 命名，仅验证接入、重复运行、评分和 Trace，不代表产品质量。测试案例只在临时目录生成，不写入正式案例文件。
+Phoenix 仅监听本机，SQLite 数据保存在 Git 忽略的 `local/data/phoenix-v2/`。Ctrl+C 停止；再次启动保留数据。协议测试实验以 `PROTOCOL TEST ONLY` 命名，仅验证接入、重复运行、评分和 Trace，不代表产品质量。测试案例只在临时目录生成，不写入正式案例文件。
 
 ## 3. 正式运行（案例准备后）
 
 ```sh
 # 程序评估器 + 人工参考断言；语义评估标记 pending_judge
-make eval EVAL_ARGS='--cases evals/cases.json --timeout 300 --context-tokens 16384 --repetitions 3'
+make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context-tokens 16384 --repetitions 3'
 
 # 显式启用已安装的独立评估模型
-make eval EVAL_ARGS='--cases evals/cases.json --timeout 300 --context-tokens 16384 --repetitions 3 --judge-model YOUR_INSTALLED_JUDGE_MODEL'
+make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context-tokens 16384 --repetitions 3 --judge-model YOUR_INSTALLED_JUDGE_MODEL'
 ```
 
 不要原样执行占位模型名称。`--judge-model` 不配置时不会调用语义评估模型。优先使用与被测模型独立、经人工校准的评估模型；相同模型可以验证接入，但其评分不视为独立质量证据。
 
 其他参数：`--model`、`--ollama-url`、`--phoenix-url`、`--timeout`（秒）、`--context-tokens`、`--dataset`、`--name`、`--output`。默认被测模型 `qwen3.5:9b`，上下文 8192，超时 180 秒。默认实验名使用 ASCII；Phoenix 20.20.0 的实验 JSON 导出在非 ASCII 名称下可能出现响应头编码错误。
 
-空案例文件会拒绝创建正式实验。每次运行输出 Phoenix 实验链接、逐案例 JSONL 和汇总 JSON，默认保存在 Git 忽略的 `evals/output/`。评分 fail 本身不使进程失败；任务基础设施错误或评估器异常会返回非零退出码。语义 fail 与执行失败仍可在实验中分析，不设置未经确认的质量门槛。
+空案例文件会拒绝创建正式实验。每次运行输出 Phoenix 实验链接、逐案例 JSONL 和汇总 JSON，默认保存在 Git 忽略的 `local/data/evals/output/`。评分 fail 本身不使进程失败；任务基础设施错误或评估器异常会返回非零退出码。语义 fail 与执行失败仍可在实验中分析，不设置未经确认的质量门槛。
 
 ## 4. 案例输入契约
 
@@ -84,7 +86,7 @@ make eval EVAL_ARGS='--cases evals/cases.json --timeout 300 --context-tokens 163
 | `reference` | 非空对象：人工参考答案、行动清单、负责人、时间、共识范围等；供语义评估 |
 | `notes` | 对歧义、可接受替代表达、评分依据的说明 |
 
-当前参考均待人工核对，未审核时仅执行程序检查，参考断言及语义评分跳过。核对后逐条将 `reviewed` 改为 true；`scripts/prepare-chat-evals.py` 可重建初稿，但会覆盖已有审核标记，审核开始后不要重新生成。`--check-only` 验证 JSON Schema、时间格式和案例 ID 唯一性；跨实体关系与业务合法性由真实 Go 存储 / Workflow 在执行时验证。
+当前参考均待人工核对，未审核时仅执行程序检查，参考断言及语义评分跳过。核对后逐条将 `reviewed` 改为 true；`local/data/evals/prepare-chat-evals.py` 可重建初稿，但会覆盖已有审核标记，审核开始后不要重新生成。`--check-only` 验证 JSON Schema、时间格式和案例 ID 唯一性；跨实体关系与业务合法性由真实 Go 存储 / Workflow 在执行时验证。
 
 ## 5. 当前评估器
 

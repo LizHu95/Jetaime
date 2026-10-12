@@ -25,7 +25,7 @@ class TestModel(BaseHTTPRequestHandler):
         elif '提取尚未创建' in system:
             result = {'suggestions': []}
         else:
-            result = {'status': 'answered', 'answer': '仅为协议测试', 'sourceMessageIds': ['m2']}
+            result = {'status': 'answered', 'answer': '仅为协议测试', 'sourceMessageIds': [self.server.source_id]}
         self.send({'done': True, 'done_reason': 'stop', 'message': {'content': json.dumps(result)}, 'prompt_eval_count': 1, 'eval_count': 1})
     def send(self, data):
         self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers(); self.wfile.write(json.dumps(data).encode())
@@ -39,14 +39,17 @@ def main():
     thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
     try:
         with tempfile.TemporaryDirectory(prefix='jetaime-protocol-test-') as directory:
-            fixture = json.loads((ROOT/'services/api/testdata/assistant/history.json').read_text())
-            case = {'id': 'protocol-only', 'input': {'fixture': fixture, 'groupId':'daily','actorId':'lin','kind':'qa','question':'协议验证'},
-                    'expected': {'reviewed': True, 'answerStatus':'answered', 'requiredSourceMessageIds':['m2'], 'reference': {'answer':'仅为协议测试'}},
+            fixture = json.loads((ROOT/'local/data/chat-history/history.fixture.json').read_text())
+            fixture['messages'] = fixture['messages'][:1]
+            message = fixture['messages'][0]
+            server.source_id = message['id']
+            case = {'id': 'protocol-only', 'input': {'fixture': fixture, 'groupId':message['groupId'],'actorId':message['senderId'],'kind':'qa','question':'协议验证'},
+                    'expected': {'reviewed': True, 'answerStatus':'answered', 'requiredSourceMessageIds':[message['id']], 'reference': {'answer':'仅为协议测试'}},
                     'metadata': {'purpose':'protocol_test_only', 'not_product_evaluation':True}}
             path=Path(directory)/'cases.json';path.write_text(json.dumps([case]))
             cases,digest=load_cases(path)
-            args=SimpleNamespace(phoenix_url=options.phoenix_url,ollama_url=f'http://127.0.0.1:{server.server_port}',model='protocol-test-model',judge_model='protocol-test-model',timeout=10,context_tokens=8192,
-                                 dataset='v2-PROTOCOL-TEST-ONLY',name='PROTOCOL TEST ONLY - not model quality',repetitions=2,output=ROOT/'evals/output/protocol-test')
+            args=SimpleNamespace(cases=path,suite_version='protocol-test-only',phoenix_url=options.phoenix_url,ollama_url=f'http://127.0.0.1:{server.server_port}',model='protocol-test-model',judge_model='protocol-test-model',timeout=10,context_tokens=8192,
+                                 dataset='v2-PROTOCOL-TEST-ONLY',name='PROTOCOL TEST ONLY - not model quality',repetitions=2,output=ROOT/'local/data/evals/output/protocol-test')
             result=run_experiment(args,cases,digest)
             assert result==0
             latest=max(args.output.glob('summary-*.json'),key=lambda p:p.stat().st_mtime)

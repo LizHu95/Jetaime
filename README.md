@@ -16,9 +16,9 @@ make assistant ASSISTANT_ARGS='-model qwen3.5:9b -addr 127.0.0.1:8081'
 
 打开 <http://127.0.0.1:8081>。页面内嵌于 Go 服务，无需前端依赖或构建。Ctrl+C 停止服务。
 
-`make assistant` 默认加载你提供的微信记录：`outputs/chat-history/history.fixture.json`（2 位成员、441 条消息），不再包含虚构聊天数据。上下文容量默认为 98304。页面“重新读取历史 JSON”重新读取该文件。模型调用默认超时为 5 分钟，以容纳全量历史的本地推理。
+`make assistant` 默认加载你提供的微信记录：`local/data/chat-history/history.fixture.json`（2 位成员、441 条消息），不再包含虚构聊天数据。上下文容量默认为 98304。页面“重新读取历史 JSON”重新读取该文件。模型调用默认超时为 5 分钟，以容纳全量历史的本地推理。
 
-运行 `make assistant-check` 可用同一份历史和真实 Ollama 模型验证问答引用、待办提取、确认幂等、完成、重启恢复及 JSONL 轨迹。验证服务使用临时端口和状态目录，不改调试台的消息与任务。先验证全量历史，再回放原记录中的明确日程片段来验证确认与完成；报告保存到 `outputs/agent-check/acceptance.json`。
+运行 `make assistant-check` 可用同一份历史和真实 Ollama 模型验证问答引用、待办提取、确认幂等、完成、重启恢复及 JSONL 轨迹。验证服务使用临时端口和状态目录，不改调试台的消息与任务。先验证全量历史，再回放原记录中的明确日程片段来验证确认与完成；报告保存到 `local/data/agent-check/acceptance.json`。
 
 页面支持群组 / 模拟成员切换、历史问答与来源定位、模拟发送消息后触发 Workflow、待办提取 / 修改 / 忽略 / 确认、本人待办完成，以及运行轨迹查看和 JSON 下载。消息与已确认待办保存在本地，重启可恢复。
 
@@ -37,13 +37,16 @@ services/api/
 │   ├── server.go              本地 API 与页面适配
 │   ├── web/                   内嵌 HTML / CSS / JS 调试页面
 │   └── *_test.go              Workflow、存储、HTTP 和模型协议测试
-└── data/assistant/             本地状态与运行日志，Git 忽略
-outputs/chat-history/          用户提供的历史、原始整理结果与说明
+local/data/assistant/           本地状态与运行日志，Git 忽略
+local/data/chat-history/        用户提供的历史、原始整理结果与说明
+local/data/evals/               私有评测输入、版本和实验输出
+local/data/chat-eval/           私有评测报告
+local/data/phoenix-v2/          本地 Phoenix 数据库
 docs/v2/                       当前设计、技术方案、任务与运行说明
 docs/v1/                       一期历史文档与评测结果
 ```
 
-先从 [workflow.go](services/api/internal/assistant/workflow.go) 阅读两条固定流程：组装授权群组上下文 → Prompt / Schema → 一次模型调用 → 校验结果。任务保存由确认接口触发，模型不能直接创建任务。当前不使用 Agent Loop、自动模型路由、摘要、检索或长期记忆。
+先从 [workflow.go](services/api/internal/assistant/workflow.go) 阅读两条固定流程：组装授权群组上下文 → Prompt / Schema → 模型调用 → 校验结果。问答调用一次；提取产生候选时追加状态核对调用。任务保存由确认接口触发，模型不能直接创建任务。当前不使用 Agent Loop、自动模型路由、摘要、检索或长期记忆。
 
 ## 开发与检查
 

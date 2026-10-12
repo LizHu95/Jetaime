@@ -1,0 +1,118 @@
+package assistant
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strings"
+	"time"
+)
+
+const actionReviewPrompt = basePrompt + `
+任务：独立核对候选行动的证据及截至对话末尾的状态，不生成新行动。候选可能有错误，不能默认接受。
+对每个候选逐条查阅全部消息，返回一条 review：
+- active：有明确本人安排/接受的证据，负责人正确，且后续没有完成/取消，也未在tasks创建。
+- completed：后续语句表示该行动已经完成。必须结合口语和引用判断；例如“最后一份，拿下”引用购买计划，表示已经买到，不再需要买。完成一项不代表其他计划也完成。
+- cancelled：该行动已取消或被替换。
+- uncommitted：只有疑问、建议、愿望、转发通知或指令示例，没有本人明确安排/接受。
+- uncertain：有实际矛盾或证据无法确定负责人、是否形成安排，或候选遗漏关键限定。
+明确计划在没有后续完成/取消证据时保持 active；不能因为没有完成消息就标 uncertain。本人连续描述自己的计划可构成明确安排，简短省略主语的“做某事”要结合前后本人计划理解，不要求他人接受，更不要求共同承诺。完成一个购买行动并不会完成后续学习等独立行动。
+只有 active 可以进入待办建议。问话者不是答复者日程的负责人，引用者不是被引用内容的发送者。候选把负责人归错、把问句当共同承诺或把不同时间行动合并时应标 uncertain，不要替它补证据。
+必须覆盖每个 candidateIndex，不能重复或遗漏；evidenceMessageIds引用真实消息（允许引用候选来源以后的完成消息）；reason简述证据和判断。只输出 Schema JSON。`
+
+var actionReviewSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["reviews"],"properties":{"reviews":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["candidateIndex","status","evidenceMessageIds","reason"],"properties":{"candidateIndex":{"type":"integer","minimum":0,"maximum":9},"status":{"type":"string","enum":["active","completed","cancelled","uncommitted","uncertain"]},"evidenceMessageIds":{"type":"array","minItems":1,"items":{"type":"string"}},"reason":{"type":"string","minLength":1}}}}}}`)
+
+type actionReview struct {
+	CandidateIndex     int      `json:"candidateIndex"`
+	Status             string   `json:"status"`
+	EvidenceMessageIDs []string `json:"evidenceMessageIds"`
+	Reason             string   `json:"reason"`
+}
+
+func filterReviewedActions(candidates []Suggestion, reviews []actionReview, group string, messages map[string]Message) ([]Suggestion, error) {
+	if len(reviews) != len(candidates) {
+		return nil, fmt.Errorf("action review must cover every candidate")
+	}
+	seen := map[int]bool{}
+	keep := map[int]bool{}
+	for _, review := range reviews {
+		i := review.CandidateIndex
+		if i < 0 || i >= len(candidates) || seen[i] || strings.TrimSpace(review.Reason) == "" {
+			return nil, fmt.Errorf("invalid action review coverage or reason")
+		}
+		seen[i] = true
+		switch review.Status {
+		case "active", "completed", "cancelled", "uncommitted", "uncertain":
+		default:
+			return nil, fmt.Errorf("invalid action review status")
+		}
+		if err := checkSources(group, review.EvidenceMessageIDs, messages, true); err != nil {
+			return nil, err
+		}
+		keep[i] = review.Status == "active"
+	}
+	result := []Suggestion{}
+	for i, candidate := range candidates {
+		if keep[i] {
+			result = append(result, candidate)
+		}
+	}
+	return result, nil
+}
+
+func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, candidates []Suggestion, messages map[string]Message) ([]Suggestion, error) {
+	if len(candidates) == 0 {
+		return candidates, nil
+	}
+	payload, err := json.Marshal(struct {
+		Context    Context      `json:"context"`
+		Candidates []Suggestion `json:"candidates"`
+	}{input, candidates})
+	if err != nil {
+		return nil, err
+	}
+	request := ModelRequest{Model: run.Model, Messages: []ChatMessage{{Role: "system", Content: actionReviewPrompt + "\nSchema: " + string(actionReviewSchema)}, {Role: "user", Content: string(payload)}}, Format: actionReviewSchema, Options: ModelOptions{Temperature: 0, NumCtx: w.Tokens, NumPredict: 2048}}
+	if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > w.Tokens {
+		return nil, fmt.Errorf("行动核对上下文超过容量限制；没有截断证据")
+	}
+	start := time.Now()
+	output, callErr := w.Model.Call(ctx, request)
+	step := Step{Name: "review_model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
+	if callErr != nil {
+		step.Status = "failed"
+		step.Error = callErr.Error()
+	}
+	run.Steps = append(run.Steps, step)
+	if callErr != nil {
+		return nil, callErr
+	}
+	var response struct {
+		Reviews []actionReview `json:"reviews"`
+	}
+	if err = strictJSON([]byte(output.Content), &response); err != nil {
+		return nil, err
+	}
+	var wire struct {
+		Reviews []map[string]json.RawMessage `json:"reviews"`
+	}
+	if err = json.Unmarshal([]byte(output.Content), &wire); err != nil {
+		return nil, err
+	}
+	for _, item := range wire.Reviews {
+		if len(item) != 4 {
+			return nil, fmt.Errorf("action review must contain exactly four fields")
+		}
+		for _, key := range []string{"candidateIndex", "status", "evidenceMessageIds", "reason"} {
+			value, ok := item[key]
+			if !ok || string(value) == "null" {
+				return nil, fmt.Errorf("missing action review field %s", key)
+			}
+		}
+	}
+	filtered, err := filterReviewedActions(candidates, response.Reviews, input.GroupID, messages)
+	if err != nil {
+		return nil, err
+	}
+	run.Steps = append(run.Steps, Step{Name: "review_actions", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"reviews": response.Reviews, "candidateCount": len(candidates), "keptCount": len(filtered), "semanticAccuracy": "model judgment; requires human review"}})
+	return filtered, nil
+}

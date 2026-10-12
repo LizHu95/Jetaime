@@ -13,7 +13,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluators import OllamaJudge, execution_success, source_integrity, reference_rules
 from runner import load_cases
 
-FIXTURE = json.loads((Path(__file__).resolve().parents[2] / 'services/api/testdata/assistant/history.json').read_text())
+# Minimal protocol-only data, isolated from the debug console and real evaluation cases.
+FIXTURE = {
+    'users': [{'id': 'lin', 'nickname': '测试成员'}, {'id': 'chen', 'nickname': '隔离成员'}],
+    'groups': [{'id': 'daily', 'name': '测试群'}, {'id': 'other', 'name': '隔离群'}],
+    'members': [{'groupId': 'daily', 'userId': 'lin'}, {'groupId': 'other', 'userId': 'chen'}],
+    'messages': [
+        {'id': 'm2', 'groupId': 'daily', 'senderId': 'lin', 'sentAt': '2026-10-10T10:00:00+08:00', 'text': '测试内容'},
+        {'id': 'm8', 'groupId': 'other', 'senderId': 'chen', 'sentAt': '2026-10-10T10:01:00+08:00', 'text': '隔离内容'},
+    ],
+}
 INPUT = {'fixture': FIXTURE, 'groupId': 'daily', 'actorId': 'lin', 'kind': 'qa', 'question': '预算？'}
 OUTPUT = {'run': {'status': 'succeeded', 'answer': {'status': 'answered', 'answer': '200元以内', 'sourceMessageIds': ['m2']},
                    'steps': [{'name': 'build_context', 'output': {'groupId': 'daily', 'messages': [m for m in FIXTURE['messages'] if m['groupId']=='daily']}}]}}
