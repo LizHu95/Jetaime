@@ -9,7 +9,7 @@ import (
 )
 
 const actionReviewPrompt = basePrompt + `
-任务：独立核对候选行动的证据及截至对话末尾的状态，不生成新行动。候选可能有错误，不能默认接受。
+任务：独立核对候选行动的证据及截至对话末尾的状态，不生成新行动。候选可能有错误，不能默认接受。只有AI安排不能证明真人承诺；真人明确提醒请求只授权提醒本身。acceptedActions给出已校验的请求/接受关系，核对这些行动的后续状态，不重新猜测接受者身份。
 先为每个候选分别确认：行动是什么、是谁的安排、直接安排来源、后续是否有明确针对本项的状态变化。不能把同一段对话里的不同动作当作一个整体状态。
 状态证据必须同时对应本项行动和行动主体。完成动作A的消息只能结束A；即使动作B由同一人计划、紧接A发生，也不能用A的完成证据结束B。
 “做完A再做B”“A完成后去B”表达执行顺序：当后续确认A完成时，只证明B的前置条件成立，不证明B已经执行或完成。没有针对B的完成、取消或修改证据，且B已形成明确个人安排时，B仍是active。
@@ -64,14 +64,15 @@ func filterReviewedActions(candidates []Suggestion, reviews []actionReview, grou
 	return result, nil
 }
 
-func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, candidates []Suggestion, messages map[string]Message) ([]Suggestion, error) {
+func (w *Workflow) reviewUnresolvedActions(ctx context.Context, run *Run, input Context, candidates []Suggestion, messages map[string]Message) ([]Suggestion, error) {
 	if len(candidates) == 0 {
 		return candidates, nil
 	}
 	payload, err := json.Marshal(struct {
-		Context    Context      `json:"context"`
-		Candidates []Suggestion `json:"candidates"`
-	}{input, candidates})
+		Context         Context                  `json:"context"`
+		Candidates      []Suggestion             `json:"candidates"`
+		AcceptedActions []acceptedActionEvidence `json:"acceptedActions"`
+	}{input, candidates, acceptanceReviewEvidence(input, candidates)})
 	if err != nil {
 		return nil, err
 	}
@@ -176,4 +177,42 @@ func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, c
 	}
 	run.Steps = append(run.Steps, Step{Name: "review_actions", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"reviews": response.Reviews, "candidateCount": len(candidates), "keptCount": len(filtered), "cacheHit": cacheHit, "semanticAccuracy": "model judgment; requires human review"}})
 	return filtered, nil
+}
+
+func (w *Workflow) reviewActions(ctx context.Context, run *Run, input Context, candidates []Suggestion, messages map[string]Message) ([]Suggestion, error) {
+	// Once an action is accepted at the end of the supplied history there is no
+	// later state transition to infer. Keep that verified acceptance directly,
+	// unless an existing task still requires duplicate review.
+	active := map[string]bool{}
+	unresolved := []Suggestion{}
+	for index, candidate := range candidates {
+		terminal := false
+		for _, evidence := range acceptanceReviewEvidence(input, candidates) {
+			if evidence.CandidateIndex == index && len(input.Messages) > 0 && evidence.AcceptanceMessageID == input.Messages[len(input.Messages)-1].ID && len(candidate.PossibleDuplicateIDs) == 0 {
+				terminal = true
+			}
+		}
+		if terminal {
+			active[candidate.ID] = true
+		} else {
+			unresolved = append(unresolved, candidate)
+		}
+	}
+	if len(active) > 0 {
+		run.Steps = append(run.Steps, Step{Name: "terminal_acceptance_state", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"acceptedAsActiveCount": len(active), "reason": "verified request/acceptance pair ends supplied history; no later transition or existing duplicate"}})
+	}
+	reviewed, err := w.reviewUnresolvedActions(ctx, run, input, unresolved, messages)
+	if err != nil {
+		return nil, err
+	}
+	for _, candidate := range reviewed {
+		active[candidate.ID] = true
+	}
+	result := []Suggestion{}
+	for _, candidate := range candidates {
+		if active[candidate.ID] {
+			result = append(result, candidate)
+		}
+	}
+	return result, nil
 }

@@ -100,3 +100,9 @@ python3 scripts/report-chat-eval.py local/data/evals/output/experiment-340d01bb.
 ## 最新核对修复：extract-v9-evidence-first
 
 保持r2输入和参考不变，v8加强行动状态关系后17/18参考规则通过；v9将证据和完整reason放在status之前，18/18参考规则通过。只测6个提取案例各3次，没有语义裁判或独立验收集，不能称总体准确率。当前调试台采用v9，缓存仍默认关闭。实验分别为2f7e3695、affc3250，报告位于local/data/chat-eval/status-relations-fix-report.md。
+
+## 2026-10-14：录屏执行证据边界修复
+
+当前执行版本为qa-v4-evidence-boundaries / extract-v19-evidence-boundaries。问答区分截图内身份、分享者与未确认问句；提取保留v9提示词主干，在程序中校验AI来源、真人提醒请求，以及有条件补查短回复接受。已校验的接受关系在片段末尾且没有检测到重复任务时直接保留；后续消息或已有重复任务仍独立核对。AI识别目前依赖fixture昵称明确标注（AI）/(AI)，未新增成员角色Schema。
+
+旧reviewed-r2提取6题各3次，18/18执行、来源与参考规则通过。新录屏四个修复目标各3次逐输出核对：截图归属及问句返回证据不足，叫起床归给接受者，面试只保留原始提醒请求。新参考仍待审核，未修改评估器或旧评分，未启用语义裁判，最终版未重跑新24题完整版或旧17题问答。家务隐含承诺边界未扩展。短回复补查增加条件式模型调用，耗时需结合缓存与机器负载观察。报告与实验快照保留在local/data/chat-eval/recordings-20261012-execution-fix.md及local/data/evals/output/。
