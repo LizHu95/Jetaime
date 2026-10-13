@@ -2,7 +2,7 @@
 
 ## 当前状态
 
-用户导入的441条消息是原始证据。评测集从中截取片段，包含17条问答和6条待办提取；未新增聊天内容。初稿参考为AI编写。用户于2026-10-12明确确认全部参考审核通过，当前工作稿为reviewed=true，已冻结chat-v1.1-reviewed-r1及其extract6子集；历史草稿与评分保持原状态。
+用户导入的441条消息是原始证据。评测集从中截取片段，包含17条问答和6条待办提取；未新增聊天内容。初稿参考为AI编写。用户于2026-10-12明确确认全部参考审核通过，当前工作稿为reviewed=true，已保留chat-v1.1-reviewed-r1及其extract6子集，当前工作稿进一步强化为reviewed-r2；历史草稿与评分保持原状态。
 
 `local/data/evals/cases.json` 是工作稿。正式对比使用 `local/data/evals/versions/<suiteVersion>/cases.json` 的冻结快照；不要覆盖、重新生成或直接修改冻结目录。原始输入文件和调试台状态不因评测而变化。
 
@@ -89,4 +89,14 @@ python3 scripts/report-chat-eval.py local/data/evals/output/experiment-340d01bb.
 
 ## 缓存探索暂不接入
 
-2026-10-12完成状态核对缓存探索，测试和报告保留于代码及local/data/chat-eval/review-cache-check.md。用户决定暂不接入；常规Workflow、make assistant与Phoenix评测默认关闭缓存，使用extract-v4，不执行缓存模型指纹查询。scripts/check-review-cache.py显式开启experimental-review-cache，专门复现探索结果。
+2026-10-12完成状态核对缓存探索，测试和报告保留于代码及local/data/chat-eval/review-cache-check.md。用户决定暂不接入；常规Workflow、make assistant与Phoenix评测默认关闭缓存，使用当前提取版本，不执行缓存模型指纹查询。scripts/check-review-cache.py显式开启experimental-review-cache，专门复现探索结果。
+
+## reviewed-r2逐行动断言
+
+按用户要求新增requiredSuggestions/forbiddenSuggestions；每个必需行动须匹配不同建议，标题包含全部关键词，并核对配置的负责人、时间与逐项来源。面包片段明确必须保留骑回家和做英语，禁止已完成购买，不能仅靠总数和来源集合通过。健身/理发也增加逐项检查。
+
+冻结包为chat-v1.1-reviewed-r2及chat-v1.1-extract6-reviewed-r2，输入哈希与r1相同。旧输出只做独立的离线对照，旧评分不改写；v4当前保存输出中也有3条漏提取被发现。规则测试覆盖漏项、同数量错误行动、归属/时间/来源错误、合并行动和禁止行动。9项单元测试通过。报告在local/data/chat-eval/action-assertions-r2.md。
+
+## 最新核对修复：extract-v9-evidence-first
+
+保持r2输入和参考不变，v8加强行动状态关系后17/18参考规则通过；v9将证据和完整reason放在status之前，18/18参考规则通过。只测6个提取案例各3次，没有语义裁判或独立验收集，不能称总体准确率。当前调试台采用v9，缓存仍默认关闭。实验分别为2f7e3695、affc3250，报告位于local/data/chat-eval/status-relations-fix-report.md。

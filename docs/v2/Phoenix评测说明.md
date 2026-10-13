@@ -83,6 +83,8 @@ make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context
 | `requiredSourceMessageIds` | 必须包含的来源集合（允许额外合法来源） |
 | `forbiddenSourceMessageIds` | 不得引用的来源集合 |
 | `suggestionCount` | extract 的预期建议数；仅检查数量，不保证行动含义正确 |
+| `requiredSuggestions` | 必须保留的独立行动；标题包含全部titleContains关键词，可配置assigneeId、timeExpression及requiredSourceMessageIds，每项须匹配不同建议 |
+| `forbiddenSuggestions` | 禁止出现的行动；匹配方式与必需行动相同 |
 | `reference` | 非空对象：人工参考答案、行动清单、负责人、时间、共识范围等；供语义评估 |
 | `notes` | 对歧义、可接受替代表达、评分依据的说明 |
 
@@ -109,3 +111,9 @@ make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context
 - 本地 JSONL 保留输出、任务错误、评分及运行 ID。流程在写入中途失败会保留已经上传的记录，不自动删除或伪造完成状态。
 
 输入与 Trace 可能包含完整案例对话，只向配置的 Phoenix 实例和模型端点发送；默认全部在本机。本轮没有恢复一期推荐、反馈、收藏或换批代码。
+
+## 2026-10-12：reviewed-r2漏判断言
+
+输入不变，强化参考规则并冻结chat-v1.1-reviewed-r2及extract6子集。健身/理发分别检查负责人、时间和来源；面包片段必须保留骑回家、做英语，禁止已完成购买。关键词断言不等于完整语义判定，需要维护同义表达或使用语义裁判。
+
+运行 `uv run --project evals --locked python scripts/check-action-assertions.py` 可离线检查旧输出，不调用模型、不改旧实验评分。当前保存的v4完整复测18条提取中3条遗漏被新规则发现；v5同类3条、v6同类2条也失败。详情见 [漏判断言验证](../../local/data/chat-eval/action-assertions-r2.md)。

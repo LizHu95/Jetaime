@@ -15,7 +15,7 @@ from opentelemetry.trace import Status, StatusCode
 from phoenix.client import Client
 from phoenix.otel import register
 
-from evaluators import OllamaJudge, execution_success, reference_rules, source_integrity, skipped, JUDGE_VERSION
+from evaluators import OllamaJudge, execution_success, reference_rules, source_integrity, skipped, JUDGE_VERSION, REFERENCE_RULES_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 EVAL_DIR = Path(__file__).resolve().parent
@@ -151,7 +151,7 @@ def run_experiment(args, cases, digest):
         "gitRevision": revision, "gitDirty": dirty, "model": args.model,
         "contextTokens": args.context_tokens, "timeoutSeconds": args.timeout,
         "repetitions": args.repetitions, "judgeModel": args.judge_model,
-        "judgeRubric": JUDGE_VERSION, "serviceVersions": version,
+        "judgeRubric": JUDGE_VERSION, "referenceRulesVersion": REFERENCE_RULES_VERSION, "serviceVersions": version,
         "evaluatorSourceSha256": hashlib.sha256((EVAL_DIR / "evaluators.py").read_bytes()).hexdigest()}
     (snapshot / "manifest.json").write_text(json.dumps(run_metadata, ensure_ascii=False, indent=2) + "\n")
     experiment = client.experiments.create(dataset_id=dataset.id, dataset_version_id=dataset.version_id,

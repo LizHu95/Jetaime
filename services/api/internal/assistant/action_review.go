@@ -10,17 +10,21 @@ import (
 
 const actionReviewPrompt = basePrompt + `
 任务：独立核对候选行动的证据及截至对话末尾的状态，不生成新行动。候选可能有错误，不能默认接受。
-对每个候选逐条查阅全部消息，返回一条 review：
+先为每个候选分别确认：行动是什么、是谁的安排、直接安排来源、后续是否有明确针对本项的状态变化。不能把同一段对话里的不同动作当作一个整体状态。
+状态证据必须同时对应本项行动和行动主体。完成动作A的消息只能结束A；即使动作B由同一人计划、紧接A发生，也不能用A的完成证据结束B。
+“做完A再做B”“A完成后去B”表达执行顺序：当后续确认A完成时，只证明B的前置条件成立，不证明B已经执行或完成。没有针对B的完成、取消或修改证据，且B已形成明确个人安排时，B仍是active。
+省略主语的连续个人计划继承该段发言者，属于本人安排，不要求对方再次同意。未收到后续反馈、没看到完成消息、没有精确时间，均不能单独构成uncertain。
+对每个候选逐条查阅全部消息，返回一条 review。输出顺序必须是candidateIndex、evidenceMessageIds、reason、status：先选择对应本项的证据，说明是否有本项状态变化，最后决定状态。没有明确的本项完成证据时，不能从执行顺序猜测完成。
 - active：有明确本人安排/接受的证据，负责人正确，且后续没有完成/取消，也未在tasks创建。
 - completed：后续语句表示该行动已经完成。必须结合口语和引用判断；例如“最后一份，拿下”引用购买计划，表示已经买到，不再需要买。完成一项不代表其他计划也完成。
 - cancelled：该行动已取消或被替换。
 - uncommitted：只有疑问、建议、愿望、转发通知或指令示例，没有本人明确安排/接受。
-- uncertain：有实际矛盾或证据无法确定负责人、是否形成安排，或候选遗漏关键限定。
+- uncertain：存在具体的主体/承诺歧义、相互矛盾的证据，或候选遗漏影响执行的关键条件；reason必须指出该歧义或矛盾。不知道是否已经执行，不等于不知道是否有明确安排。
 明确计划在没有后续完成/取消证据时保持 active；不能因为没有完成消息就标 uncertain。本人连续描述自己的计划可构成明确安排，简短省略主语的“做某事”要结合前后本人计划理解，不要求他人接受，更不要求共同承诺。完成一个购买行动并不会完成后续学习等独立行动。
 只有 active 可以进入待办建议。问话者不是答复者日程的负责人，引用者不是被引用内容的发送者。候选把负责人归错、把问句当共同承诺或把不同时间行动合并时应标 uncertain，不要替它补证据。
-必须覆盖每个 candidateIndex，不能重复或遗漏；evidenceMessageIds引用真实消息（允许引用候选来源以后的完成消息）；reason简述证据和判断。只输出 Schema JSON。`
+必须覆盖每个 candidateIndex，不能重复或遗漏；evidenceMessageIds引用真实消息（允许引用候选来源以后的完成消息）；reason说明本项安排证据，以及是否找到针对本项的状态变化。completed/cancelled必须有本项明确完成/取消证据，active引用本项安排来源；不要把“缺少后续完成证据”作为uncertain理由。只输出 Schema JSON。`
 
-var actionReviewSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["reviews"],"properties":{"reviews":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["candidateIndex","status","evidenceMessageIds","reason"],"properties":{"candidateIndex":{"type":"integer","minimum":0,"maximum":9},"status":{"type":"string","enum":["active","completed","cancelled","uncommitted","uncertain"]},"evidenceMessageIds":{"type":"array","minItems":1,"items":{"type":"string"}},"reason":{"type":"string","minLength":1}}}}}}`)
+var actionReviewSchema = json.RawMessage(`{"type":"object","additionalProperties":false,"required":["reviews"],"properties":{"reviews":{"type":"array","minItems":1,"maxItems":10,"items":{"type":"object","additionalProperties":false,"required":["candidateIndex","evidenceMessageIds","reason","status"],"properties":{"candidateIndex":{"type":"integer","minimum":0,"maximum":9},"evidenceMessageIds":{"type":"array","minItems":1,"items":{"type":"string"}},"reason":{"type":"string","minLength":1},"status":{"type":"string","enum":["active","completed","cancelled","uncommitted","uncertain"]}}}}}}`)
 
 type actionReview struct {
 	CandidateIndex     int      `json:"candidateIndex"`

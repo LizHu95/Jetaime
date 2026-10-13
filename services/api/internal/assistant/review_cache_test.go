@@ -44,7 +44,7 @@ func TestReviewCacheDisabledByDefault(t *testing.T) {
 	w.EnableReviewCache = false
 	for i := 0; i < 2; i++ {
 		run, err := w.Execute(context.Background(), "daily", "lin", "extract", "", "")
-		if err != nil || run.PromptVersion != "extract-v4" || cacheState(run) != "absent" {
+		if err != nil || run.PromptVersion != "extract-v9-evidence-first" || cacheState(run) != "absent" {
 			t.Fatalf("normal workflow used experimental cache: %v", err)
 		}
 	}

@@ -30,9 +30,9 @@ def main():
                 'newReferenceCheck': reference_rules(c['input'],row['output'],c['expected'])})
         failures = [c for c in checks if c['newReferenceCheck']['label']=='fail']
         report['runs'].append({'runId':suffix,'checked':len(checks),'failed':len(failures),'checks':checks})
-    # Known regression fixtures must fail; the previous v4 outputs must still pass.
+    # Known regression fixtures must fail; the previously undetected v4 omission must also be exposed.
     runs = {r['runId']:r for r in report['runs']}
-    assert runs['8e938583']['failed']==0
+    assert runs['8e938583']['failed']==3
     assert runs['36172e7d']['failed']==3
     assert runs['4bc8e35c']['failed']==2
     cache = json.loads((ROOT/'local/data/chat-eval/review-cache-check.json').read_text())
@@ -48,7 +48,7 @@ def main():
     output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
     lines=['# reviewed-r2：行动漏判断言验证','','基于reviewed-r1强化参考，消息输入不变。这里只重放已保存输出，不调用模型、不修改Phoenix实验或旧评分，也不是新版本模型准确率。','','新增逐行动匹配：标题必须包含配置词、负责人一致、时间（配置时）一致、每项来源匹配；每个必需行动对应不同建议。另配置禁止行动。关键词匹配是确定性检查，不能涵盖全部同义表达或替代语义裁判。','','| 历史run | 检查的提取输出 | 新规则失败 |','| --- | --- | --- |']
     for r in report['runs']:lines.append(f"| {r['runId']} | {r['checked']} | {r['failed']} |")
-    lines+=['','v4完整复测的18条提取输出仍通过；v5漏掉骑回家的3次均失败，v6漏掉骑回家的2次均失败。缓存验证里的3次uncertain过滤也被新规则识别为漏提取。规则因此能发现之前执行/数量/引用合法但行动内容错误的问题。','','## 失败依据','']
+    lines+=['','当前保存的v4完整复测18条提取输出中，3条漏掉骑回家，旧规则通过但新规则失败；v5的3次及v6的2次同类遗漏也均失败。缓存验证里的3次uncertain过滤也被新规则识别为漏提取。规则因此能发现之前执行/数量/引用合法但行动内容错误的问题。','','## 失败依据','']
     for r in report['runs']:
         for c in r['checks']:
             if c['newReferenceCheck']['label']=='fail':

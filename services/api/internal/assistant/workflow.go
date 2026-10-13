@@ -115,9 +115,9 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	}
 	run = Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: kind, Question: question, Model: model, PromptVersion: kind + "-v1", StartedAt: time.Now(), Status: "running", Steps: []Step{}}
 	if kind == "extract" {
-		run.PromptVersion = "extract-v4"
+		run.PromptVersion = "extract-v9-evidence-first"
 		if w.EnableReviewCache {
-			run.PromptVersion = "extract-v7-cache"
+			run.PromptVersion += "-cache"
 		}
 	}
 	defer func() {
