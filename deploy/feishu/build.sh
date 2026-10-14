@@ -4,9 +4,9 @@ set -euo pipefail
 umask 077
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
-output_dir="$repo_root/local/feishu/deploy"
+output_dir="$repo_root/outputs/feishu/deploy"
 env_file="$repo_root/local/feishu/.env"
-archive="$repo_root/local/feishu/feishu-deploy.tar.gz"
+archive="$repo_root/outputs/feishu/feishu-deploy.tar.gz"
 arch=
 
 if [ ! -f "$env_file" ]; then

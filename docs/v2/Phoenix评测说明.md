@@ -56,7 +56,7 @@ make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context
 
 其他参数：`--model`、`--ollama-url`、`--phoenix-url`、`--timeout`（秒）、`--context-tokens`、`--dataset`、`--name`、`--output`。默认被测模型 `qwen3.5:9b`，上下文 8192，超时 180 秒。默认实验名使用 ASCII；Phoenix 20.20.0 的实验 JSON 导出在非 ASCII 名称下可能出现响应头编码错误。
 
-空案例文件会拒绝创建正式实验。每次运行输出 Phoenix 实验链接、逐案例 JSONL 和汇总 JSON，默认保存在 Git 忽略的 `local/data/evals/output/`。评分 fail 本身不使进程失败；任务基础设施错误或评估器异常会返回非零退出码。语义 fail 与执行失败仍可在实验中分析，不设置未经确认的质量门槛。
+空案例文件会拒绝创建正式实验。每次运行输出 Phoenix 实验链接、逐案例 JSONL 和汇总 JSON，默认保存在 Git 忽略的 `outputs/evals/`。评分 fail 本身不使进程失败；任务基础设施错误或评估器异常会返回非零退出码。语义 fail 与执行失败仍可在实验中分析，不设置未经确认的质量门槛。
 
 ## 4. 案例输入契约
 
@@ -116,4 +116,4 @@ make eval EVAL_ARGS='--cases local/data/evals/cases.json --timeout 300 --context
 
 输入不变，强化参考规则并冻结chat-v1.1-reviewed-r2及extract6子集。健身/理发分别检查负责人、时间和来源；面包片段必须保留骑回家、做英语，禁止已完成购买。关键词断言不等于完整语义判定，需要维护同义表达或使用语义裁判。
 
-运行 `uv run --project evals --locked python scripts/check-action-assertions.py` 可离线检查旧输出，不调用模型、不改旧实验评分。当前保存的v4完整复测18条提取中3条遗漏被新规则发现；v5同类3条、v6同类2条也失败。详情见 [漏判断言验证](../../local/data/chat-eval/action-assertions-r2.md)。
+运行 `uv run --project evals --locked python scripts/check-action-assertions.py` 可离线检查旧输出，不调用模型、不改旧实验评分。当前保存的v4完整复测18条提取中3条遗漏被新规则发现；v5同类3条、v6同类2条也失败。详情见 [漏判断言验证](../../outputs/evals/reports/action-assertions-r2.md)。

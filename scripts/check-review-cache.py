@@ -28,7 +28,7 @@ def main():
     parser.add_argument('--model', default='qwen3.5:9b')
     parser.add_argument('--ollama-url', default='http://127.0.0.1:11434')
     parser.add_argument('--cases', type=Path, default=ROOT/'local/data/evals/versions/chat-v1.1-extract6-reviewed-r1/cases.json')
-    parser.add_argument('--output', type=Path, default=ROOT/'local/data/chat-eval/review-cache-check.json')
+    parser.add_argument('--output', type=Path, default=ROOT/'outputs/evals/reports/review-cache-check.json')
     args = parser.parse_args()
     raw = args.cases.read_bytes()
     cases = json.loads(raw)
@@ -39,7 +39,7 @@ def main():
               'casesPath': str(args.cases), 'mode': 'isolated real-model cache verification; not a Phoenix quality experiment',
               'cases': []}
     # Verify the review prompt/schema is exactly the original stable v4's.
-    baseline = [json.loads(l) for l in (ROOT/'local/data/evals/output/experiment-8e938583.jsonl').read_text().splitlines()]
+    baseline = [json.loads(l) for l in (ROOT/'outputs/evals/experiment-8e938583.jsonl').read_text().splitlines()]
     old_review = next(s['input'] for r in baseline for s in r['output']['run']['steps'] if s['name']=='review_model_call')
     with tempfile.TemporaryDirectory(prefix='jetaime-review-cache-') as work:
         work = Path(work)

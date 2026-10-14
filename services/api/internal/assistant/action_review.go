@@ -82,7 +82,7 @@ func (w *Workflow) reviewUnresolvedActions(ctx context.Context, run *Run, input 
 	}
 	cacheStart := time.Now()
 	key, cacheEnabled, bypassReason := "", false, "provider has no model fingerprint"
-	if provider, ok := w.Model.(reviewCacheModel); w.EnableReviewCache && ok {
+	if provider, ok := w.ChatModel.(reviewCacheModel); w.EnableReviewCache && ok {
 		identity, identityErr := provider.ReviewCacheIdentity(ctx, run.Model)
 		if identityErr == nil && identity != "" {
 			key, err = actionReviewCacheKey(identity, input, candidates, request)
@@ -116,7 +116,7 @@ func (w *Workflow) reviewUnresolvedActions(ctx context.Context, run *Run, input 
 	if !cacheHit {
 		start := time.Now()
 		var callErr error
-		output, callErr = w.Model.Call(ctx, request)
+		output, callErr = w.ChatModel.Call(ctx, request)
 		step := Step{Name: "review_model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
 		if callErr != nil {
 			step.Status = "failed"
@@ -163,7 +163,7 @@ func (w *Workflow) reviewUnresolvedActions(ctx context.Context, run *Run, input 
 			}
 		}
 		// Do not store a verdict if the provider changed weights during inference.
-		identity, identityErr := w.Model.(reviewCacheModel).ReviewCacheIdentity(ctx, run.Model)
+		identity, identityErr := w.ChatModel.(reviewCacheModel).ReviewCacheIdentity(ctx, run.Model)
 		currentKey, keyErr := actionReviewCacheKey(identity, input, candidates, request)
 		if cacheable && identityErr == nil && keyErr == nil && currentKey == key {
 			w.reviewCache.put(key, output.Content)

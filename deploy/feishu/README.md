@@ -23,12 +23,9 @@ FEISHU_APP_SECRET=你的应用密钥
 本机测试和云服务联调建议只启动一个客户端，便于确认消息由哪个客户端处理。
 
 ```sh
-# 仓库根目录
-set -a
-. ./local/feishu/.env
-set +a
-cd services/api
-go run ./cmd/feishu
+# 仓库根目录；自动加载 local/.env 与 local/feishu/.env：
+make feishu
+# 等效：python3 scripts/dev.py feishu
 ```
 
 日志出现 `feishu long connection ready` 表示建连成功，`starting feishu long connection` 仅表示开始尝试。启动配置错误或终止性连接错误返回非零退出码，systemd 可据此重启。
@@ -38,17 +35,17 @@ go run ./cmd/feishu
 本机需要 Go 和 Python 3。在仓库根目录执行：
 
 ```sh
-bash deploy/feishu/build.sh
+make feishu-build
 ```
 
-输出 `local/feishu/feishu-deploy.tar.gz`，包含 Linux amd64 / arm64 二进制、当前私有环境配置、systemd 配置及安装/更新脚本。每次修改配置或代码后需重新打包。
+输出 `outputs/feishu/feishu-deploy.tar.gz`，包含 Linux amd64 / arm64 二进制、当前私有环境配置、systemd 配置及安装/更新脚本。每次修改配置或代码后需重新打包。
 
 ## Linux 服务器部署
 
-上传 `local/feishu/deploy` 目录到服务器主目录。例如，在本机仓库根目录执行，替换命令中的服务器用户名和公网 IP：
+上传 `outputs/feishu/deploy` 目录到服务器主目录。例如，在本机仓库根目录执行，替换命令中的服务器用户名和公网 IP：
 
 ```sh
-scp -r local/feishu/deploy <服务器用户名>@<服务器公网IP>:~/
+scp -r outputs/feishu/deploy <服务器用户名>@<服务器公网IP>:~/
 ```
 
 首次安装，在服务器执行：

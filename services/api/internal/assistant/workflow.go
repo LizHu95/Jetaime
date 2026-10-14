@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 	"github.com/google/uuid"
 )
 
@@ -35,7 +36,7 @@ var extractSchema = json.RawMessage(`{"type":"object","additionalProperties":fal
 
 type Workflow struct {
 	Store             *Store
-	Model             Model
+	ChatModel         ChatModel
 	DefaultModel      string
 	Tokens            int
 	LogPath           string
@@ -47,11 +48,11 @@ type Workflow struct {
 	reviewCache       reviewCache
 }
 
-func NewWorkflow(store *Store, model Model, name string, tokens int, logPath string) (*Workflow, error) {
+func NewWorkflow(store *Store, model ChatModel, name string, tokens int, logPath string) (*Workflow, error) {
 	if store == nil || model == nil || strings.TrimSpace(name) == "" || tokens < 4096 {
 		return nil, fmt.Errorf("workflow requires store, model and context >=4096")
 	}
-	return &Workflow{Store: store, Model: model, DefaultModel: name, Tokens: tokens, LogPath: logPath, runs: []Run{}, dismissed: map[string]bool{}}, nil
+	return &Workflow{Store: store, ChatModel: model, DefaultModel: name, Tokens: tokens, LogPath: logPath, runs: []Run{}, dismissed: map[string]bool{}}, nil
 }
 func (w *Workflow) Runs(group, actor string) ([]Run, error) {
 	if _, err := w.Store.Context(group, actor); err != nil {
@@ -113,10 +114,18 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	if model == "" {
 		model = w.DefaultModel
 	}
+	var identity *llm.Identity
+	if provider, ok := w.ChatModel.(interface{ ModelIdentity() llm.Identity }); ok {
+		value := provider.ModelIdentity()
+		if value.Model != "" && value.Model != model {
+			return run, fmt.Errorf("model is fixed at startup; restart to switch")
+		}
+		identity = &value
+	}
 	if len(model) > 150 {
 		return run, fmt.Errorf("model name too long")
 	}
-	run = Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: kind, Question: question, Model: model, PromptVersion: "qa-v4-evidence-boundaries", StartedAt: time.Now(), Status: "running", Steps: []Step{}}
+	run = Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: kind, Question: question, Model: model, ModelIdentity: identity, PromptVersion: "qa-v4-evidence-boundaries", StartedAt: time.Now(), Status: "running", Steps: []Step{}}
 	if kind == "extract" {
 		run.PromptVersion = "extract-v19-evidence-boundaries"
 		if w.EnableReviewCache {
@@ -161,7 +170,7 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 		return
 	}
 	start = time.Now()
-	output, e := w.Model.Call(ctx, request)
+	output, e := w.ChatModel.Call(ctx, request)
 	step := Step{Name: "model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": output.Raw, "content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
 	if e != nil {
 		step.Status = "failed"

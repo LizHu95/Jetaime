@@ -18,7 +18,7 @@ def main():
     report = {'mode': 'offline retrospective rule checks; original scores unchanged; no LLM calls',
               'referenceVersion': 'chat-v1.1-reviewed-r2', 'casesSha256': digest, 'runs': []}
     for suffix in ['0fabbf16','8e938583','36172e7d','4bc8e35c']:
-        rows = [json.loads(l) for l in (ROOT/f'local/data/evals/output/experiment-{suffix}.jsonl').read_text().splitlines()]
+        rows = [json.loads(l) for l in (ROOT/f'outputs/evals/experiment-{suffix}.jsonl').read_text().splitlines()]
         checks = []
         for row in rows:
             c = by.get(row['caseId'])
@@ -35,7 +35,7 @@ def main():
     assert runs['8e938583']['failed']==3
     assert runs['36172e7d']['failed']==3
     assert runs['4bc8e35c']['failed']==2
-    cache = json.loads((ROOT/'local/data/chat-eval/review-cache-check.json').read_text())
+    cache = json.loads((ROOT/'outputs/evals/reports/review-cache-check.json').read_text())
     cache_checks=[]
     for case in cache['cases']:
         c=by[case['caseId']]
@@ -44,7 +44,7 @@ def main():
                 'check':reference_rules(c['input'],{'run':row['run']},c['expected'])})
     report['cacheValidationRecheck'] = cache_checks
     assert sum(c['check']['label']=='fail' for c in cache_checks)==3
-    output = ROOT/'local/data/chat-eval/action-assertions-r2.json'
+    output = ROOT/'outputs/evals/reports/action-assertions-r2.json'
     output.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
     lines=['# reviewed-r2：行动漏判断言验证','','基于reviewed-r1强化参考，消息输入不变。这里只重放已保存输出，不调用模型、不修改Phoenix实验或旧评分，也不是新版本模型准确率。','','新增逐行动匹配：标题必须包含配置词、负责人一致、时间（配置时）一致、每项来源匹配；每个必需行动对应不同建议。另配置禁止行动。关键词匹配是确定性检查，不能涵盖全部同义表达或替代语义裁判。','','| 历史run | 检查的提取输出 | 新规则失败 |','| --- | --- | --- |']
     for r in report['runs']:lines.append(f"| {r['runId']} | {r['checked']} | {r['failed']} |")

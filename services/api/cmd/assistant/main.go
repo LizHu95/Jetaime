@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
 	"log"
 	"net"
 	"net/http"
@@ -13,6 +12,9 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 func main() {
@@ -20,8 +22,7 @@ func main() {
 	fixture := flag.String("fixture", "../../local/data/chat-history/history.fixture.json", "editable history fixture")
 	state := flag.String("state", "../../local/data/assistant/state.json", "persisted messages and tasks")
 	logs := flag.String("log", "../../local/data/assistant/runs.jsonl", "workflow trace log")
-	base := flag.String("ollama-url", "http://127.0.0.1:11434", "Ollama base URL")
-	model := flag.String("model", "qwen3.5:9b", "model name")
+	modelFlags := llm.RegisterFlags(flag.CommandLine)
 	reviewCache := flag.Bool("experimental-review-cache", false, "opt in to experimental review caching; disabled by default")
 	timeout := flag.Duration("model-timeout", 5*time.Minute, "model timeout")
 	tokens := flag.Int("context-tokens", 98304, "context capacity")
@@ -43,19 +44,24 @@ func main() {
 	if paths[0] == paths[1] || paths[0] == paths[2] || paths[1] == paths[2] {
 		log.Fatal("fixture, state and log must be different files")
 	}
+	config, err := modelFlags.Resolve(*tokens)
+	if err != nil {
+		log.Fatal(err)
+	}
+	provider, err := config.New(*timeout)
+	if err != nil {
+		log.Fatal(err)
+	}
 	store, err := assistant.OpenStore(paths[0], paths[1])
 	if err != nil {
 		log.Fatal(err)
 	}
-	provider, err := assistant.NewOllama(*base, *timeout)
-	if err != nil {
-		log.Fatal(err)
-	}
-	workflow, err := assistant.NewWorkflow(store, provider, *model, *tokens, paths[2])
+	workflow, err := assistant.NewWorkflow(store, provider, config.Model, config.ContextTokens, paths[2])
 	if err != nil {
 		log.Fatal(err)
 	}
 	workflow.EnableReviewCache = *reviewCache
+	fmt.Printf("Model: %s (%s), profile: %s\n", config.Model, config.Provider, config.Profile)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	listener, err := net.Listen("tcp", *addr)

@@ -1,0 +1,20 @@
+{
+  "default_profile": "local-qwen",
+  "models": {
+    "local-qwen": {
+      "provider": "ollama",
+      "base_url": "http://127.0.0.1:11434",
+      "model": "qwen3.5:9b",
+      "context_tokens": 98304
+    },
+    "cloud-qwen": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "YOUR_MODEL_OR_DEPLOYMENT_ID",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    }
+  }
+}

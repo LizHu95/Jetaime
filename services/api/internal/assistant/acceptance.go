@@ -64,7 +64,7 @@ func (w *Workflow) supplementAcceptances(ctx context.Context, run *Run, input Co
 		return nil, fmt.Errorf("接受核对上下文超过容量限制；没有截断证据")
 	}
 	start := time.Now()
-	result, err := w.Model.Call(ctx, request)
+	result, err := w.ChatModel.Call(ctx, request)
 	step := Step{Name: "acceptance_model_call", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: request, Output: map[string]any{"rawResponse": result.Raw, "content": result.Content, "promptTokens": result.PromptTokens, "completionTokens": result.CompletionTokens}}
 	if err != nil {
 		step.Status = "failed"

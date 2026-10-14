@@ -49,7 +49,7 @@ def main():
             path=Path(directory)/'cases.json';path.write_text(json.dumps([case]))
             cases,digest=load_cases(path)
             args=SimpleNamespace(cases=path,suite_version='protocol-test-only',phoenix_url=options.phoenix_url,ollama_url=f'http://127.0.0.1:{server.server_port}',model='protocol-test-model',judge_model='protocol-test-model',timeout=10,context_tokens=8192,
-                                 dataset='v2-PROTOCOL-TEST-ONLY',name='PROTOCOL TEST ONLY - not model quality',repetitions=2,output=ROOT/'local/data/evals/output/protocol-test')
+                                 dataset='v2-PROTOCOL-TEST-ONLY',name='PROTOCOL TEST ONLY - not model quality',repetitions=2,output=ROOT/'outputs/evals/protocol-test')
             result=run_experiment(args,cases,digest)
             assert result==0
             latest=max(args.output.glob('summary-*.json'),key=lambda p:p.stat().st_mtime)

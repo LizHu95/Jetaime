@@ -3,15 +3,20 @@
 GO_DIR := services/api
 UV ?= uv
 EVAL_ARGS ?=
+FEISHU_ARGS ?=
 ASSISTANT_ARGS ?=
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: trace eval eval-check eval-services eval-test eval-smoke assistant assistant-check help tools fmt fmt-check build test vet lint check \
+.PHONY: dev feishu feishu-build model-check trace eval eval-check eval-services eval-test eval-smoke assistant assistant-check help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
+	@echo "make dev        Start assistant with local environment and default model profile"
+	@echo "make feishu     Start Feishu with local environment"
+	@echo "make model-check Validate default model configuration without inference"
+	@echo "make feishu-build Build the private Feishu deployment package"
 	@echo "make trace      Start local Phoenix at http://127.0.0.1:6006"
 	@echo "make eval       Run V2 Phoenix experiment (EVAL_ARGS)"
 	@echo "make eval-check Validate case schema offline"
@@ -29,11 +34,22 @@ help:
 	@echo "make lint       Run the configured linters"
 	@echo "make check      Run formatting, build, vet, tests and lint"
 
+dev: assistant
+
 assistant:
-	cd $(GO_DIR) && go run ./cmd/assistant $(ASSISTANT_ARGS)
+	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)
+
+feishu:
+	python3 scripts/dev.py feishu $(FEISHU_ARGS)
+
+feishu-build:
+	python3 scripts/dev.py feishu-build
+
+model-check:
+	python3 scripts/dev.py model-check $(ASSISTANT_ARGS)
 
 assistant-check:
-	python3 scripts/check-assistant.py
+	python3 scripts/dev.py assistant-check
 
 tools: go-tools
 fmt: go-fmt
@@ -80,19 +96,19 @@ go-lint: go-tools
 go-check: go-fmt-check go-build go-vet go-test go-lint
 
 trace:
-	bash deploy/phoenix/start.sh
+	python3 scripts/dev.py trace
 
 eval:
-	$(UV) run --project evals --locked python evals/runner.py $(EVAL_ARGS)
+	JETAIME_UV="$(UV)" python3 scripts/dev.py eval $(EVAL_ARGS)
 
 eval-check:
-	$(UV) run --project evals --locked python evals/runner.py $(EVAL_ARGS) --check-only
+	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-check $(EVAL_ARGS)
 
 eval-services:
-	$(UV) run --project evals --locked python evals/runner.py $(EVAL_ARGS) --check-services
+	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-services $(EVAL_ARGS)
 
 eval-test:
 	$(UV) run --project evals --locked python -m unittest discover -s evals/tests -p 'test_*.py'
 
 eval-smoke:
-	$(UV) run --project evals --locked python evals/tests/smoke_phoenix.py $(EVAL_ARGS)
+	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-smoke $(EVAL_ARGS)

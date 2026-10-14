@@ -34,7 +34,7 @@ func (m *cacheCountingModel) Call(ctx context.Context, r ModelRequest) (ModelRes
 func cachedWorkflow(t *testing.T) (*Store, *Workflow, *cacheCountingModel) {
 	s, w, _ := setup(t, "")
 	m := &cacheCountingModel{identity: "endpoint|model|digest-v1", stubModel: stubModel{content: `{"suggestions":[{"title":"测试任务","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`}}
-	w.Model = m
+	w.ChatModel = m
 	// Cache invalidation tests append messages; use the real evaluation capacity
 	// so they exercise cache semantics rather than the prompt byte-budget guard.
 	w.Tokens = 16384

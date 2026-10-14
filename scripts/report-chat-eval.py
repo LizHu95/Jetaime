@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 p = argparse.ArgumentParser()
 p.add_argument('results', type=Path)
 p.add_argument('--cases', type=Path, required=True, help='The frozen cases used by this run; never silently use the current working draft')
-p.add_argument('--output', type=Path, default=ROOT/'local/data/chat-eval/report.md')
+p.add_argument('--output', type=Path, default=ROOT/'outputs/evals/reports/report.md')
 args = p.parse_args()
 cases = {c['id']: c for c in json.loads(args.cases.read_text())}
 rows = [json.loads(line) for line in args.results.read_text().splitlines() if line]

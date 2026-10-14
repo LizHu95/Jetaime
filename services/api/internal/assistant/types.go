@@ -2,8 +2,9 @@
 package assistant
 
 import (
-	"encoding/json"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 type User struct {
@@ -80,43 +81,26 @@ type Step struct {
 	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
-	ID            string       `json:"id"`
-	GroupID       string       `json:"groupId"`
-	ActorID       string       `json:"actorId"`
-	Kind          string       `json:"kind"`
-	Question      string       `json:"question,omitempty"`
-	Model         string       `json:"model"`
-	PromptVersion string       `json:"promptVersion"`
-	StartedAt     time.Time    `json:"startedAt"`
-	DurationMS    int64        `json:"durationMs"`
-	Status        string       `json:"status"`
-	Steps         []Step       `json:"steps"`
-	Answer        *Answer      `json:"answer,omitempty"`
-	Suggestions   []Suggestion `json:"suggestions,omitempty"`
-	Sources       []Message    `json:"sources,omitempty"`
-	Error         string       `json:"error,omitempty"`
-	Warning       string       `json:"warning,omitempty"`
+	ModelIdentity *llm.Identity `json:"modelIdentity,omitempty"`
+	ID            string        `json:"id"`
+	GroupID       string        `json:"groupId"`
+	ActorID       string        `json:"actorId"`
+	Kind          string        `json:"kind"`
+	Question      string        `json:"question,omitempty"`
+	Model         string        `json:"model"`
+	PromptVersion string        `json:"promptVersion"`
+	StartedAt     time.Time     `json:"startedAt"`
+	DurationMS    int64         `json:"durationMs"`
+	Status        string        `json:"status"`
+	Steps         []Step        `json:"steps"`
+	Answer        *Answer       `json:"answer,omitempty"`
+	Suggestions   []Suggestion  `json:"suggestions,omitempty"`
+	Sources       []Message     `json:"sources,omitempty"`
+	Error         string        `json:"error,omitempty"`
+	Warning       string        `json:"warning,omitempty"`
 }
-type ModelRequest struct {
-	Model    string          `json:"model"`
-	Messages []ChatMessage   `json:"messages"`
-	Format   json.RawMessage `json:"format"`
-	Stream   bool            `json:"stream"`
-	Think    bool            `json:"think"`
-	Options  ModelOptions    `json:"options"`
-}
-type ChatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-type ModelOptions struct {
-	Temperature float64 `json:"temperature"`
-	NumCtx      int     `json:"num_ctx"`
-	NumPredict  int     `json:"num_predict"`
-}
-type ModelResult struct {
-	Content          string
-	Raw              any
-	PromptTokens     *int
-	CompletionTokens *int
-}
+type ChatModel = llm.ChatModel
+type ModelRequest = llm.Request
+type ChatMessage = llm.Message
+type ModelOptions = llm.Options
+type ModelResult = llm.Result

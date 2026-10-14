@@ -27,7 +27,11 @@ func main() {
 		AppSecret: os.Getenv("FEISHU_APP_SECRET"),
 	}, feishu.Handlers{
 		Message: func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
-			logger.InfoContext(ctx, "feishu message received", "request_id", event.RequestId())
+			var content string
+			if event.Event != nil && event.Event.Message != nil && event.Event.Message.Content != nil {
+				content = *event.Event.Message.Content
+			}
+			logger.InfoContext(ctx, "feishu message received", "request_id", event.RequestId(), "content", content)
 			return nil
 		},
 		CardAction: func(ctx context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {

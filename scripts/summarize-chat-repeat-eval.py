@@ -5,38 +5,21 @@ import collections
 import json
 import statistics
 from pathlib import Path
+from artifact_paths import relocated
 
 ROOT = Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser()
 p.add_argument('summary',type=Path)
-p.add_argument('--baseline',type=Path,default=ROOT/'local/data/evals/output/experiment-0fabbf16.jsonl')
-p.add_argument('--output',type=Path,default=ROOT/'local/data/chat-eval/repeat3-report.md')
+p.add_argument('--baseline',type=Path,default=ROOT/'outputs/evals/experiment-0fabbf16.jsonl')
+p.add_argument('--output',type=Path,default=ROOT/'outputs/evals/reports/repeat3-report.md')
 a=p.parse_args()
 
-def relocated(path):
-    """Resolve archived pre-migration paths without rewriting historical manifests."""
-    path = Path(path)
-    if path.exists():
-        return path
-    migrations = [
-        (ROOT/'evals/output', ROOT/'local/data/evals/output'),
-        (ROOT/'evals/versions', ROOT/'local/data/evals/versions'),
-        (ROOT/'outputs/chat-eval', ROOT/'local/data/chat-eval'),
-        (ROOT/'outputs/agent-check', ROOT/'local/data/agent-check'),
-        (ROOT/'outputs/chat-history', ROOT/'local/data/chat-history'),
-    ]
-    for old, new in migrations:
-        try:
-            return new / path.resolve().relative_to(old)
-        except ValueError:
-            continue
-    return path
 
-summary=json.loads(a.summary.read_text())
+summary=json.loads(relocated(a.summary).read_text())
 snapshot=relocated(summary['snapshot'])
 cases=json.loads((snapshot/'cases.json').read_text())
 rows=[json.loads(l) for l in relocated(summary['results']).read_text().splitlines() if l]
-baseline=[json.loads(l) for l in a.baseline.read_text().splitlines() if l]
+baseline=[json.loads(l) for l in relocated(a.baseline).read_text().splitlines() if l]
 assert len(rows)==len(cases)*summary['repetitions'], 'Incomplete run'
 by=collections.defaultdict(list)
 for row in rows:by[row['caseId']].append(row)

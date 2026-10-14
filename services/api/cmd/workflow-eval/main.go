@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 type request struct {
@@ -29,7 +30,7 @@ type result struct {
 	Error string        `json:"error,omitempty"`
 }
 
-func execute(ctx context.Context, input request, base, model string, timeout time.Duration, tokens int) (result, error) {
+func executeConfigured(ctx context.Context, input request, config llm.Config, timeout time.Duration) (result, error) {
 	dir, err := os.MkdirTemp("", "jetaime-workflow-eval-*")
 	if err != nil {
 		return result{}, err
@@ -52,11 +53,11 @@ func execute(ctx context.Context, input request, base, model string, timeout tim
 	if err != nil {
 		return result{}, err
 	}
-	provider, err := assistant.NewOllama(base, timeout)
+	provider, err := config.New(timeout)
 	if err != nil {
 		return result{}, err
 	}
-	workflow, err := assistant.NewWorkflow(store, provider, model, tokens, "")
+	workflow, err := assistant.NewWorkflow(store, provider, config.Model, config.ContextTokens, "")
 	if err != nil {
 		return result{}, err
 	}
@@ -68,13 +69,30 @@ func execute(ctx context.Context, input request, base, model string, timeout tim
 	return output, nil
 }
 func main() {
-	base := flag.String("ollama-url", "http://127.0.0.1:11434", "Ollama URL")
-	model := flag.String("model", "qwen3.5:9b", "installed model")
+	modelFlags := llm.RegisterFlags(flag.CommandLine)
+	printConfig := flag.Bool("print-model-config", false, "print validated public model configuration without inference")
 	timeout := flag.Duration("model-timeout", 3*time.Minute, "model timeout")
 	tokens := flag.Int("context-tokens", 8192, "context capacity")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fatal(fmt.Errorf("unexpected arguments"))
+	}
+	config, err := modelFlags.Resolve(*tokens)
+	if err != nil {
+		fatal(err)
+	}
+	if _, err := config.New(*timeout); err != nil {
+		fatal(err)
+	}
+	if *printConfig {
+		public := struct {
+			llm.Config
+			SelectedProfile string `json:"selected_profile,omitempty"`
+		}{config, config.Profile}
+		if err := json.NewEncoder(os.Stdout).Encode(public); err != nil {
+			fatal(err)
+		}
+		return
 	}
 	decoder := json.NewDecoder(io.LimitReader(os.Stdin, 4<<20))
 	decoder.DisallowUnknownFields()
@@ -88,7 +106,7 @@ func main() {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	output, err := execute(ctx, input, *base, *model, *timeout, *tokens)
+	output, err := executeConfigured(ctx, input, config, *timeout)
 	if err != nil {
 		fatal(err)
 	}
