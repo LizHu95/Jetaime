@@ -2,10 +2,10 @@
 
 `cmd/feishu` 默认使用官方 `oapi-sdk-go/v3 v3.12.1` 的 WebSocket 客户端。程序主动连接飞书，SDK 负责鉴权、心跳及自动重连，退出时取消 context 并清理连接。适用于飞书企业自建应用。
 
-- `im.message.receive_v1`：记录 `feishu message received`，确认接收成功。
+- `im.message.receive_v1`：记录 `feishu message received`，日志包含原始消息内容 `content`、消息 ID、会话 ID 和会话类型。群聊和单聊都回复一张正文为「我一直都在」、带「测试回调」按钮的卡片，成功记录 `feishu card replied`，失败记录 `feishu card reply failed`。
 - `card.action.trigger`：记录 `feishu card action received`，返回成功 toast「飞书回调已接通」。
 
-当前是连通性测试：不回复消息、不修改任务、不调用模型。重复投递会重复记录日志，后续业务写入需增加幂等控制。处理函数应快速返回。
+当前是连通性测试：收到群聊或单聊消息后打印内容并回复卡片，不修改任务、不调用模型。卡片 JSON 内嵌在 `services/api/internal/feishu/reply-card.json` 中，无需在服务器额外配置文件。重复投递会重复记录日志，卡片回复使用基于原消息 ID 的固定 UUID，飞书在 1 小时内去重。发送请求超时为 10 秒。
 
 ## 环境配置
 
@@ -72,9 +72,10 @@ sudo journalctl -u feishu -f
 1. 确认云端日志出现 `feishu long connection ready`。
 2. 在飞书「事件与回调 → 事件配置」选择 **使用长连接接收事件**，重新验证并保存，添加 `im.message.receive_v1`。
 3. 在「回调配置」选择 **使用长连接接收回调**，重新验证并保存，添加新版 `card.action.trigger`。
-4. 启用机器人能力、接收消息权限及测试用户可用范围，按控制台要求发布/启用版本。
-5. 单聊机器人发送消息，确认云端出现 `feishu message received`。
-6. 使用该应用身份在 API 调试台发送 `test-card.json` 卡片（需发送消息权限）；点击按钮，确认出现 `feishu card action received`，客户端显示「飞书回调已接通」。
+4. 启用机器人能力、接收消息权限、以应用的身份发消息（`im:message:send_as_bot`）权限及测试用户可用范围，按控制台要求发布/启用版本。
+   如需接收不 @ 机器人的群消息，开通 `im:message.group_msg`（获取群组中所有消息）权限，完成审批和版本发布，并把机器人加入目标群。该权限接收用户消息，不包含机器人消息。在群里直接发送消息，确认日志出现 `chat_type: group` 及对应的 `content`，并收到「我一直都在」卡片。
+5. 单聊机器人发送消息，确认云端出现 `feishu message received` 和 `feishu card replied`，聊天中收到测试卡片。
+6. 点击卡片上的「测试回调」按钮，确认出现 `feishu card action received`，客户端显示「飞书回调已接通」。也可使用该应用身份在 API 调试台发送 `test-card.json` 卡片做独立测试。
 
 连接状态通过、真实消息和真实卡片点击全部成功，才能判定接入完成。
 

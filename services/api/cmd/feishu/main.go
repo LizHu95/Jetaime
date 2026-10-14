@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/feishu"
+	lark "github.com/larksuite/oapi-sdk-go/v3"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
@@ -22,16 +23,38 @@ func main() {
 		stop   context.CancelFunc
 	)
 	logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	client, err = feishu.NewLongConnection(feishu.Config{
+	config := feishu.Config{
 		AppID:     os.Getenv("FEISHU_APP_ID"),
 		AppSecret: os.Getenv("FEISHU_APP_SECRET"),
-	}, feishu.Handlers{
+	}
+	apiClient := lark.NewClient(config.AppID, config.AppSecret)
+	client, err = feishu.NewLongConnection(config, feishu.Handlers{
 		Message: func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
-			var content string
-			if event.Event != nil && event.Event.Message != nil && event.Event.Message.Content != nil {
-				content = *event.Event.Message.Content
+			if event == nil || event.Event == nil || event.Event.Message == nil {
+				logger.WarnContext(ctx, "feishu message event has no message")
+				return nil
 			}
-			logger.InfoContext(ctx, "feishu message received", "request_id", event.RequestId(), "content", content)
+			message := event.Event.Message
+			var content, messageID, chatID, chatType string
+			if message.Content != nil {
+				content = *message.Content
+			}
+			if message.MessageId != nil {
+				messageID = *message.MessageId
+			}
+			if message.ChatId != nil {
+				chatID = *message.ChatId
+			}
+			if message.ChatType != nil {
+				chatType = *message.ChatType
+			}
+			logger.InfoContext(ctx, "feishu message received", "request_id", event.RequestId(),
+				"message_id", messageID, "chat_id", chatID, "chat_type", chatType, "content", content)
+			if err := feishu.ReplyCard(ctx, apiClient, messageID); err != nil {
+				logger.ErrorContext(ctx, "feishu card reply failed", "message_id", messageID, "error", err)
+				return err
+			}
+			logger.InfoContext(ctx, "feishu card replied", "message_id", messageID)
 			return nil
 		},
 		CardAction: func(ctx context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
