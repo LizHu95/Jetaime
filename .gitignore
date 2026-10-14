@@ -41,8 +41,7 @@ test-results/
 # Local runtime data and uploads
 /services/api/data/
 /services/api/uploads/
-/deploy/data/
-/deploy/backups/
+/deploy/data
 
 __pycache__
 /evals/.venv/

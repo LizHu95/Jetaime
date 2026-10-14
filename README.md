@@ -50,7 +50,7 @@ docs/v1/                       一期历史文档与评测结果
 
 ## 开发与检查
 
-Go 工具链版本由 `.go-version` 管理；Go 模块当前仅依赖 UUID 库；Phoenix 评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
+Go 工具链版本由 `.go-version` 管理；Go 模块依赖 UUID 库和飞书官方 Go SDK；Phoenix 评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
 
 ```sh
 make fmt        # 格式化 Go 源码
@@ -63,6 +63,8 @@ make test       # Go 与 Python 测试
 golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bin/`；首次安装需要 curl 与网络。CI 运行 `make check`。修改嵌入页面后需重启服务并刷新浏览器。
 
 ## 文档
+
+飞书接入服务使用独立入口 `services/api/cmd/feishu`，默认通过官方 SDK 长连接接收消息事件和卡片回调。配置、云服务器部署与真实联调步骤见 [飞书接入说明](deploy/feishu/README.md)。
 
 - [文档索引](docs/README.md)
 - [V2 产品方案](docs/v2/产品方案.md)

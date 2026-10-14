@@ -1,0 +1,19 @@
+[Unit]
+Description=Jetaime Feishu long connection
+After=network.target
+
+[Service]
+User=feishu
+Group=feishu
+WorkingDirectory=/opt/jetaime-feishu
+EnvironmentFile=/etc/jetaime-feishu.env
+ExecStart=/opt/jetaime-feishu/feishu
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
