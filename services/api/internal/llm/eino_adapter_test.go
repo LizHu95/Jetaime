@@ -44,7 +44,7 @@ func TestEinoWireMapping(t *testing.T) {
 						}
 						var options map[string]any
 						_ = json.Unmarshal(body["options"], &options)
-						if options["num_ctx"] != float64(8192) || options["num_predict"] != float64(123) {
+						if options["temperature"] != float64(0) || options["num_ctx"] != float64(8192) || options["num_predict"] != float64(123) {
 							t.Error("Ollama options lost")
 						}
 						_, _ = w.Write([]byte(`{"done":true,"done_reason":"stop","message":{"role":"assistant","content":"{}"},"prompt_eval_count":10,"eval_count":2}`))
@@ -207,5 +207,33 @@ func TestEinoOllamaCacheIdentityTracksDigestAndEndpoint(t *testing.T) {
 	digest = ""
 	if identity, err := a.ReviewCacheIdentity(context.Background(), "test"); err == nil || identity != "" {
 		t.Fatal("missing digest accepted")
+	}
+}
+
+func TestOllamaExplicitSamplingTemperature(t *testing.T) {
+	for _, temperature := range []float64{0, 0.3} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var payload struct {
+				Options map[string]float64 `json:"options"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Error(err)
+			}
+			value, ok := payload.Options["temperature"]
+			if !ok || value != temperature {
+				t.Errorf("temperature %v omitted or changed: %v", temperature, payload.Options)
+			}
+			_, _ = w.Write([]byte(`{"done":true,"done_reason":"stop","message":{"role":"assistant","content":"{}"}}`))
+		}))
+		adapter, err := (Config{Provider: "ollama", BaseURL: server.URL, Model: "test", ContextTokens: 8192}).New(time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		request := testRequest()
+		request.Options.Temperature = temperature
+		if _, err := adapter.Call(context.Background(), request); err != nil {
+			t.Fatal(err)
+		}
+		server.Close()
 	}
 }

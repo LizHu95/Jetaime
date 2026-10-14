@@ -32,7 +32,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [serverError, setServerError] = useState('')
   const [visible, setVisible] = useState<Record<string, boolean>>({})
   const controller = useRef<AbortController | null>(null)
-  const state = location.state as { registered?: boolean; username?: string } | null
+  const state = location.state as { registered?: boolean; username?: string; message?: string } | null
   const form = useForm<RegisterFields>({
     resolver: zodResolver(isRegister ? registerSchema : loginSchema.extend({ nickname: z.string(), confirmPassword: z.string() })),
     defaultValues: { username: typeof state?.username === 'string' ? state.username : '', nickname: '', password: '', confirmPassword: '' },
@@ -98,6 +98,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
     <p className="form-eyebrow">YOUR DAILY AI COMPANION</p>
     <h2>{isRegister ? '开启你的协作空间' : '欢迎回来'}</h2>
     <p className="form-description">{isRegister ? '创建账号，让每一次对话都有下一步。' : '登录 Jetaime，接着聊，一起做。'}</p>
+    {!isRegister && state?.message && <Alert className="feedback feedback-success" role="status"><CheckCircle2 /><AlertDescription>{state.message}</AlertDescription></Alert>}
     {!isRegister && state?.registered && <Alert className="feedback feedback-success" role="status"><CheckCircle2 /><AlertDescription>注册成功！请使用刚创建的账号登录。</AlertDescription></Alert>}
     {serverError && <Alert className="feedback feedback-error" role="alert"><AlertCircle /><AlertDescription>{serverError}</AlertDescription></Alert>}
     <form noValidate onSubmit={form.handleSubmit(submit)} aria-busy={busy}>

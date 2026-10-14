@@ -6,6 +6,7 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, options: {
+  method?: 'GET' | 'POST'
   body?: unknown
   token?: string
   signal?: AbortSignal
@@ -15,7 +16,7 @@ export async function apiRequest<T>(path: string, options: {
   let response: Response
   try {
     response = await fetch(`/api${path}`, {
-      method: 'POST',
+      method: options.method || 'POST',
       headers: {
         Accept: 'application/json',
         ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -41,6 +42,13 @@ export async function apiRequest<T>(path: string, options: {
 }
 
 const messages: Record<string, string> = {
+  group_not_found: '群聊已关闭或你没有访问权限。',
+  message_conflict: '这条消息或 AI 任务状态冲突，请刷新后重试。',
+  ai_unavailable: 'AI 服务暂未启用，请稍后重试。',
+  not_found: '没有找到这个账号或申请，请检查账号大小写。',
+  forbidden: '你没有权限处理这条申请。',
+  request_conflict: '这条申请已被处理，请刷新后查看。',
+  already_connected: '你们已经有一个群了，请在我的群组中查看。',
   invalid_credentials: '账号或密码不正确，请注意账号大小写。',
   username_taken: '这个账号已被注册，请换一个或直接登录。',
   invalid_input: '填写内容不符合要求，请检查后重试。',

@@ -50,7 +50,7 @@ def main():
                 continue
             folder = work/case['id']; folder.mkdir()
             fixture = folder/'fixture.json'; fixture.write_text(json.dumps(case['input']['fixture'], ensure_ascii=False))
-            process = subprocess.Popen([str(binary), '-assistant', '-experimental-review-cache', '-addr', '127.0.0.1:0', '-fixture', str(fixture),
+            process = subprocess.Popen([str(binary), '-auth=false', '-assistant', '-experimental-review-cache', '-addr', '127.0.0.1:0', '-fixture', str(fixture),
                 '-state', str(folder/'state.json'), '-log', str(folder/'runs.jsonl'), '-context-tokens', '16384',
                 '-model-timeout', '5m', '-model', args.model, '-ollama-url', args.ollama_url],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

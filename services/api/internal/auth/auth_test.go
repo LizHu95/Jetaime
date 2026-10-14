@@ -385,3 +385,69 @@ func TestRegistrationPrecheckBeforeHashing(t *testing.T) {
 		t.Fatalf("failed lookup treated as available: %v", err)
 	}
 }
+
+func TestPostgresChangePassword(t *testing.T) {
+	pool := authTestPool(t)
+	ctx := context.Background()
+	store := NewPostgresStore(pool)
+	service, err := NewService(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user, err := service.Register(ctx, "Password_User", testPassword, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := service.Login(ctx, user.Username, testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := service.Login(ctx, user.Username, testPassword)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, oldHash, err := store.Credentials(ctx, user.Username)
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := httpapi.NewRouter(NewHandler(service))
+	for _, tc := range []struct {
+		old, new string
+		status   int
+	}{{"wrong", "new-password", 401}, {testPassword, "short", 400}, {testPassword, testPassword, 400}} {
+		out := request(router, "/api/auth/password", map[string]string{"oldPassword": tc.old, "newPassword": tc.new}, first.Token)
+		if out.Code != tc.status {
+			t.Fatalf("change: %d %s", out.Code, out.Body.String())
+		}
+	}
+	if _, err := service.Authenticate(ctx, first.Token); err != nil {
+		t.Fatal("failed change revoked session")
+	}
+	out := request(router, "/api/auth/password", map[string]string{"oldPassword": testPassword, "newPassword": " 新密码😀123 "}, first.Token)
+	if out.Code != 204 {
+		t.Fatalf("change: %d %s", out.Code, out.Body.String())
+	}
+	for _, token := range []string{first.Token, second.Token} {
+		if _, err := service.Authenticate(ctx, token); err != ErrUnauthorized {
+			t.Fatal("old session remains active")
+		}
+	}
+	if _, err := service.Login(ctx, user.Username, testPassword); err != ErrCredentials {
+		t.Fatal("old password accepted")
+	}
+	fresh, err := service.Login(ctx, user.Username, " 新密码😀123 ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Authenticate(ctx, fresh.Token); err != nil {
+		t.Fatal(err)
+	}
+	// An in-flight login that verified the old credential cannot issue a token.
+	digest := sha256.Sum256([]byte("late-login-token"))
+	if _, err := store.CreateSession(ctx, user.ID, oldHash, digest[:], time.Hour); err != ErrCredentials {
+		t.Fatal("stale login issued session")
+	}
+	if err := store.UpdatePassword(ctx, user.ID, oldHash, "stale-hash"); err != ErrCredentials {
+		t.Fatal("stale password overwrote credential")
+	}
+}

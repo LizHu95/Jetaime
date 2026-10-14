@@ -1,6 +1,9 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
+import { ChatPage } from '@/features/chat/chat-page'
 import { AuthLayout } from '@/features/auth/auth-layout'
 import { AuthForm } from '@/features/auth/auth-form'
+import { ContactsPage } from '@/features/contacts/contacts-page'
+import { PasswordPage } from '@/features/auth/password-page'
 import { SessionPage } from '@/features/auth/session-page'
 import { useAuth } from '@/features/auth/auth-provider'
 
@@ -17,11 +20,15 @@ function GuestPage() {
 }
 
 export const router = createBrowserRouter([
+  { path: '/chat/', element: <ChatPage /> },
+  { path: '/chat/:groupId/', element: <ChatPage /> },
   { element: <AuthLayout />, children: [
     { path: '/', element: <Entry /> },
     { path: '/auth/login/', element: <GuestPage /> },
     { path: '/auth/register/', element: <GuestPage /> },
     { path: '/auth/session/', element: <SessionPage /> },
+    { path: '/auth/password/', element: <PasswordPage /> },
+    { path: '/contacts/', element: <ContactsPage /> },
     { path: '*', element: <Entry /> },
   ] },
 ], { basename: '/page' })

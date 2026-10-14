@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
-      proxy: { '/api': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:8081' } },
+      proxy: { '/api': { target: env.API_PROXY_TARGET || 'http://127.0.0.1:8081', ws: true } },
     },
     build: { outDir: '../../outputs/web', emptyOutDir: true },
   }

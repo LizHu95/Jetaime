@@ -43,8 +43,10 @@ type Store interface {
 	UsernameExists(context.Context, string) (bool, error)
 	CreateUser(context.Context, string, string, string) (User, error)
 	Credentials(context.Context, string) (User, string, error)
-	CreateSession(context.Context, string, []byte, time.Duration) (time.Time, error)
+	CreateSession(context.Context, string, string, []byte, time.Duration) (time.Time, error)
 	RevokeSession(context.Context, []byte) error
+	SessionUser(context.Context, []byte) (User, error)
+	UpdatePassword(context.Context, string, string, string) error
 }
 
 type Service struct {
@@ -153,7 +155,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (LoginRe
 	}
 	token := base64.RawURLEncoding.EncodeToString(random)
 	tokenHash := sha256.Sum256([]byte(token))
-	expires, err := s.store.CreateSession(ctx, user.ID, tokenHash[:], 7*24*time.Hour)
+	expires, err := s.store.CreateSession(ctx, user.ID, hash, tokenHash[:], 7*24*time.Hour)
 	if err != nil {
 		return LoginResult{}, err
 	}

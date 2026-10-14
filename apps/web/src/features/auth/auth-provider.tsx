@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useCallback, useEffect, useState, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from './schema'
 import { persistSession, readSession } from './session'
@@ -11,11 +11,11 @@ const AuthContext = createContext<{
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, updateSession] = useState(readSession)
   const queryClient = useQueryClient()
-  function setSession(value: Session | null) {
+  const setSession = useCallback((value: Session | null) => {
     queryClient.removeQueries()
     persistSession(value)
     updateSession(value)
-  }
+  }, [queryClient])
   useEffect(() => {
     if (!session) return
     const expire = () => {

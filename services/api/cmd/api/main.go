@@ -15,6 +15,8 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat"
+	"github.com/LizHu95/Jetaime/services/api/internal/contacts"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
@@ -29,8 +31,9 @@ func main() {
 func run() error {
 	addr := flag.String("addr", "127.0.0.1:8081", "listen address; assistant requires a loopback IP")
 	databaseEnabled := flag.Bool("database", false, "enable PostgreSQL using JETAIME_DATABASE_URL; requires current schema")
-	authEnabled := flag.Bool("auth", false, "enable account APIs; requires PostgreSQL using JETAIME_DATABASE_URL")
+	authEnabled := flag.Bool("auth", true, "enable account APIs by default; set -auth=false to disable; requires PostgreSQL using JETAIME_DATABASE_URL")
 	migrateOnly := flag.Bool("migrate", false, "apply embedded PostgreSQL migrations and exit")
+	chatAI := flag.Bool("chat-ai", false, "enable shared group AI worker; requires authentication and model configuration")
 	assistantEnabled := flag.Bool("assistant", false, "enable local assistant console")
 	fixture := flag.String("fixture", "../../local/data/chat-history/history.fixture.json", "editable history fixture")
 	state := flag.String("state", "../../local/data/assistant/state.json", "persisted messages and tasks")
@@ -64,6 +67,9 @@ func run() error {
 			seen[paths[i]] = true
 		}
 	}
+	if *chatAI && !*authEnabled {
+		return fmt.Errorf("chat-ai requires auth")
+	}
 	var modules []httpapi.Module
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -91,7 +97,30 @@ func run() error {
 			if err != nil {
 				return fmt.Errorf("initialize authentication: %w", err)
 			}
-			modules = append(modules, auth.NewHandler(service))
+			authentication := auth.NewHandler(service)
+			modules = append(modules, authentication, contacts.NewHandler(contacts.NewService(contacts.NewPostgresStore(pool)), authentication))
+			var model llm.ChatModel
+			var modelName string
+			capacity := *tokens
+			if *chatAI {
+				config, err := modelFlags.Resolve(*tokens)
+				if err != nil {
+					return err
+				}
+				provider, err := config.New(*timeout)
+				if err != nil {
+					return err
+				}
+				model, modelName, capacity = provider, config.Model, config.ContextTokens
+				fmt.Printf("Group AI: %s (%s)\n", config.Model, config.Provider)
+			}
+			chatStore := chat.NewStore(pool)
+			chatService := chat.NewService(chatStore, model, modelName, capacity, *timeout)
+			realtime := chat.NewRealtime(ctx, chatStore, service)
+			go realtime.Listen(ctx)
+			go chatService.Work(ctx)
+			go chatService.Work(ctx)
+			modules = append(modules, chat.NewHandler(chatService, authentication, realtime))
 		}
 	}
 	if *assistantEnabled {

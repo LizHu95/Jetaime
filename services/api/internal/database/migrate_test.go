@@ -145,8 +145,12 @@ func TestPostgresBaselineAndConcurrentMigration(t *testing.T) {
 	if err := CheckSchema(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
+	steps, err := loadMigrations(migrations.Files)
+	if err != nil {
+		t.Fatal(err)
+	}
 	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil || count != 2 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil || count != len(steps) {
 		t.Fatalf("ledger count %d: %v", count, err)
 	}
 	checks, err := os.ReadFile("../../migrations/000001_chat_schema.check.sql")

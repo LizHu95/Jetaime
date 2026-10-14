@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { loginSchema, registerSchema } from '@/features/auth/schema'
 import { login, logout, registerAccount } from '@/features/auth/api'
 import { readSession, persistSession } from '@/features/auth/session'
@@ -55,22 +55,48 @@ describe('authentication contracts', () => {
   })
 })
 
-describe('tab session storage', () => {
-  function storage() {
+describe('persistent session storage', () => {
+  function storage(name: 'localStorage' | 'sessionStorage' = 'localStorage') {
     const entries = new Map<string, string>()
-    vi.stubGlobal('sessionStorage', {
+    vi.stubGlobal(name, {
       getItem: (key: string) => entries.get(key) ?? null,
       setItem: (key: string, value: string) => entries.set(key, value),
       removeItem: (key: string) => entries.delete(key),
     })
     return entries
   }
+  beforeEach(() => { storage(); storage('sessionStorage') })
   it('restores a valid session and removes it on logout', () => {
     storage()
     persistSession(session as Parameters<typeof persistSession>[0])
     expect(readSession()).toEqual(session)
     persistSession(null)
     expect(readSession()).toBeNull()
+  })
+  it('migrates existing tab sessions to persistent storage', () => {
+    const persistent = storage()
+    const legacy = storage('sessionStorage')
+    legacy.set('jetaime.auth.session', JSON.stringify(session))
+    expect(readSession()).toEqual(session)
+    expect(persistent.get('jetaime.auth.session')).toBe(JSON.stringify(session))
+    expect(legacy.size).toBe(0)
+    storage('sessionStorage')
+    expect(readSession()).toEqual(session)
+  })
+  it('clears both storage locations on logout', () => {
+    const persistent = storage()
+    const legacy = storage('sessionStorage')
+    for (const entries of [persistent, legacy]) entries.set('jetaime.auth.session', JSON.stringify(session))
+    persistSession(null)
+    expect(persistent.size).toBe(0)
+    expect(legacy.size).toBe(0)
+    expect(readSession()).toBeNull()
+  })
+  it('remains usable when browser storage is disabled', () => {
+    vi.stubGlobal('localStorage', { getItem: () => { throw new Error('disabled') }, setItem: () => { throw new Error('disabled') }, removeItem: () => { throw new Error('disabled') } })
+    expect(() => persistSession(session as Parameters<typeof persistSession>[0])).not.toThrow()
+    expect(readSession()).toBeNull()
+    expect(() => persistSession(null)).not.toThrow()
   })
   it('discards expired and corrupt sessions', () => {
     const entries = storage()

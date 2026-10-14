@@ -18,7 +18,7 @@
 ## 启动约定
 
 - `make dev` 默认启用 Auth 和健康检查，加载 `local/.env` 并连接 PostgreSQL；`API_ARGS` 用于追加或覆盖参数，例如 `-addr`、`-auth=false`。
-- 直接运行 API 二进制仍需通过 `-auth` 启用认证；不传业务模块参数时仅提供健康检查。
-- Assistant 模块通过 `-assistant` 显式启用，只在启用时校验自身配置。
+- API 二进制默认启用认证及其 PostgreSQL 业务模块，必须配置数据库并应用迁移；仅需健康检查时显式传 `-auth=false`。
+- Assistant 模块通过 `-assistant` 显式启用，只在启用时校验自身配置；`make assistant` 显式关闭认证，保留独立的本地 JSON 调试流程。
 
-- Auth 模块通过 `-auth` 显式启用，自动连接 PostgreSQL；认证业务在 `internal/auth` 按 handler、service、store 拆分职责，不向 Router 添加业务字段。
+- Auth 模块默认启用，自动连接 PostgreSQL；认证业务在 `internal/auth` 按 handler、service、store 拆分职责，不向 Router 添加业务字段。

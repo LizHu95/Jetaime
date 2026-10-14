@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 
+test.beforeEach(async ({ page }) => {
+  await page.routeWebSocket('**/api/chat/events', socket => {
+    socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' })))
+  })
+})
+
 const user = { id: 'browser-test-user', username: 'Demo_User', nickname: '小夏' }
 const token = 'x'.repeat(43)
 async function mockAuth(page: Page) {
@@ -42,7 +48,32 @@ test('register → login → reload → logout', async ({ page }) => {
   await expect(page.getByRole('heading', { name: '你好，小夏' })).toBeVisible()
   await page.getByRole('button', { name: '退出当前账号' }).click()
   await expect(page).toHaveURL(/\/auth\/login\/$/)
-  expect(await page.evaluate(() => sessionStorage.getItem('jetaime.auth.session'))).toBeNull()
+  expect(await page.evaluate(() => localStorage.getItem('jetaime.auth.session'))).toBeNull()
+})
+
+test('closing and reopening a tab restores login until logout', async ({ page, context }) => {
+  await mockAuth(page)
+  await page.goto('/page/auth/login/')
+  await page.getByLabel('账号', { exact: true }).fill('Demo_User')
+  await page.getByLabel('密码', { exact: true }).fill('sample-password')
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '你好，小夏' })).toBeVisible()
+  await page.close()
+
+  const reopened = await context.newPage()
+  await reopened.routeWebSocket('**/api/chat/events', socket => {
+    socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' })))
+  })
+  await mockAuth(reopened)
+  await reopened.goto('/page/auth/session/')
+  await expect(reopened.getByRole('heading', { name: '你好，小夏' })).toBeVisible()
+  await reopened.getByRole('button', { name: '退出当前账号' }).click()
+  await expect(reopened).toHaveURL(/\/auth\/login\/$/)
+  await reopened.close()
+
+  const loggedOut = await context.newPage()
+  await loggedOut.goto('/page/auth/session/')
+  await expect(loggedOut).toHaveURL(/\/auth\/login\/$/)
 })
 
 test('validates empty fields, password confirmation and Unicode nickname length before sending', async ({ page }) => {

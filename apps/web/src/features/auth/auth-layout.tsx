@@ -11,7 +11,7 @@ export function Brand() {
 export function AuthLayout() {
   const { pathname } = useLocation()
   const isRegister = pathname.includes('/register')
-  const isSession = pathname.includes('/session')
+  const isSession = !pathname.includes('/login') && !pathname.includes('/register')
   return <div className="auth-shell">
     <header className="site-header">
       <Brand />

@@ -39,7 +39,7 @@ def command(action, args, environment):
         program = "api" if action in ["api", "assistant"] else action
         flags = []
         if action == "assistant":
-            flags = ["-assistant"]
+            flags = ["-auth=false", "-assistant"]
         elif action == "model-check":
             program = "workflow-eval"
             flags = ["-print-model-config"]

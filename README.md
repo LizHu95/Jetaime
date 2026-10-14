@@ -17,7 +17,7 @@
 统一入口会自动加载本地环境与默认模型配置。在仓库根目录启动：
 
 ```sh
-make dev          # 认证 API 与 /test/healthz，需要 PostgreSQL
+make dev          # 认证、好友和群聊 API，需要 PostgreSQL
 make assistant    # 显式启用 Assistant 调试模块
 make model-check  # 只校验模型配置与密钥存在性，不调用模型
 make trace        # Phoenix
@@ -49,11 +49,11 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 ## HTTP 路由与模块装配
 
-`make dev` 默认启用认证 API 与 `/test/healthz`，自动加载 `local/.env`，需要 PostgreSQL 连接与已迁移的数据库；无需模型配置或历史文件。直接运行 API 二进制不传业务模块参数时仍只提供 `/test/healthz`，认证通过 `-auth` 启用。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块。
+`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API 与 `/test/healthz`，需要 PostgreSQL 连接与已迁移的数据库；无需模型配置或历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
 
 使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，只内置测试接口，通过 `NewRouter(modules ...Module)` 接收注入模块。各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
 
-PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，API 加 `-database` 开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口已实现，通过 `-auth` 开启，见 [认证接口说明](docs/v2/认证接口.md)；聊天业务接口仍待开发。
+PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，默认认证模块开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口默认开启，见 [认证接口说明](docs/v2/认证接口.md)；双人群聊、实时同步、阅读进度和共享 AI 接口已实现，见 [双人群聊接口](docs/v2/双人群聊接口.md)。
 
 - `POST /api/auth/register`、`/api/auth/login`、`/api/auth/logout`：账号认证模块，`make dev` 默认启用。
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
@@ -62,12 +62,27 @@ PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrat
 旧的无业务域 `/api/...` 路径已替换，前端与验证脚本同步更新。根路径不注册，返回 404；使用完整业务页面地址。飞书继续通过 SDK 长连接接收事件，目前没有需要注册的飞书 HTTP 接口。`GET /test/healthz` 用于测试连通性，固定返回 `{"status":"ok","message":"hello"}`。
 
 ```sh
-make dev                                  # 默认启用注册、登录、退出与健康检查
+make dev                                  # 默认启用认证、好友、群聊、实时同步与健康检查
 make dev API_ARGS='-auth=false'            # 只启用健康检查，不连接数据库
 make assistant                            # 注入 Assistant 调试模块
 ```
 
 统一 HTTP API 打包运行 `make api-build`，产物保存到 `outputs/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。
+
+编译 API 和 Web 并上传到云服务器（本机需已配置 SSH 别名 `jetaime-server`，首次构建 Web 前运行 `cd apps/web && npm ci`）：
+
+```sh
+make deploy
+# 等效：bash deploy/push.sh
+# 自定义 API 上传目录和 Web 静态文件目录（同一服务器）：
+make deploy DEPLOY_DEST='user@host:/srv/jetaime/' DEPLOY_WEB_DIR='/var/www/jetaime'
+```
+
+API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。服务器执行 `bash start.sh migrate` 进行迁移，执行 `bash start.sh start` 启动，两者自动加载同目录 `.env`。
+
+脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。脚本不重启 API；上传后自动应用并重新加载 Nginx。
+
+Nginx 配置源为 `deploy/nginx/default.conf`。部署时自动匹配 `DEPLOY_WEB_DIR` 并替换服务器 `/etc/nginx/sites-available/default`，确保默认站点已启用，执行 `nginx -t` 后重新加载 Nginx（未启动则启动）。原配置保存在 `/etc/nginx/default.backup.*`；检查或加载失败时恢复原配置并退出。服务器需安装 Nginx 和 systemd；应用配置使用 root 权限，非 root 账号需可通过 `sudo -n` 执行安装脚本，Web 上传仍需目录写入权限。完整配置见 [Web 部署约定](apps/web/README.md#部署约定)。
 
 ## 代码结构
 
@@ -129,3 +144,8 @@ golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bi
 ## Phoenix 评测
 
 `make trace` 启动本地 Phoenix，`make eval-check` 离线验证案例，`make eval` 执行 V2 Workflow 实验。正式案例与预期结果待提供，当前文件为空。完整输入契约、评估器与运行方式见 [Phoenix 评测说明](docs/v2/Phoenix评测说明.md)。
+
+
+### 双人群聊与共享 AI
+
+Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读角标、阅读进度和断线补拉。`make dev API_ARGS='-chat-ai'` 开启共享 AI，使用现有模型 profile；模型 ID 必须为实际可调用名称。普通消息不触发模型，@AI 提问排队，完整回复保存后向双方推送。实现和接口详见 [双人群聊接口](docs/v2/双人群聊接口.md)。

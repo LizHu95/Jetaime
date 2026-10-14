@@ -29,11 +29,51 @@ func (a *Adapter) ModelIdentity() Identity { return a.config.Identity() }
 // The SDK normalizes envelopes and Ollama drops Done. Capture the bounded wire
 // response per call so incomplete responses and failure traces remain visible.
 type captureTransport struct {
-	body   []byte
-	status int
+	body              []byte
+	status            int
+	ollamaTemperature *float64
 }
 
 func (t *captureTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// The Ollama SDK's float field uses omitempty, so temperature=0 would
+	// silently become the model's default sampling temperature. Preserve the
+	// workflow's explicit value on the wire while retaining the Eino adapter.
+	if t.ollamaTemperature != nil && r.Method == http.MethodPost && r.URL.Path == "/api/chat" {
+		data, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
+		_ = r.Body.Close()
+		if err != nil || len(data) > 1<<20 {
+			return nil, fmt.Errorf("invalid model request size")
+		}
+		var payload map[string]json.RawMessage
+		if err = json.Unmarshal(data, &payload); err != nil {
+			return nil, fmt.Errorf("invalid model request")
+		}
+		var options map[string]json.RawMessage
+		if len(payload["options"]) > 0 {
+			if err = json.Unmarshal(payload["options"], &options); err != nil {
+				return nil, fmt.Errorf("invalid model options")
+			}
+		}
+		if options == nil {
+			options = map[string]json.RawMessage{}
+		}
+		options["temperature"], err = json.Marshal(*t.ollamaTemperature)
+		if err != nil {
+			return nil, err
+		}
+		payload["options"], err = json.Marshal(options)
+		if err != nil {
+			return nil, err
+		}
+		data, err = json.Marshal(payload)
+		if err != nil {
+			return nil, err
+		}
+		r = r.Clone(r.Context())
+		r.Body = io.NopCloser(bytes.NewReader(data))
+		r.ContentLength = int64(len(data))
+		r.GetBody = func() (io.ReadCloser, error) { return io.NopCloser(bytes.NewReader(data)), nil }
+	}
 	resp, err := http.DefaultTransport.RoundTrip(r)
 	if err != nil {
 		return nil, err
@@ -66,6 +106,10 @@ func (a *Adapter) Call(ctx context.Context, in Request) (Result, error) {
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()
 	t := &captureTransport{}
+	if a.config.Provider == "ollama" {
+		temperature := in.Options.Temperature
+		t.ollamaTemperature = &temperature
+	}
 	client := &http.Client{Transport: t, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	var model einomodel.BaseChatModel
 	var err error

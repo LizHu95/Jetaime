@@ -102,9 +102,16 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 		return run, fmt.Errorf("已有 Workflow 正在执行，请稍后再试")
 	}
 	defer w.opMu.Unlock()
-	if _, err = w.Store.Context(group, actor); err != nil {
+	input, err := w.Store.Context(group, actor)
+	if err != nil {
 		return run, err
 	}
+	return w.execute(ctx, input, kind, question, model)
+}
+
+// execute is the shared engine for the local console and database snapshots.
+func (w *Workflow) execute(ctx context.Context, input Context, kind, question, model string) (run Run, err error) {
+	group, actor := input.GroupID, input.ActorID
 	if kind != "qa" && kind != "extract" {
 		return run, fmt.Errorf("workflow must be qa or extract")
 	}
@@ -142,11 +149,6 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 		w.record(&run)
 	}()
 	start := time.Now()
-	input, e := w.Store.Context(group, actor)
-	if e != nil {
-		err = e
-		return
-	}
 	run.Steps = append(run.Steps, Step{Name: "build_context", Status: "succeeded", StartedAt: start, DurationNS: time.Since(start).Nanoseconds(), DurationMS: time.Since(start).Milliseconds(), Input: map[string]string{"actorId": actor, "groupId": group}, Output: input})
 	payload := struct {
 		Context  Context `json:"context"`
@@ -165,7 +167,7 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	// Conservative byte budget, not an exact tokenizer. Reserve output + framing; never truncate messages.
 	bound := len(request.Messages[0].Content) + len(request.Messages[1].Content) + 2048 + 512
 	if bound > w.Tokens {
-		err = fmt.Errorf("上下文超过保守容量限制（%d / %d），请缩小历史或提高 context-tokens；没有截断消息", bound, w.Tokens)
+		err = fmt.Errorf("%w：上下文超过保守容量限制（%d / %d），请缩小历史或提高 context-tokens；没有截断消息", ErrBudget, bound, w.Tokens)
 		run.Steps = append(run.Steps, Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Input: map[string]int{"byteUpperEstimate": bound, "contextTokens": w.Tokens}, Error: err.Error()})
 		return
 	}

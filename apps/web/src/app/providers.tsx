@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { RealtimeProvider } from '@/features/chat/realtime-provider'
 import { AuthProvider } from '@/features/auth/auth-provider'
 import type { ReactNode } from 'react'
 
@@ -10,5 +11,5 @@ const queryClient = new QueryClient({
 })
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={queryClient}><AuthProvider>{children}</AuthProvider></QueryClientProvider>
+  return <QueryClientProvider client={queryClient}><AuthProvider><RealtimeProvider>{children}</RealtimeProvider></AuthProvider></QueryClientProvider>
 }

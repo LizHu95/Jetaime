@@ -19,6 +19,8 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/auth/register", h.register)
 	mux.HandleFunc("POST /api/auth/login", h.login)
 	mux.HandleFunc("POST /api/auth/logout", h.logout)
+	mux.HandleFunc("GET /api/auth/me", h.RequireUser(func(w http.ResponseWriter, r *http.Request, user User) { writeJSON(w, 200, user) }))
+	mux.HandleFunc("POST /api/auth/password", h.RequireUser(h.changePassword))
 }
 
 type registerRequest struct {
