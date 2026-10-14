@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/feishu"
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
@@ -27,8 +27,20 @@ func main() {
 		AppID:     os.Getenv("FEISHU_APP_ID"),
 		AppSecret: os.Getenv("FEISHU_APP_SECRET"),
 	}
-	apiClient := lark.NewClient(config.AppID, config.AppSecret)
+	logger.Info("feishu credentials loaded",
+		"app_id", config.AppID,
+		"app_id_present", strings.TrimSpace(config.AppID) != "",
+		"app_id_length", len(config.AppID),
+		"app_secret_present", strings.TrimSpace(config.AppSecret) != "",
+		"app_secret_length", len(config.AppSecret),
+		"app_id_has_surrounding_whitespace", config.AppID != strings.TrimSpace(config.AppID),
+		"app_secret_has_surrounding_whitespace", config.AppSecret != strings.TrimSpace(config.AppSecret))
+	apiClient := feishu.NewAPIClient(config, logger)
 	client, err = feishu.NewLongConnection(config, feishu.Handlers{
+		ChatEntered: func(ctx context.Context, event *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error {
+			logger.InfoContext(ctx, "feishu bot chat entered", "request_id", event.RequestId())
+			return nil
+		},
 		Message: func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
 			if event == nil || event.Event == nil || event.Event.Message == nil {
 				logger.WarnContext(ctx, "feishu message event has no message")
@@ -73,6 +85,11 @@ func main() {
 	}
 	ctx, stop = signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if expire, authErr := feishu.CheckAuthorization(ctx, apiClient, config); authErr != nil {
+		logger.ErrorContext(ctx, "feishu application authorization failed", "app_id", config.AppID, "error", authErr)
+	} else {
+		logger.InfoContext(ctx, "feishu application authorization ready", "app_id", config.AppID, "expire_seconds", expire)
+	}
 	logger.Info("starting feishu long connection")
 	err = client.Start(ctx)
 	if err != nil && ctx.Err() == nil {

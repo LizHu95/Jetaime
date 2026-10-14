@@ -18,6 +18,7 @@ func TestReplyCard(t *testing.T) {
 	code := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Tt-Logid", "reply-log-id")
 		if r.URL.Path == "/open-apis/auth/v3/tenant_access_token/internal" {
 			fmt.Fprint(w, `{"code":0,"tenant_access_token":"test-token","expire":7200}`)
 			return
@@ -64,7 +65,7 @@ func TestReplyCard(t *testing.T) {
 		t.Fatal("repeated event should use the same deduplication UUID")
 	}
 	code = 230001
-	if err := ReplyCard(context.Background(), client, "om_test"); err == nil || !strings.Contains(err.Error(), "230001") {
+	if err := ReplyCard(context.Background(), client, "om_test"); err == nil || !strings.Contains(err.Error(), "230001") || !strings.Contains(err.Error(), "log_id=reply-log-id") {
 		t.Fatalf("API failure not propagated: %v", err)
 	}
 	if err := ReplyCard(context.Background(), client, ""); err == nil {

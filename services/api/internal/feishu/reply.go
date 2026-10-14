@@ -38,7 +38,11 @@ func ReplyCard(ctx context.Context, client *lark.Client, messageID string) error
 		return errors.New("reply card: empty response")
 	}
 	if !response.Success() {
-		return fmt.Errorf("reply card: code=%d message=%s", response.Code, response.Msg)
+		var logID string
+		if response.ApiResp != nil {
+			logID = response.LogId()
+		}
+		return fmt.Errorf("reply card: code=%d message=%s log_id=%s", response.Code, response.Msg, logID)
 	}
 	return nil
 }

@@ -47,6 +47,10 @@ func TestLongConnectionDispatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The WebSocket SDK invokes Do with plaintext events, without webhook credentials.
+	response, err = d.Do(ctx, []byte(`{"schema":"2.0","header":{"event_type":"im.chat.access_event.bot_p2p_chat_entered_v1"},"event":{}}`))
+	if err != nil || response != nil {
+		t.Fatalf("chat entered dispatch: %v", err)
+	}
 	response, err = d.Do(ctx, []byte(`{"schema":"2.0","header":{"event_type":"im.message.receive_v1"},"event":{"message":{"message_id":"om_ws"}}}`))
 	if err != nil || response != nil || messages != 1 {
 		t.Fatalf("message dispatch: %v, count=%d", err, messages)

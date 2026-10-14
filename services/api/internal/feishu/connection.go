@@ -1,11 +1,13 @@
 package feishu
 
 import (
+	"context"
 	"errors"
 	"strings"
 
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 )
 
@@ -39,5 +41,10 @@ func newDispatcher(handlers Handlers) (*dispatcher.EventDispatcher, error) {
 	}
 	d = dispatcher.NewEventDispatcher("", "")
 	d.OnP2MessageReceiveV1(handlers.Message).OnP2CardActionTrigger(handlers.CardAction)
+	chatEntered := handlers.ChatEntered
+	if chatEntered == nil {
+		chatEntered = func(context.Context, *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error { return nil }
+	}
+	d.OnP2ChatAccessEventBotP2pChatEnteredV1(chatEntered)
 	return d, nil
 }

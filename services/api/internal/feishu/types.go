@@ -14,6 +14,7 @@ type Config struct {
 }
 
 type Handlers struct {
-	Message    func(context.Context, *larkim.P2MessageReceiveV1) error
-	CardAction func(context.Context, *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error)
+	Message     func(context.Context, *larkim.P2MessageReceiveV1) error
+	ChatEntered func(context.Context, *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error
+	CardAction  func(context.Context, *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error)
 }

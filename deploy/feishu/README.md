@@ -4,6 +4,7 @@
 
 - `im.message.receive_v1`：记录 `feishu message received`，日志包含原始消息内容 `content`、消息 ID、会话 ID 和会话类型。群聊和单聊都回复一张正文为「我一直都在」、带「测试回调」按钮的卡片，成功记录 `feishu card replied`，失败记录 `feishu card reply failed`。
 - `card.action.trigger`：记录 `feishu card action received`，返回成功 toast「飞书回调已接通」。
+- `im.chat.access_event.bot_p2p_chat_entered_v1`：记录 `feishu bot chat entered`，确认用户进入机器人单聊事件已处理。
 
 当前是连通性测试：收到群聊或单聊消息后打印内容并回复卡片，不修改任务、不调用模型。卡片 JSON 内嵌在 `services/api/internal/feishu/reply-card.json` 中，无需在服务器额外配置文件。重复投递会重复记录日志，卡片回复使用基于原消息 ID 的固定 UUID，飞书在 1 小时内去重。发送请求超时为 10 秒。
 
@@ -17,6 +18,8 @@ FEISHU_APP_SECRET=你的应用密钥
 ```
 
 本机配置已被 Git 忽略，权限为 `600`。长连接只需 App ID 和 App Secret。
+
+启动时使用 App ID 和 App Secret 显式调用 `/open-apis/auth/v3/tenant_access_token/internal` 检查应用鉴权。成功记录 `feishu application authorization ready` 和有效期；失败记录 `feishu application authorization failed`、错误码及飞书 `log_id`，仍继续启动长连接以便接收消息。日志不会打印 Token 或 App Secret。后续消息请求的 Token 缓存和更新由 SDK 自动管理，不需要用户扫码授权。`21001` 表示获取凭证被访问策略拒绝，需在飞书后台排查策略；添加此检查不会自动解除限制。
 
 ## 本机运行
 
