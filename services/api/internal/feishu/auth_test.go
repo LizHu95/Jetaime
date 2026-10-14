@@ -36,7 +36,7 @@ func TestCheckAuthorization(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("X-Tt-Logid", "test-log-id")
-				fmt.Fprint(w, tc.response)
+				_, _ = fmt.Fprint(w, tc.response)
 			}))
 			defer server.Close()
 			config := Config{AppID: "test-app", AppSecret: "test-secret"}

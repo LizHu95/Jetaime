@@ -41,7 +41,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="jetaime-agent-check-") as directory:
         directory = Path(directory)
         binary = directory / "assistant"
-        subprocess.run(["go", "build", "-o", str(binary), "./cmd/assistant"], cwd=ROOT / "services/api", check=True)
+        subprocess.run(["go", "build", "-o", str(binary), "./cmd/api"], cwd=ROOT / "services/api", check=True)
         command = [str(binary), "-addr", "127.0.0.1:0", "-fixture", str(fixture), "-state", str(directory / "state.json"), "-log", str(directory / "runs.jsonl"), "-context-tokens", "98304", "-model-timeout", "5m", "-model", args.model, "-ollama-url", args.ollama_url]
 
         def start():
@@ -64,7 +64,7 @@ def main():
         try:
             process, base = start()
             scope = {"groupId": group, "actorId": actor}
-            state_path = "/api/state?groupId=" + group + "&actorId=" + actor
+            state_path = "/api/assistant/state?groupId=" + group + "&actorId=" + actor
             state = request(base, state_path)["context"]
             assert len(state["messages"]) == len(history["messages"]) and len(state["users"]) == 2
             report["checks"].append("imported_history_and_account_merge")
@@ -78,7 +78,7 @@ def main():
                     assert original["messages"] == history["messages"] and not original["tasks"]
                     print("Reusing verified real-model %s result" % kind, flush=True)
                 else:
-                    run = request(base, "/api/run", {**scope, "kind": kind, "question": question})["run"]
+                    run = request(base, "/api/assistant/run", {**scope, "kind": kind, "question": question})["run"]
                 report[kind] = run
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -103,7 +103,7 @@ def main():
             process = None
             command[command.index("-fixture") + 1] = str(replay_path)
             process, base = start()
-            replay = request(base, "/api/run", {**scope, "kind": "extract", "question": ""})["run"]
+            replay = request(base, "/api/assistant/run", {**scope, "kind": "extract", "question": ""})["run"]
             report["historicalReplayExtraction"] = replay
             assert replay["status"] == "succeeded"
             suggestions = replay.get("suggestions", [])
@@ -118,10 +118,10 @@ def main():
                 assert s["sourceMessageIds"] and all(i in source for i in s["sourceMessageIds"])
             body = {**scope, "key": suggestion["id"], "title": suggestion["title"], "assigneeId": suggestion["assigneeId"], "dueAt": "", "allowDuplicate": False}
             assert not request(base, state_path)["context"]["tasks"], "Extraction wrote tasks before confirmation."
-            task = request(base, "/api/confirm", body)
-            assert request(base, "/api/confirm", body)["id"] == task["id"]
+            task = request(base, "/api/assistant/confirm", body)
+            assert request(base, "/api/assistant/confirm", body)["id"] == task["id"]
             report["checks"].extend(["no_task_before_confirmation", "confirmation_idempotence"])
-            completed = request(base, "/api/complete", {"groupId": group, "actorId": task["assigneeId"], "taskId": task["id"], "done": True})
+            completed = request(base, "/api/assistant/complete", {"groupId": group, "actorId": task["assigneeId"], "taskId": task["id"], "done": True})
             assert completed["status"] == "completed"
             report["checks"].append("assignee_completion")
             report["confirmedTask"] = completed

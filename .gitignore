@@ -60,3 +60,10 @@ __pycache__
 /evals/cases.json
 /evals/chat-cases-review.md
 /evals/versions/
+
+# Unified API deployment artifacts (requested output location)
+/deploy/api/api-linux-*
+/deploy/api/api-deploy.tar.gz
+/deploy/api/models.example.json
+/deploy/api/SHA256SUMS
+/deploy/api/.build-*/

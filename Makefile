@@ -4,16 +4,18 @@ GO_DIR := services/api
 UV ?= uv
 EVAL_ARGS ?=
 FEISHU_ARGS ?=
+API_ARGS ?=
 ASSISTANT_ARGS ?=
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: dev feishu feishu-build model-check trace eval eval-check eval-services eval-test eval-smoke assistant assistant-check help tools fmt fmt-check build test vet lint check \
+.PHONY: dev api-build feishu feishu-build model-check trace eval eval-check eval-services eval-test eval-smoke assistant assistant-check help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
-	@echo "make dev        Start assistant with local environment and default model profile"
+	@echo "make dev        Start unified HTTP API (API_ARGS) with default assistant module"
+	@echo "make api-build  Package unified HTTP API into deploy/api"
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make feishu-build Build the private Feishu deployment package"
@@ -34,7 +36,11 @@ help:
 	@echo "make lint       Run the configured linters"
 	@echo "make check      Run formatting, build, vet, tests and lint"
 
-dev: assistant
+dev:
+	python3 scripts/dev.py api $(ASSISTANT_ARGS) $(API_ARGS)
+
+api-build:
+	bash deploy/api/build.sh
 
 assistant:
 	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)

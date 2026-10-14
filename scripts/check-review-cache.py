@@ -33,7 +33,7 @@ def main():
     raw = args.cases.read_bytes()
     cases = json.loads(raw)
     source_hash = hashlib.sha256()
-    for path in sorted(list((ROOT/'services/api/internal/assistant').glob('*.go')) + list((ROOT/'services/api/cmd/assistant').glob('*.go'))):
+    for path in sorted(list((ROOT/'services/api/internal/assistant').glob('*.go')) + list((ROOT/'services/api/cmd/api').glob('*.go'))):
         source_hash.update(str(path.relative_to(ROOT)).encode()); source_hash.update(path.read_bytes())
     report = {'workflowSourceSha256': source_hash.hexdigest(), 'promptVersion': 'extract-v7-cache', 'cachePolicy': {'maxEntries':64,'ttlSeconds':600,'uncertainNotCached':True}, 'status': 'running', 'model': args.model, 'casesSha256': hashlib.sha256(raw).hexdigest(),
               'casesPath': str(args.cases), 'mode': 'isolated real-model cache verification; not a Phoenix quality experiment',
@@ -44,7 +44,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='jetaime-review-cache-') as work:
         work = Path(work)
         binary = work/'assistant'
-        subprocess.run(['go', 'build', '-o', str(binary), './cmd/assistant'], cwd=ROOT/'services/api', check=True)
+        subprocess.run(['go', 'build', '-o', str(binary), './cmd/api'], cwd=ROOT/'services/api', check=True)
         for case in cases:
             if case['input']['kind'] != 'extract':
                 continue
@@ -64,7 +64,7 @@ def main():
                 scope = {'groupId': case['input']['groupId'], 'actorId': case['input']['actorId']}
                 for repetition in range(1, 4):
                     start = time.monotonic()
-                    run = request(base, '/api/run', {**scope, 'kind': 'extract'})['run']
+                    run = request(base, '/api/assistant/run', {**scope, 'kind': 'extract'})['run']
                     assert run['status']=='succeeded'
                     calls = [s for s in run['steps'] if s['name'].endswith('model_call')]
                     for s in calls:
@@ -93,7 +93,7 @@ def main():
                     assert not any('面包' in s['title'] for s in suggestions)
                     assert any('英语' in s['title'] for s in suggestions)
                     entry['futureReturnHomeKept'] = [any('回家' in s['title'] for s in r['run'].get('suggestions', [])) for r in entry['runs']]
-                state = request(base, '/api/state?groupId='+scope['groupId']+'&actorId='+scope['actorId'])['context']
+                state = request(base, '/api/assistant/state?groupId='+scope['groupId']+'&actorId='+scope['actorId'])['context']
                 assert not state['tasks'] and state['messages']==case['input']['fixture']['messages']
                 report['cases'].append(entry)
                 args.output.parent.mkdir(parents=True, exist_ok=True)

@@ -35,9 +35,14 @@ def load_env(path, environment, inherited):
 def command(action, args, environment):
     go = ROOT / "services/api"
     uv = environment.get("JETAIME_UV", "uv")
-    if action in ["assistant", "feishu", "model-check"]:
-        program = "workflow-eval" if action == "model-check" else action
-        flags = ["-print-model-config"] if action == "model-check" else []
+    if action in ["api", "assistant", "webchat", "feishu", "model-check"]:
+        program = "api" if action in ["api", "assistant", "webchat"] else action
+        flags = []
+        if action == "webchat":
+            flags = ["-assistant=false", "-webchat", "-addr", "127.0.0.1:8082"]
+        elif action == "model-check":
+            program = "workflow-eval"
+            flags = ["-print-model-config"]
         return go, ["go", "run", "./cmd/" + program, *flags, *args]
     if action in ["eval", "eval-check", "eval-services"]:
         flags = {"eval": [], "eval-check": ["--check-only"], "eval-services": ["--check-services"]}[action]
@@ -50,14 +55,14 @@ def command(action, args, environment):
         return ROOT, ["bash", "deploy/phoenix/start.sh", *args]
     if action == "feishu-build":
         return ROOT, ["bash", "deploy/feishu/build.sh", *args]
-    raise ValueError("unknown service; choose assistant, feishu, trace, eval, eval-check, eval-services, eval-smoke, assistant-check, model-check or feishu-build")
+    raise ValueError("unknown service; choose api, assistant, webchat, feishu, trace, eval, eval-check, eval-services, eval-smoke, assistant-check, model-check or feishu-build")
 
 
 def main():
-    action = sys.argv[1] if len(sys.argv) > 1 else "assistant"
+    action = sys.argv[1] if len(sys.argv) > 1 else "api"
     args = sys.argv[2:]
     if action in ["-h", "--help", "help"]:
-        print("python3 scripts/dev.py [assistant|feishu|trace|eval|eval-check|eval-services|eval-smoke|assistant-check|model-check|feishu-build] [arguments]")
+        print("python3 scripts/dev.py [api|assistant|webchat|feishu|trace|eval|eval-check|eval-services|eval-smoke|assistant-check|model-check|feishu-build] [arguments]")
         return
     environment = os.environ.copy()
     inherited = set(environment)

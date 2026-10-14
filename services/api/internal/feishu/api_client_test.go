@@ -22,7 +22,7 @@ func TestTokenFailureLogsResponseID(t *testing.T) {
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set(header, "denied-log-id")
-				fmt.Fprint(w, `{"code":21001,"msg":"Access denied by access control policy"}`)
+				_, _ = fmt.Fprint(w, `{"code":21001,"msg":"Access denied by access control policy"}`)
 			}))
 			defer server.Close()
 			var logs bytes.Buffer

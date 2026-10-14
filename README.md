@@ -9,7 +9,8 @@
 统一入口会自动加载本地环境与默认模型配置。在仓库根目录启动：
 
 ```sh
-make dev          # 调试台；make assistant 等效
+make dev          # 统一 HTTP 服务，默认启用 assistant
+make assistant    # assistant 启动别名，同样使用 cmd/api
 make model-check  # 只校验模型配置与密钥存在性，不调用模型
 make trace        # Phoenix
 make feishu       # 飞书长连接
@@ -28,7 +29,7 @@ make dev ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr 127.0
 
 支持 Eino Ollama / OpenAI 兼容接口，启动时选择模型，切换需重启；云模型与 profile 配置见 [模型接入说明](docs/v2/运行说明.md#eino-模型接入与启动选择)。
 
-打开 <http://127.0.0.1:8081>。页面内嵌于 Go 服务，无需前端依赖或构建。Ctrl+C 停止服务。
+打开 <http://127.0.0.1:8081/page/assistant/>。页面内嵌于 Go 服务，无需前端依赖或构建。Ctrl+C 停止服务。
 
 `make assistant` 默认加载你提供的微信记录：`local/data/chat-history/history.fixture.json`（2 位成员、441 条消息），不再包含虚构聊天数据。上下文容量使用所选 profile 的配置；未配置时默认 98304。页面“重新读取历史 JSON”重新读取该文件。模型调用默认超时为 5 分钟，以容纳全量历史的本地推理。
 
@@ -38,11 +39,32 @@ make dev ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr 127.0
 
 这是本机调试工具，未实现真实登录、邀请和多人实时同步。来源 ID 校验不等于语义准确，模型仍可能漏提取或引用不完整，确认前需核对原文。具体参数、文件与边界见 [V2 运行说明](docs/v2/运行说明.md)。
 
+## HTTP 路由与模块装配
+
+使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
+
+- `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
+- `/api/webchat/...`：session、register、login、logout、messages；页面在 `/page/webchat/`，保留 Host / Origin 校验、邀请码和登录会话。
+- `GET /api/health`：HTTP 服务存活检查，不代表模型或外部依赖就绪。
+
+旧的无业务域 `/api/...` 路径已替换，前端与验证脚本同步更新。根路径跳转到已启用的页面；同时启用时优先打开 webchat。飞书继续通过 SDK 长连接接收事件，目前没有需要注册的飞书 HTTP 接口。没有新增测试接口。
+
+```sh
+make dev                                  # 默认只启用 assistant
+make dev API_ARGS='-webchat'               # 同一端口启用 assistant 和 webchat
+make dev API_ARGS='-assistant=false -webchat' # 只启用 webchat，不加载模型或历史
+```
+
+启用 webchat 前，在 `local/.env` 设置至少 16 位的 `WEBCHAT_INVITE_CODE`；通过 HTTPS 代理访问时设置 `WEBCHAT_PUBLIC_URL`。Webchat 状态默认保存在 `local/data/webchat/state.json`，可用 `-webchat-state` 修改。HTTP 服务统一使用 `cmd/api`；公网访问 webchat 时，assistant 的本机访问限制仍然生效。
+
+统一 HTTP API 打包运行 `make api-build`，产物直接保存到 `deploy/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。
+
 ## 代码结构
 
 ```text
 services/api/
-├── cmd/assistant/main.go       本地 HTTP 服务入口
+├── cmd/api/main.go             统一 HTTP 服务入口
+├── internal/httpapi/router.go 总 Router，装配业务模块
 ├── internal/assistant/
 │   ├── types.go               实体与输入输出类型
 │   ├── store.go               群组隔离、消息与待办 JSON 存储

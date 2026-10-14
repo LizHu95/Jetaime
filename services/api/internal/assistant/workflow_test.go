@@ -111,7 +111,7 @@ func TestLocalHTTPBoundary(t *testing.T) {
 	for _, tc := range []struct {
 		host, origin, path string
 		status             int
-	}{{"evil.example", "", "/api/catalog", 403}, {"127.0.0.1:8081", "https://evil.example", "/api/catalog", 403}, {"127.0.0.1:8081", "", "/api/state?groupId=daily&actorId=chen", 403}, {"127.0.0.1:8081", "", "/api/state?groupId=daily&actorId=lin", 200}} {
+	}{{"evil.example", "", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "https://evil.example", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=chen", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=lin", 200}} {
 		r := httptest.NewRequest("GET", tc.path, nil)
 		r.Host = tc.host
 		r.Header.Set("Origin", tc.origin)

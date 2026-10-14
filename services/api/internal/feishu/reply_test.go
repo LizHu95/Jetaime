@@ -20,7 +20,7 @@ func TestReplyCard(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("X-Tt-Logid", "reply-log-id")
 		if r.URL.Path == "/open-apis/auth/v3/tenant_access_token/internal" {
-			fmt.Fprint(w, `{"code":0,"tenant_access_token":"test-token","expire":7200}`)
+			_, _ = fmt.Fprint(w, `{"code":0,"tenant_access_token":"test-token","expire":7200}`)
 			return
 		}
 		if r.Method != http.MethodPost || r.URL.Path != "/open-apis/im/v1/messages/om_test/reply" {
@@ -31,7 +31,7 @@ func TestReplyCard(t *testing.T) {
 			t.Error(err)
 		}
 		requests = append(requests, &body)
-		fmt.Fprintf(w, `{"code":%d,"msg":"test response","data":{"message_id":"om_reply"}}`, code)
+		_, _ = fmt.Fprintf(w, `{"code":%d,"msg":"test response","data":{"message_id":"om_reply"}}`, code)
 	}))
 	defer server.Close()
 	client := lark.NewClient("reply-test-app", "test-secret", lark.WithOpenBaseUrl(server.URL))
