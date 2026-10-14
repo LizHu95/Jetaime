@@ -36,7 +36,7 @@ INSERT INTO user_credentials(user_id, username, password_hash)
     VALUES ('00000000-0000-0000-0000-000000000001','alice','fixture-not-a-real-hash');
 SELECT pg_temp.expect_rejected($q$
     INSERT INTO user_credentials(user_id, username, password_hash)
-    VALUES ('00000000-0000-0000-0000-000000000002','ALICE','fixture')
+    VALUES ('00000000-0000-0000-0000-000000000002','alice','fixture')
 $q$, '23505');
 
 -- Independent sessions survive because they are durable rows, not in-memory state.

@@ -1,5 +1,13 @@
 # 日常协同 AI 助理
 
+## Web 前端
+
+响应式 Web 客户端位于 `apps/web/`，使用 React、TypeScript、Vite、shadcn/ui 和 TanStack Query。已提供登录、注册及登录结果/退出页面，适配手机与 PC，并接入现有认证 API。
+
+首次运行 `cd apps/web && npm ci`，随后在仓库根目录运行 `make web`，打开 <http://127.0.0.1:5173/page/auth/login/>。真实认证需另行启动 `make dev` 并完成 PostgreSQL 配置与迁移。构建使用 `make web-build`，产物位于 `outputs/web/`；完整说明见 [Web 开发说明](apps/web/README.md)。
+
+## 后端与 Workflow 调试台
+
 当前版本为 **V2 最简 Workflow 调试台**：从群组聊天历史回答问题并引用来源，提取明确行动，经成员确认后保存为待办。支持本地 JSON 历史与模拟发消息，提供可查看输入、模型响应和校验结果的调试页面。
 
 一期的收藏驱动推荐、反馈与换批代码已移除。历史产品方案和评测结果归档在 `docs/v1/`，不再提供一期运行入口。
@@ -9,7 +17,7 @@
 统一入口会自动加载本地环境与默认模型配置。在仓库根目录启动：
 
 ```sh
-make dev          # 基础 API，只提供 /test/healthz
+make dev          # 认证 API 与 /test/healthz，需要 PostgreSQL
 make assistant    # 显式启用 Assistant 调试模块
 make model-check  # 只校验模型配置与密钥存在性，不调用模型
 make trace        # Phoenix
@@ -41,19 +49,21 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 ## HTTP 路由与模块装配
 
-直接运行 API 二进制和 `make dev` 默认只提供 `/test/healthz`，无需模型配置或历史文件。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块。
+`make dev` 默认启用认证 API 与 `/test/healthz`，自动加载 `local/.env`，需要 PostgreSQL 连接与已迁移的数据库；无需模型配置或历史文件。直接运行 API 二进制不传业务模块参数时仍只提供 `/test/healthz`，认证通过 `-auth` 启用。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块。
 
 使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，只内置测试接口，通过 `NewRouter(modules ...Module)` 接收注入模块。各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
 
-PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，API 加 `-database` 开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录及聊天业务接口仍待开发。
+PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，API 加 `-database` 开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口已实现，通过 `-auth` 开启，见 [认证接口说明](docs/v2/认证接口.md)；聊天业务接口仍待开发。
 
+- `POST /api/auth/register`、`/api/auth/login`、`/api/auth/logout`：账号认证模块，`make dev` 默认启用。
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
 - `GET /test/healthz`：固定返回测试 JSON，不代表模型或数据库就绪。
 
 旧的无业务域 `/api/...` 路径已替换，前端与验证脚本同步更新。根路径不注册，返回 404；使用完整业务页面地址。飞书继续通过 SDK 长连接接收事件，目前没有需要注册的飞书 HTTP 接口。`GET /test/healthz` 用于测试连通性，固定返回 `{"status":"ok","message":"hello"}`。
 
 ```sh
-make dev                                  # 仅测试接口
+make dev                                  # 默认启用注册、登录、退出与健康检查
+make dev API_ARGS='-auth=false'            # 只启用健康检查，不连接数据库
 make assistant                            # 注入 Assistant 调试模块
 ```
 

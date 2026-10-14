@@ -9,10 +9,45 @@ import (
 	"testing/fstest"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/migrations"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPostgresCaseSensitiveUsernameUpgrade(t *testing.T) {
+	pool := testPool(t)
+	ctx := context.Background()
+	name := "000001_chat_schema.up.sql"
+	baseline, err := migrations.Files.ReadFile(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrate(ctx, pool, fstest.MapFS{name: {Data: baseline}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO users(id,nickname) VALUES ('00000000-0000-0000-0000-000000000001','existing');
+ INSERT INTO user_credentials(user_id,username,password_hash) VALUES ('00000000-0000-0000-0000-000000000001','liz','fixture')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckSchema(ctx, pool); err == nil {
+		t.Fatal("startup accepted missing case-sensitive migration")
+	}
+	if err := Migrate(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckSchema(ctx, pool); err != nil {
+		t.Fatal(err)
+	}
+	var username string
+	if err := pool.QueryRow(ctx, `SELECT username FROM user_credentials WHERE user_id='00000000-0000-0000-0000-000000000001'`).Scan(&username); err != nil || username != "liz" {
+		t.Fatal("migration renamed or removed existing user")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO users(id,nickname) VALUES ('00000000-0000-0000-0000-000000000002','new');
+ INSERT INTO user_credentials(user_id,username,password_hash) VALUES ('00000000-0000-0000-0000-000000000002','Liz','fixture')`); err != nil {
+		t.Fatalf("different case blocked after upgrade: %v", err)
+	}
+}
 
 func TestMigrationFiles(t *testing.T) {
 	for _, files := range []fstest.MapFS{
@@ -111,7 +146,7 @@ func TestPostgresBaselineAndConcurrentMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil || count != 1 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM schema_migrations`).Scan(&count); err != nil || count != 2 {
 		t.Fatalf("ledger count %d: %v", count, err)
 	}
 	checks, err := os.ReadFile("../../migrations/000001_chat_schema.check.sql")

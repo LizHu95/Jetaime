@@ -47,7 +47,9 @@ curl http://127.0.0.1:8081/test/healthz
 
 `-migrate` 执行后退出，不启动 HTTP 服务，也不调用模型；需直接运行二进制，不能通过后台 `start` 脚本运行迁移。`-database` 启动只检查连接和版本，不自动建表。未迁移或版本不匹配时启动失败。曾用 psql 手工建表但未记录版本的库不能自动接管，应使用新空库，保留旧库供核对或另行制定迁移方案。
 
-`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。目前数据库接入完成到基础设施层；注册、登录、双人会话及消息接口尚未实现，assistant 调试台仍使用 JSON 存储。
+`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。账号注册、登录和退出接口已实现，双人会话及消息接口尚未实现；assistant 调试台仍使用 JSON 存储。
+
+认证模块通过 `-auth` 开启，自动连接 PostgreSQL 并注册三个 POST 接口：`/api/auth/register`、`/api/auth/login`、`/api/auth/logout`。可运行 `./api-linux-amd64 -auth` 或 `bash start.sh start -auth`。登录返回 7 天有效期的 Bearer Token，退出在请求头传 `Authorization: Bearer TOKEN`。默认不注册认证接口；启用后应通过 HTTPS 使用。注册密码为 6–128 个 Unicode 字符，账号为 2–24 位 ASCII 字母、数字或下划线，大小写敏感；升级时先执行迁移 000002 并重启服务。完整请求与响应示例见仓库 `docs/v2/认证接口.md`。
 
 云服务器上可用包内脚本自动选择架构并后台运行：
 

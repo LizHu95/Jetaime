@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
+	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
@@ -28,6 +29,7 @@ func main() {
 func run() error {
 	addr := flag.String("addr", "127.0.0.1:8081", "listen address; assistant requires a loopback IP")
 	databaseEnabled := flag.Bool("database", false, "enable PostgreSQL using JETAIME_DATABASE_URL; requires current schema")
+	authEnabled := flag.Bool("auth", false, "enable account APIs; requires PostgreSQL using JETAIME_DATABASE_URL")
 	migrateOnly := flag.Bool("migrate", false, "apply embedded PostgreSQL migrations and exit")
 	assistantEnabled := flag.Bool("assistant", false, "enable local assistant console")
 	fixture := flag.String("fixture", "../../local/data/chat-history/history.fixture.json", "editable history fixture")
@@ -65,7 +67,7 @@ func run() error {
 	var modules []httpapi.Module
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if *databaseEnabled || *migrateOnly {
+	if *databaseEnabled || *migrateOnly || *authEnabled {
 		startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		pool, err := database.Open(startup, os.Getenv("JETAIME_DATABASE_URL"))
@@ -84,6 +86,13 @@ func run() error {
 			return err
 		}
 		fmt.Println("PostgreSQL connected; schema verified")
+		if *authEnabled {
+			service, err := auth.NewService(auth.NewPostgresStore(pool))
+			if err != nil {
+				return fmt.Errorf("initialize authentication: %w", err)
+			}
+			modules = append(modules, auth.NewHandler(service))
+		}
 	}
 	if *assistantEnabled {
 		config, err := modelFlags.Resolve(*tokens)

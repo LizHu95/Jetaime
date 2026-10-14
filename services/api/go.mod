@@ -5,6 +5,7 @@ go 1.24.0
 require github.com/google/uuid v1.6.0
 
 require (
+	github.com/alexedwards/argon2id v1.0.0
 	github.com/cloudwego/eino v0.7.13
 	github.com/cloudwego/eino-ext/components/model/ollama v0.1.9
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.13

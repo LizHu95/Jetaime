@@ -1,6 +1,6 @@
 # PostgreSQL 数据设计
 
-更新：2026-10-14。状态：第一版设计、建表 SQL、Go 连接池与版本迁移已实现；已接入 API 的可选数据库模式，业务存储接口及线上部署尚未完成。
+更新：2026-10-14。状态：第一版设计、建表 SQL、Go 连接池与版本迁移已实现；已接入 API 的可选数据库模式，账号认证接口已接入；聊天业务接口及线上部署尚未完成。
 
 ## 1. 已确认规则与建议
 
@@ -13,7 +13,7 @@
 | 表 | 主要字段 | 约束与职责 |
 | --- | --- | --- |
 | users | id、nickname、avatar_url、created_at | 用户 ID 稳定，昵称可修改 |
-| user_credentials | user_id、username、password_hash、updated_at | 每人一个密码凭据，账号大小写不敏感且唯一；注册/登录先去除两端空白，账号不随昵称变化 |
+| user_credentials | user_id、username、password_hash、updated_at | 每人一个密码凭据，账号大小写敏感且唯一；注册/登录先去除两端空白，账号不随昵称变化 |
 | auth_sessions | id、user_id、token_hash、expires_at、revoked_at | 多设备分别创建会话；保存随机 Token 的 SHA-256，不保存原始 Token；建议有效期 7 天 |
 | chat_groups | id、user_low_id、user_high_id、status、last_message_seq、last_message_at、closed_at、closed_by | 两位用户按 UUID 排序；两人不同且固定；仅 active 用户对唯一；无群主特权 |
 | group_members | group_id、user_id、last_read_seq、joined_at | 两条固定成员记录；管理读取进度与权限；退出关闭整个会话，不删除其中一条成员 |
@@ -34,7 +34,7 @@ UUID 由 Go 生成，所有时间使用 timestamptz，接口输出 RFC3339，客
 
 服务端负责：验证登录和操作人；查询仅返回 active 且本人所属会话；消息内容和请求体大小限制；所有消息只追加；分配连续递增序号；添加请求状态流转；关闭时停用 AI 和取消调用；工作进程重试及过期租约恢复。外键能验证“某用户是成员”，不能验证“HTTP 调用者就是该用户”。
 
-AuthSession 每次认证均检查 expires_at 与 revoked_at；过期不依赖清理任务。密码验证计划使用 bcrypt。数据库不存模型密钥、原始会话 Token 或用户明文密码。
+AuthSession 每次认证均检查 expires_at 与 revoked_at；过期不依赖清理任务。密码验证已使用 Argon2id；注册、登录及退出接口见 [认证接口说明](认证接口.md)。数据库不存模型密钥、原始会话 Token 或用户明文密码。
 
 ## 4. 必须使用的事务流程
 
@@ -79,12 +79,15 @@ AuthSession 每次认证均检查 expires_at 与 revoked_at；过期不依赖清
 
 建表文件：services/api/migrations/000001_chat_schema.up.sql。它是空库初始化基线，不迁移旧 Webchat 的 JSON 状态文件。Go 执行器位于 `internal/database`，SQL 通过 `migrations/embed.go` 嵌入二进制。使用 `make db-migrate` 或 API 的 `-migrate` 参数显式执行；迁移事务同时保存 `schema_migrations` 中的版本、文件名、SHA-256 和执行时间。事务级 advisory lock 串行化多个迁移进程；重复执行跳过已应用版本，校验不一致、未知版本或中间缺失版本时报错，失败整体回滚。
 
+迁移 `000002_case_sensitive_usernames.up.sql` 将 `lower(username)` 唯一索引替换为 `username` 唯一索引。已应用的 000001 不修改，保持版本校验有效；新库依次应用两版，已有库仅升级第二版。用户名原值保留，`Liz`、`liz`、`LIZ` 作为不同账号，查重和登录均按相同大小写精确匹配。
+
 `-database` 开启 pgx 连接池，启动时检查连接和所有迁移记录，不自动修改 schema。HTTP Router 精简后只内置 `/test/healthz`，不再提供运行期数据库就绪接口。默认基础 HTTP 模式仍无需数据库。连接从 `JETAIME_DATABASE_URL` 读取，配置和连接错误不输出连接字符串或密码。现有 assistant 调试存储仍为 JSON，不因为开启数据库而自动迁移。
 
 可在独立测试库执行：
 
 ```sh
 psql "$JETAIME_TEST_DATABASE_URL" -1 -v ON_ERROR_STOP=1 -f services/api/migrations/000001_chat_schema.up.sql
+psql "$JETAIME_TEST_DATABASE_URL" -1 -v ON_ERROR_STOP=1 -f services/api/migrations/000002_case_sensitive_usernames.up.sql
 psql "$JETAIME_TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -f services/api/migrations/000001_chat_schema.check.sql
 ```
 

@@ -1,6 +1,16 @@
 .DEFAULT_GOAL := help
 
 .PHONY: db-migrate db-test
+.PHONY: web web-build web-check
+
+web:
+	cd apps/web && npm run dev
+
+web-build:
+	cd apps/web && npm run build
+
+web-check:
+	cd apps/web && npm test && npm run test:e2e && npm run build
 
 GO_DIR := services/api
 UV ?= uv
@@ -16,9 +26,12 @@ GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
+	@echo "make web        Start responsive Web client at http://127.0.0.1:5173/page/auth/login/"
+	@echo "make web-build  Build Web client into outputs/web"
+	@echo "make web-check  Run Web unit/browser tests and build"
 	@echo "make db-migrate Apply PostgreSQL migrations using JETAIME_DATABASE_URL"
 	@echo "make db-test    Run database integration tests using JETAIME_TEST_DATABASE_URL"
-	@echo "make dev        Start HTTP API connectivity test (API_ARGS)"
+	@echo "make dev        Start HTTP API with authentication (API_ARGS; PostgreSQL required)"
 	@echo "make api-build  Package unified HTTP API into outputs/api"
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
@@ -41,7 +54,7 @@ help:
 	@echo "make check      Run formatting, build, vet, tests and lint"
 
 dev:
-	python3 scripts/dev.py api $(API_ARGS)
+	python3 scripts/dev.py api -auth $(API_ARGS)
 
 api-build:
 	bash deploy/api/build.sh
