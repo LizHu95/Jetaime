@@ -9,8 +9,8 @@
 统一入口会自动加载本地环境与默认模型配置。在仓库根目录启动：
 
 ```sh
-make dev          # 统一 HTTP 服务，默认启用 assistant
-make assistant    # assistant 启动别名，同样使用 cmd/api
+make dev          # 基础 API，只提供 /test/healthz
+make assistant    # 显式启用 Assistant 调试模块
 make model-check  # 只校验模型配置与密钥存在性，不调用模型
 make trace        # Phoenix
 make feishu       # 飞书长连接
@@ -20,9 +20,9 @@ make feishu       # 飞书长连接
 
 ```sh
 # 临时切换，省略默认配置文件路径：
-make dev ASSISTANT_ARGS='-model-profile local-qwen'
+make assistant ASSISTANT_ARGS='-model-profile local-qwen'
 # 指定其他配置文件或服务端口：
-make dev ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr 127.0.0.1:8082'
+make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr 127.0.0.1:8082'
 ```
 
 也可使用 `python3 scripts/dev.py assistant`、`python3 scripts/dev.py eval` 等同一入口。模型参数放在 JSON 中，启动命令不需要手动 source 或逐项指定模型参数。环境文件使用单行 `KEY=value` 或带引号的值，不执行命令替换或变量展开。直接 `go run` 不加载环境文件。
@@ -41,23 +41,23 @@ make dev ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr 127.0
 
 ## HTTP 路由与模块装配
 
-使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
+直接运行 API 二进制和 `make dev` 默认只提供 `/test/healthz`，无需模型配置或历史文件。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块。
+
+使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，只内置测试接口，通过 `NewRouter(modules ...Module)` 接收注入模块。各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
+
+PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，API 加 `-database` 开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录及聊天业务接口仍待开发。
 
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
-- `/api/webchat/...`：session、register、login、logout、messages；页面在 `/page/webchat/`，保留 Host / Origin 校验、邀请码和登录会话。
-- `GET /api/health`：HTTP 服务存活检查，不代表模型或外部依赖就绪。
+- `GET /test/healthz`：固定返回测试 JSON，不代表模型或数据库就绪。
 
-旧的无业务域 `/api/...` 路径已替换，前端与验证脚本同步更新。根路径跳转到已启用的页面；同时启用时优先打开 webchat。飞书继续通过 SDK 长连接接收事件，目前没有需要注册的飞书 HTTP 接口。没有新增测试接口。
+旧的无业务域 `/api/...` 路径已替换，前端与验证脚本同步更新。根路径不注册，返回 404；使用完整业务页面地址。飞书继续通过 SDK 长连接接收事件，目前没有需要注册的飞书 HTTP 接口。`GET /test/healthz` 用于测试连通性，固定返回 `{"status":"ok","message":"hello"}`。
 
 ```sh
-make dev                                  # 默认只启用 assistant
-make dev API_ARGS='-webchat'               # 同一端口启用 assistant 和 webchat
-make dev API_ARGS='-assistant=false -webchat' # 只启用 webchat，不加载模型或历史
+make dev                                  # 仅测试接口
+make assistant                            # 注入 Assistant 调试模块
 ```
 
-启用 webchat 前，在 `local/.env` 设置至少 16 位的 `WEBCHAT_INVITE_CODE`；通过 HTTPS 代理访问时设置 `WEBCHAT_PUBLIC_URL`。Webchat 状态默认保存在 `local/data/webchat/state.json`，可用 `-webchat-state` 修改。HTTP 服务统一使用 `cmd/api`；公网访问 webchat 时，assistant 的本机访问限制仍然生效。
-
-统一 HTTP API 打包运行 `make api-build`，产物直接保存到 `deploy/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。
+统一 HTTP API 打包运行 `make api-build`，产物保存到 `outputs/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。
 
 ## 代码结构
 

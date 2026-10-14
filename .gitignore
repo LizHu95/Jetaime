@@ -61,7 +61,7 @@ __pycache__
 /evals/chat-cases-review.md
 /evals/versions/
 
-# Unified API deployment artifacts (requested output location)
+# Legacy API deployment artifacts (prevent accidental commits)
 /deploy/api/api-linux-*
 /deploy/api/api-deploy.tar.gz
 /deploy/api/models.example.json

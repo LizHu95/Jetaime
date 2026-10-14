@@ -14,17 +14,22 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
+	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/webchat"
 )
 
 func main() {
-	addr := flag.String("addr", "127.0.0.1:8081", "loopback listen address")
-	assistantEnabled := flag.Bool("assistant", true, "enable local assistant console")
-	webchatEnabled := flag.Bool("webchat", false, "enable web chat (requires WEBCHAT_INVITE_CODE)")
-	webchatState := flag.String("webchat-state", "../../local/data/webchat/state.json", "persistent web chat accounts and messages")
-	publicURL := flag.String("public-url", os.Getenv("WEBCHAT_PUBLIC_URL"), "web chat HTTPS origin behind a reverse proxy")
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
+	addr := flag.String("addr", "127.0.0.1:8081", "listen address; assistant requires a loopback IP")
+	databaseEnabled := flag.Bool("database", false, "enable PostgreSQL using JETAIME_DATABASE_URL; requires current schema")
+	migrateOnly := flag.Bool("migrate", false, "apply embedded PostgreSQL migrations and exit")
+	assistantEnabled := flag.Bool("assistant", false, "enable local assistant console")
 	fixture := flag.String("fixture", "../../local/data/chat-history/history.fixture.json", "editable history fixture")
 	state := flag.String("state", "../../local/data/assistant/state.json", "persisted messages and tasks")
 	logs := flag.String("log", "../../local/data/assistant/runs.jsonl", "workflow trace log")
@@ -34,74 +39,81 @@ func main() {
 	tokens := flag.Int("context-tokens", 98304, "context capacity")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		log.Fatal("unexpected arguments")
+		return fmt.Errorf("unexpected arguments")
 	}
 	host, _, err := net.SplitHostPort(*addr)
-	if err != nil || net.ParseIP(host) == nil || !net.ParseIP(host).IsLoopback() {
-		log.Fatal("addr must use a loopback IP")
+	if err != nil || net.ParseIP(host) == nil {
+		return fmt.Errorf("addr must use an IP and port")
 	}
-	if !*assistantEnabled && !*webchatEnabled {
-		log.Fatal("enable at least one HTTP module with -assistant or -webchat")
+	if *assistantEnabled && !net.ParseIP(host).IsLoopback() {
+		return fmt.Errorf("assistant requires a loopback listen IP")
 	}
 	paths := []string{*fixture, *state, *logs}
 	if *assistantEnabled {
-		if *webchatEnabled {
-			paths = append(paths, *webchatState)
-		}
 		seen := make(map[string]bool, len(paths))
 		for i, path := range paths {
 			paths[i], err = filepath.Abs(path)
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			if seen[paths[i]] {
-				log.Fatal("fixture, state, log and webchat state must be separate files")
+				return fmt.Errorf("fixture, state and log must be separate files")
 			}
 			seen[paths[i]] = true
 		}
 	}
-	deps := httpapi.Dependencies{}
+	var modules []httpapi.Module
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if *databaseEnabled || *migrateOnly {
+		startup, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		pool, err := database.Open(startup, os.Getenv("JETAIME_DATABASE_URL"))
+		if err != nil {
+			return err
+		}
+		defer pool.Close()
+		if *migrateOnly {
+			if err := database.Migrate(startup, pool); err != nil {
+				return err
+			}
+			fmt.Println("PostgreSQL migrations are current")
+			return nil
+		}
+		if err := database.CheckSchema(startup, pool); err != nil {
+			return err
+		}
+		fmt.Println("PostgreSQL connected; schema verified")
+	}
 	if *assistantEnabled {
 		config, err := modelFlags.Resolve(*tokens)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		provider, err := config.New(*timeout)
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		store, err := assistant.OpenStore(paths[0], paths[1])
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		workflow, err := assistant.NewWorkflow(store, provider, config.Model, config.ContextTokens, paths[2])
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		workflow.EnableReviewCache = *reviewCache
-		deps.Assistant = assistant.NewServer(workflow)
+		modules = append(modules, assistant.NewServer(workflow))
 		fmt.Printf("Model: %s (%s), profile: %s\n", config.Model, config.Provider, config.Profile)
 	}
-	if *webchatEnabled {
-		chat, err := webchat.NewServer(*webchatState, os.Getenv("WEBCHAT_INVITE_CODE"), *publicURL)
-		if err != nil {
-			log.Fatal(err)
-		}
-		deps.Webchat = chat
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
-	server := &http.Server{Handler: httpapi.NewRouter(deps), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
+	server := &http.Server{Handler: httpapi.NewRouter(modules...), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
 	fmt.Printf("HTTP API: http://%s\n", listener.Addr())
 	if *assistantEnabled {
 		fmt.Printf("Assistant: http://%s/page/assistant/\n", listener.Addr())
-	}
-	if *webchatEnabled {
-		fmt.Printf("Web chat: http://%s/page/webchat/\n", listener.Addr())
 	}
 	go func() {
 		if err := server.Serve(listener); err != nil && err != http.ErrServerClosed {
@@ -115,4 +127,5 @@ func main() {
 	if err := server.Shutdown(shutdown); err != nil {
 		_ = server.Close()
 	}
+	return nil
 }

@@ -1,5 +1,7 @@
 .DEFAULT_GOAL := help
 
+.PHONY: db-migrate db-test
+
 GO_DIR := services/api
 UV ?= uv
 EVAL_ARGS ?=
@@ -14,8 +16,10 @@ GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
-	@echo "make dev        Start unified HTTP API (API_ARGS) with default assistant module"
-	@echo "make api-build  Package unified HTTP API into deploy/api"
+	@echo "make db-migrate Apply PostgreSQL migrations using JETAIME_DATABASE_URL"
+	@echo "make db-test    Run database integration tests using JETAIME_TEST_DATABASE_URL"
+	@echo "make dev        Start HTTP API connectivity test (API_ARGS)"
+	@echo "make api-build  Package unified HTTP API into outputs/api"
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make feishu-build Build the private Feishu deployment package"
@@ -37,10 +41,17 @@ help:
 	@echo "make check      Run formatting, build, vet, tests and lint"
 
 dev:
-	python3 scripts/dev.py api $(ASSISTANT_ARGS) $(API_ARGS)
+	python3 scripts/dev.py api $(API_ARGS)
 
 api-build:
 	bash deploy/api/build.sh
+
+db-migrate:
+	cd $(GO_DIR) && go run ./cmd/api -migrate
+
+db-test:
+	@test -n "$$JETAIME_TEST_DATABASE_URL" || { echo "Set JETAIME_TEST_DATABASE_URL to a test database" >&2; exit 1; }
+	cd $(GO_DIR) && go test -race -count=1 ./internal/database
 
 assistant:
 	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)

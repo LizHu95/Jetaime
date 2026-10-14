@@ -50,17 +50,19 @@ def main():
                 continue
             folder = work/case['id']; folder.mkdir()
             fixture = folder/'fixture.json'; fixture.write_text(json.dumps(case['input']['fixture'], ensure_ascii=False))
-            process = subprocess.Popen([str(binary), '-experimental-review-cache', '-addr', '127.0.0.1:0', '-fixture', str(fixture),
+            process = subprocess.Popen([str(binary), '-assistant', '-experimental-review-cache', '-addr', '127.0.0.1:0', '-fixture', str(fixture),
                 '-state', str(folder/'state.json'), '-log', str(folder/'runs.jsonl'), '-context-tokens', '16384',
                 '-model-timeout', '5m', '-model', args.model, '-ollama-url', args.ollama_url],
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             entry = {'caseId': case['id'], 'runs': []}
             stored_outputs = {}
             try:
-                first = process.stdout.readline().strip()
-                if not first.startswith('V2 demo: '):
-                    raise RuntimeError(first)
-                base = first[len('V2 demo: '):]
+                for line in process.stdout:
+                    if line.startswith('HTTP API: '):
+                        base = line.strip().removeprefix('HTTP API: ')
+                        break
+                else:
+                    raise RuntimeError('Could not start isolated HTTP API')
                 scope = {'groupId': case['input']['groupId'], 'actorId': case['input']['actorId']}
                 for repetition in range(1, 4):
                     start = time.monotonic()

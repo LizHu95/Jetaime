@@ -42,16 +42,15 @@ def main():
         directory = Path(directory)
         binary = directory / "assistant"
         subprocess.run(["go", "build", "-o", str(binary), "./cmd/api"], cwd=ROOT / "services/api", check=True)
-        command = [str(binary), "-addr", "127.0.0.1:0", "-fixture", str(fixture), "-state", str(directory / "state.json"), "-log", str(directory / "runs.jsonl"), "-context-tokens", "98304", "-model-timeout", "5m", "-model", args.model, "-ollama-url", args.ollama_url]
+        command = [str(binary), "-assistant", "-addr", "127.0.0.1:0", "-fixture", str(fixture), "-state", str(directory / "state.json"), "-log", str(directory / "runs.jsonl"), "-context-tokens", "98304", "-model-timeout", "5m", "-model", args.model, "-ollama-url", args.ollama_url]
 
         def start():
             server = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-            first = server.stdout.readline().strip()
-            if not first.startswith("V2 demo: "):
-                server.terminate()
-                server.wait(timeout=10)
-                raise RuntimeError("Could not start isolated server: " + first)
-            return server, first.removeprefix("V2 demo: ")
+            for line in server.stdout:
+                if line.startswith("HTTP API: "):
+                    return server, line.strip().removeprefix("HTTP API: ")
+            server.wait(timeout=10)
+            raise RuntimeError("Could not start isolated HTTP API")
 
         def stop(server):
             server.terminate()
