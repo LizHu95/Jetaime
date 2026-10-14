@@ -49,7 +49,7 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 ## HTTP 路由与模块装配
 
-`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API 与 `/test/healthz`，需要 PostgreSQL 连接与已迁移的数据库；无需模型配置或历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
+`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
 
 使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，只内置测试接口，通过 `NewRouter(modules ...Module)` 接收注入模块。各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
 
@@ -148,4 +148,4 @@ golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bi
 
 ### 双人群聊与共享 AI
 
-Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读角标、阅读进度和断线补拉。`make dev API_ARGS='-chat-ai'` 开启共享 AI，使用现有模型 profile；模型 ID 必须为实际可调用名称。普通消息不触发模型，@AI 提问排队，完整回复保存后向双方推送。实现和接口详见 [双人群聊接口](docs/v2/双人群聊接口.md)。
+Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读角标、阅读进度和断线补拉。`make dev` 默认开启共享 AI，使用现有模型 profile；可用 `-chat-ai=false` 显式关闭；模型 ID 必须为实际可调用名称。普通消息不触发模型，@AI 提问排队，完整回复保存后向双方推送。实现和接口详见 [双人群聊接口](docs/v2/双人群聊接口.md)。

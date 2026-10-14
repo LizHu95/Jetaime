@@ -74,6 +74,9 @@ mkdir -p "$parent/api"
 for name in api-linux-amd64 api-linux-arm64 models.example.json README.md start.sh .env SHA256SUMS; do
     mv -f -- "$staging/api/$name" "$parent/api/$name"
 done
+if [[ -f "$staging/api/models.json" ]]; then
+    mv -f -- "$staging/api/models.json" "$parent/api/models.json"
+fi
 mv -f -- "$staging/api-deploy.tar.gz" "$parent/api/api-deploy.tar.gz"
 rmdir "$staging/api" "$staging"
 SH

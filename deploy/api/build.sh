@@ -22,6 +22,10 @@ cp "$repo_root/deploy/api/README.md" "$build_dir/README.md"
 cp "$repo_root/deploy/api/start.sh" "$build_dir/start.sh"
 cp "$repo_root/local/.env" "$build_dir/.env"
 chmod 600 "$build_dir/.env"
+if [[ -f "$repo_root/local/models.json" ]]; then
+    cp "$repo_root/local/models.json" "$build_dir/models.json"
+    chmod 600 "$build_dir/models.json"
+fi
 python3 - "$build_dir" <<'PY'
 import hashlib
 import sys
@@ -29,7 +33,9 @@ import tarfile
 from pathlib import Path
 
 source = Path(sys.argv[1])
-names = ("api-linux-amd64", "api-linux-arm64", "models.example.json", "README.md", "start.sh", ".env")
+names = ["api-linux-amd64", "api-linux-arm64", "models.example.json", "README.md", "start.sh", ".env"]
+if (source / "models.json").exists():
+    names.append("models.json")
 (source / "SHA256SUMS").write_text("".join(
     f"{hashlib.sha256((source / name).read_bytes()).hexdigest()}  {name}\n"
     for name in names
@@ -42,4 +48,9 @@ chmod 600 "$build_dir/api-deploy.tar.gz"
 for name in api-linux-amd64 api-linux-arm64 models.example.json README.md start.sh .env SHA256SUMS api-deploy.tar.gz; do
     mv -f -- "$build_dir/$name" "$output_dir/$name"
 done
+if [[ -f "$build_dir/models.json" ]]; then
+    mv -f -- "$build_dir/models.json" "$output_dir/models.json"
+else
+    rm -f -- "$output_dir/models.json"
+fi
 printf 'API deployment package: %s\n' "$output_dir/api-deploy.tar.gz"

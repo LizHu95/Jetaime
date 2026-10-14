@@ -14,7 +14,7 @@ make api-build
 - `.env`：从 `local/.env` 复制的运行配置，权限为 `600`。
 - `api-deploy.tar.gz`：以上程序、`.env`、模型配置示例、本说明与 SHA-256 校验清单；压缩包权限为 `600`。
 
-Assistant 调试页面已嵌入二进制；React Web 页面需单独部署 `outputs/web/` 的构建文件。包内包含 `local/.env` 中的实际配置及密钥，不包含实际模型 JSON 配置或聊天数据。生成的二进制、配置副本、校验清单和压缩包均被 Git 忽略。
+Assistant 调试页面已嵌入二进制；React Web 页面需单独部署 `outputs/web/` 的构建文件。包内包含 `local/.env` 中的实际配置及密钥，若存在 `local/models.json`，会一并打包为 `models.json`；不包含聊天数据。生成的二进制、配置副本、校验清单和压缩包均被 Git 忽略。
 
 解压后根据服务器架构选择程序：
 
@@ -25,7 +25,7 @@ sha256sum -c SHA256SUMS
 chmod +x api-linux-amd64
 ```
 
-默认启用认证、好友和群聊 API，需要配置 PostgreSQL 并完成迁移。仅测试 HTTP 连通性时显式关闭认证，无需数据库、模型配置或历史文件：
+默认启用认证、好友、群聊 API 和共享 AI，需要配置 PostgreSQL、完成迁移并提供有效模型配置。仅测试 HTTP 连通性时显式关闭认证，无需数据库、模型配置或历史文件：
 
 ```sh
 ./api-linux-amd64 -auth=false
@@ -48,7 +48,9 @@ curl http://127.0.0.1:8081/test/healthz
 
 `-migrate` 执行后退出，不启动 HTTP 服务，也不调用模型；使用 `bash start.sh migrate` 加载配置并前台执行迁移，成功后再运行 `bash start.sh start`。正常启动只检查连接和版本，不自动建表。未迁移或版本不匹配时启动失败。可用 `-auth=false -database` 仅检查数据库并提供健康检查。曾用 psql 手工建表但未记录版本的库不能自动接管，应使用新空库，保留旧库供核对或另行制定迁移方案。
 
-`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。认证、好友请求、双人群聊、阅读进度、WebSocket 实时通知和共享 AI 已实现；assistant 调试台仍独立使用 JSON 存储。群 AI 用 `-chat-ai` 开启，需有效模型配置；代理需转发 `/api/chat/events` 的 WebSocket 升级。
+`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。认证、好友请求、双人群聊、阅读进度、WebSocket 实时通知和共享 AI 已实现；assistant 调试台仍独立使用 JSON 存储。群 AI 默认开启，需有效模型配置，可用 `-chat-ai=false` 显式关闭；代理需转发 `/api/chat/events` 的 WebSocket 升级。
+
+共享 AI 的部署配置：在 `local/models.json` 选择可用的云模型 profile，并在 `local/.env` 配置对应密钥，再构建上传。群聊 AI 默认开启，无需启用环境变量或启动参数。`start.sh` 自动读取同目录 `models.json`（可用 `JETAIME_MODEL_CONFIG` 指定其他路径），普通重启默认开启 AI。服务器上已有部署可补充这两个文件后运行 `bash start.sh restart`。启动日志应出现 `Group AI: ...`。显式参数优先，例如 `bash start.sh restart -chat-ai=false` 可临时关闭；仅健康检查时传 `-auth=false`，不启动群聊 AI。启用后，聊天里失败的旧请求可点击“重试 AI 回复”，不会自动重新执行。
 
 认证模块默认开启，自动连接 PostgreSQL 并注册账号相关接口，包括 `/api/auth/register`、`/api/auth/login`、`/api/auth/logout`。运行 `./api-linux-amd64` 或 `bash start.sh start` 即可，无需加 `-auth`；显式 `-auth=false` 可关闭。登录返回 7 天有效期的 Bearer Token，退出在请求头传 `Authorization: Bearer TOKEN`。认证应通过 HTTPS 使用。注册密码为 6–128 个 Unicode 字符，账号为 2–24 位 ASCII 字母、数字或下划线，大小写敏感；升级时先执行所有待应用迁移并重启服务。完整请求与响应示例见仓库 `docs/v2/认证接口.md`。
 

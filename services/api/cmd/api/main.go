@@ -33,7 +33,7 @@ func run() error {
 	databaseEnabled := flag.Bool("database", false, "enable PostgreSQL using JETAIME_DATABASE_URL; requires current schema")
 	authEnabled := flag.Bool("auth", true, "enable account APIs by default; set -auth=false to disable; requires PostgreSQL using JETAIME_DATABASE_URL")
 	migrateOnly := flag.Bool("migrate", false, "apply embedded PostgreSQL migrations and exit")
-	chatAI := flag.Bool("chat-ai", false, "enable shared group AI worker; requires authentication and model configuration")
+	chatAI := flag.Bool("chat-ai", true, "enable shared group AI worker by default with authentication; set -chat-ai=false to disable; requires model configuration")
 	assistantEnabled := flag.Bool("assistant", false, "enable local assistant console")
 	fixture := flag.String("fixture", "../../local/data/chat-history/history.fixture.json", "editable history fixture")
 	state := flag.String("state", "../../local/data/assistant/state.json", "persisted messages and tasks")
@@ -67,7 +67,13 @@ func run() error {
 			seen[paths[i]] = true
 		}
 	}
-	if *chatAI && !*authEnabled {
+	chatAIExplicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "chat-ai" {
+			chatAIExplicit = true
+		}
+	})
+	if chatAIExplicit && *chatAI && !*authEnabled {
 		return fmt.Errorf("chat-ai requires auth")
 	}
 	var modules []httpapi.Module

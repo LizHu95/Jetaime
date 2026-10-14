@@ -107,7 +107,11 @@ case "$action" in
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
     chmod +x "$binary"
     cd "$api_dir"
-    nohup "$binary" -addr "${API_ADDR:-0.0.0.0:8081}" "$@" >> "$log_file" 2>&1 < /dev/null &
+    model_args=()
+    if [[ -n "${JETAIME_MODEL_CONFIG:-}" || -f "$api_dir/models.json" ]]; then
+      model_args+=(-model-config "${JETAIME_MODEL_CONFIG:-$api_dir/models.json}")
+    fi
+    nohup "$binary" -addr "${API_ADDR:-0.0.0.0:8081}" "${model_args[@]}" "$@" >> "$log_file" 2>&1 < /dev/null &
     pid=$!
     echo "$pid" > "$pid_file"
     sleep 1
