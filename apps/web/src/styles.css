@@ -284,12 +284,13 @@ fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 .profile-card p { margin: 0; color: #9fb2c7; font-size: 14px; overflow-wrap: anywhere; }
 .account-management { margin: 32px 0 24px; }
 .account-management h2 { margin: 0 4px 12px; color: #8ea2b9; font-size: 13px; font-weight: 500; }
-.settings-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 20px; border: 1px solid #29394c; background: #131f30; color: #dbe7f3; font-size: 15px; text-align: left; }
+.settings-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 20px; border: 0; border-radius: 0; background: #131f30; color: #dbe7f3; font-size: 15px; text-align: left; }
 .settings-row span { flex: 1; }
 .settings-row > svg:last-child { color: #71869f; }
-.settings-row:first-of-type { border-radius: 14px 14px 0 0; }
-.settings-row:last-child { border-top: 0; border-radius: 0 0 14px 14px; }
-.settings-row:first-of-type:last-child { border-top: 1px solid #29394c; border-radius: 14px; }
+.settings-list { border: 1px solid #29394c; border-radius: 14px; overflow: hidden; }
+.settings-list > .settings-row + .settings-row { border-top: 1px solid #29394c; }
+.settings-list > .settings-row:focus-visible { outline-offset: -3px; }
+.settings-row:disabled { opacity: .65; cursor: wait; }
 .settings-row:hover { background: #1b2a3e; }
 .logout-row { color: #f1aeb4; }
 .main-content > .account-page { margin: 28px auto; max-width: 620px; width: calc(100% - 40px); }
@@ -304,9 +305,9 @@ fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 }
 
 .contacts-page { max-width: 680px; margin: 0 auto; padding: 28px 24px 40px; }
-.contacts-header { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
-.contacts-header > a { display: grid; place-items: center; width: 40px; height: 40px; color: #a1e7da; border: 1px solid #29394c; border-radius: 12px; }
-.contacts-header h1 { font-size: 24px; font-weight: 600; margin: 0; }
+.subpage-header { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+.subpage-header > a { display: grid; place-items: center; width: 40px; height: 40px; color: #a1e7da; border: 1px solid #29394c; border-radius: 12px; }
+.subpage-header h1 { font-size: 24px; font-weight: 600; margin: 0; }
 .contact-search > label { display: block; color: #9fb2c7; font-size: 13px; margin-bottom: 12px; }
 .contact-search .account-actions { gap: 12px; }
 .contact-search-input { flex: 1; min-width: 0; position: relative; }
@@ -335,3 +336,13 @@ fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
  .contacts-page .contact-row { flex-wrap: wrap; }
  .contact-request-actions { flex-shrink: 1; flex-wrap: wrap; margin-left: auto; }
 }
+
+.password-description { margin: -12px 0 24px; color: #93a5bb; font-size: 14px; line-height: 1.8; }
+.password-form { padding: 28px; border: 1px solid #29394c; border-radius: 16px; background: #131f30; }
+.password-field { margin-bottom: 24px; }
+.password-field label { display: block; margin-bottom: 10px; color: #c9d5e5; font-size: 14px; }
+.password-field input { height: 48px; padding-inline: 14px; font-size: 16px; background: #0c1421; border-color: #344258; border-radius: 10px; }
+.password-field input:focus-visible { border-color: #83e3d8; box-shadow: 0 0 0 3px #83e3d810; }
+.password-form .submit-button { margin-top: 4px; }
+.password-form .account-error { margin-bottom: 20px; }
+@media (max-width: 700px) { .password-form { padding: 22px 18px; } }

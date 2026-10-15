@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { useAuth } from '@/features/auth/auth-provider'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { PageHeader } from '@/components/page-header'
 import type { Session } from '@/features/auth/schema'
 
 type User = Session['user']
@@ -77,7 +78,7 @@ export function ContactsPage() {
     </div>
   }
   return <main className="contacts-page">
-    <header className="contacts-header"><Link to="/chat/" aria-label="返回聊天"><ArrowLeft size={22} /></Link><h1>加好友</h1></header>
+    <PageHeader title="加好友" backTo="/chat/" backLabel="返回聊天" />
     <form className="contact-search" onSubmit={e => { e.preventDefault(); void act('search', async () => {
       setFound(null)
       setFound(await apiRequest<User>(`/contacts/users?username=${encodeURIComponent(username.trim())}`, { method: 'GET', token }))

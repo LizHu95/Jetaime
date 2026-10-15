@@ -30,15 +30,17 @@ export function SessionPage() {
     </section>
     <section className="account-management" aria-labelledby="accountTitle">
       <h2 id="accountTitle">账号管理</h2>
-      <Link className="settings-row" to="/auth/password/"><KeyRound size={20} /><span>修改密码</span><ChevronRight size={18} /></Link>
-      <button className="settings-row logout-row" onClick={signOut} disabled={mutation.isPending}>
-        {mutation.isPending ? <LoaderCircle className="animate-spin" size={20} /> : <LogOut size={20} />}
-        <span>{mutation.isPending ? '正在退出…' : '退出登录'}</span><ChevronRight size={18} />
-      </button>
+      <div className="settings-list">
+        <Link className="settings-row" to="/auth/password/"><KeyRound size={20} /><span>修改密码</span><ChevronRight size={18} /></Link>
+        <button className="settings-row logout-row" onClick={signOut} disabled={mutation.isPending}>
+          {mutation.isPending ? <LoaderCircle className="animate-spin" size={20} /> : <LogOut size={20} />}
+          <span>{mutation.isPending ? '正在退出…' : '退出登录'}</span><ChevronRight size={18} />
+        </button>
+      </div>
     </section>
     <section className="account-management" aria-labelledby="notificationTitle">
       <h2 id="notificationTitle">消息通知</h2>
-      <Link className="settings-row" to="/notifications/"><Bell size={20} /><span>消息通知设置</span><ChevronRight size={18} /></Link>
+      <div className="settings-list"><Link className="settings-row" to="/notifications/"><Bell size={20} /><span>消息通知设置</span><ChevronRight size={18} /></Link></div>
     </section>
     {error && <Alert className="feedback feedback-error" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
   </main>
