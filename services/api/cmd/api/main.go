@@ -20,6 +20,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/webpush"
 )
 
 func main() {
@@ -104,6 +105,12 @@ func run() error {
 				return fmt.Errorf("initialize authentication: %w", err)
 			}
 			authentication := auth.NewHandler(service)
+			pushConfig, err := webpush.FromEnv()
+			if err != nil {
+				return err
+			}
+			modules = append(modules, webpush.NewHandler(pool, authentication, pushConfig))
+			go webpush.NewWorker(pool, pushConfig).Work(ctx)
 			modules = append(modules, authentication, contacts.NewHandler(contacts.NewService(contacts.NewPostgresStore(pool)), authentication))
 			var model llm.ChatModel
 			var modelName string

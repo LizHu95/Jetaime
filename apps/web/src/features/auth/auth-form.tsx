@@ -32,7 +32,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
   const [serverError, setServerError] = useState('')
   const [visible, setVisible] = useState<Record<string, boolean>>({})
   const controller = useRef<AbortController | null>(null)
-  const state = location.state as { registered?: boolean; username?: string; message?: string } | null
+  const state = location.state as { registered?: boolean; username?: string; message?: string; returnTo?: string } | null
   const form = useForm<RegisterFields>({
     resolver: zodResolver(isRegister ? registerSchema : loginSchema.extend({ nickname: z.string(), confirmPassword: z.string() })),
     defaultValues: { username: typeof state?.username === 'string' ? state.username : '', nickname: '', password: '', confirmPassword: '' },
@@ -61,7 +61,8 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         const session = await loginMutation.mutateAsync(fields)
         form.reset()
         setSession(session)
-        navigate('/auth/session/', { replace: true })
+        const target = typeof state?.returnTo === 'string' && /^\/chat\/(?:[0-9a-f-]{36}\/)?$/.test(state.returnTo) ? state.returnTo : '/auth/session/'
+        navigate(target, { replace: true })
       }
     } catch (error) {
       if (controller.current.signal.aborted) return

@@ -5,6 +5,7 @@ go 1.24.0
 require github.com/google/uuid v1.6.0
 
 require (
+	github.com/SherClockHolmes/webpush-go v1.4.0
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/cloudwego/eino v0.7.13
 	github.com/cloudwego/eino-ext/components/model/ollama v0.1.9
@@ -27,6 +28,7 @@ require (
 	github.com/eino-contrib/ollama v0.1.0 // indirect
 	github.com/evanphx/json-patch v0.5.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/goph/emperror v0.17.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

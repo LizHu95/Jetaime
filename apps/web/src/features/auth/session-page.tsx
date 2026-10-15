@@ -29,6 +29,7 @@ export function SessionPage() {
     <p className="form-description">你已成功登录，新的协作从这里开始。</p>
     <div className="session-details"><span>当前账号</span><strong>{session.user.username}</strong><span>登录状态</span><strong className="connected-state"><i />已连接</strong></div>
     <div className="account-actions session-links"><Link className="account-link" to="/chat/">我的群聊</Link><Link className="account-link" to="/contacts/">加好友 / 创建群</Link><Link className="account-link" to="/auth/password/">修改密码</Link></div>
+    <Link className="account-link" to="/notifications/">消息通知设置</Link>
     {error && <Alert className="feedback feedback-error" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     <Button className="submit-button" onClick={signOut} disabled={mutation.isPending}>
       {mutation.isPending ? <LoaderCircle className="animate-spin" size={17} /> : <LogOut size={17} />}

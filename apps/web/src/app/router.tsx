@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
 import { ChatPage } from '@/features/chat/chat-page'
+import { NotificationsPage } from '@/features/notifications/notifications-page'
 import { AuthLayout } from '@/features/auth/auth-layout'
 import { AuthForm } from '@/features/auth/auth-form'
 import { ContactsPage } from '@/features/contacts/contacts-page'
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
   { path: '/chat/', element: <ChatPage /> },
   { path: '/chat/:groupId/', element: <ChatPage /> },
   { element: <AuthLayout />, children: [
+    { path: '/notifications/', element: <NotificationsPage /> },
     { path: '/', element: <Entry /> },
     { path: '/auth/login/', element: <GuestPage /> },
     { path: '/auth/register/', element: <GuestPage /> },

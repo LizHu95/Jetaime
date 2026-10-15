@@ -2,6 +2,7 @@ import { createContext, useContext, useCallback, useEffect, useState, type React
 import { useQueryClient } from '@tanstack/react-query'
 import type { Session } from './schema'
 import { persistSession, readSession } from './session'
+import { bindSubscription, pushSupported, registerPushWorker } from '@/features/notifications/push'
 
 const AuthContext = createContext<{
   session: Session | null
@@ -29,6 +30,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('focus', expire)
     return () => { clearTimeout(timer); window.removeEventListener('focus', expire) }
   }, [session, queryClient])
+  useEffect(() => {
+    if (!session || !pushSupported() || Notification.permission !== 'granted') return
+    let stopped = false
+    void registerPushWorker().then(async registration => {
+      const subscription = await registration.pushManager.getSubscription()
+      if (!stopped && subscription) await bindSubscription(session.token, subscription)
+    }).catch(() => { /* Notifications settings provides an explicit retry. */ })
+    return () => { stopped = true }
+  }, [session])
   return <AuthContext.Provider value={{ session, setSession }}>{children}</AuthContext.Provider>
 }
 

@@ -36,7 +36,10 @@ if "\n" in directory or "\r" in directory:
     raise SystemExit("Web 目录不能含换行符")
 directory = directory.replace("\\", "\\\\").replace('"', '\\"').replace("$", "\\$")
 config = Path(sys.argv[1]).read_text()
-print(config.replace("alias /var/www/jetaime/;", f'alias "{directory}/";'), end="")
+config = config.replace("alias /var/www/jetaime/;", f'alias "{directory}/";')
+for asset in ("sw.js", "manifest.webmanifest"):
+    config = config.replace(f"alias /var/www/jetaime/{asset};", f'alias "{directory}/{asset}";')
+print(config, end="")
 PY
 
 printf 'Preparing Web directory on %s: %s...\n' "$server" "$web_dir"

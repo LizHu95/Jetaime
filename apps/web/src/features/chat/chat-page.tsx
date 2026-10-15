@@ -16,7 +16,7 @@ export function ChatPage() {
   const groups = useQuery({ queryKey: ['groups', session?.user.id], queryFn: ({ signal }) => apiRequest<Group[]>('/groups', { method: 'GET', token: session?.token, signal }), enabled: !!session })
   useEffect(() => { document.title = '双人群聊 · Jetaime' }, [])
   useEffect(() => { if (groups.error instanceof ApiError && groups.error.code === 'unauthorized') setSession(null) }, [groups.error, setSession])
-  if (!session) return <Navigate to="/auth/login/" replace />
+  if (!session) return <Navigate to="/auth/login/" replace state={{ returnTo: groupId ? `/chat/${groupId}/` : '/chat/' }} />
   return <main className={`chat-shell ${groupId ? 'chat-selected' : ''}`}>
     <aside className="chat-sidebar">
       <header><Link to="/auth/session/" className="brand">Jetaime<span className="brand-dot">.</span></Link><Link to="/contacts/">加好友</Link></header>

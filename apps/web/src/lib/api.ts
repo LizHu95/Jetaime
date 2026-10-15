@@ -6,7 +6,7 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest<T>(path: string, options: {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'DELETE'
   body?: unknown
   token?: string
   signal?: AbortSignal
@@ -42,6 +42,10 @@ export async function apiRequest<T>(path: string, options: {
 }
 
 const messages: Record<string, string> = {
+  push_test_wait: '请确认已开启此设备通知，连续测试需间隔 30 秒。',
+  push_disabled: '服务器尚未开启通知。',
+  invalid_subscription: '通知订阅无效，请关闭后重新开启。',
+  push_failed: '通知服务暂不可用，请稍后重试。',
   group_not_found: '群聊已关闭或你没有访问权限。',
   message_conflict: '这条消息或 AI 任务状态冲突，请刷新后重试。',
   ai_unavailable: 'AI 服务暂未启用，请稍后重试。',
