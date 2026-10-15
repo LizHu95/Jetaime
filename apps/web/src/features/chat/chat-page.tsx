@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, MessageSquare, Send, Sparkles } from 'lucide-react'
+import { ArrowLeft, Send, Sparkles, UserPlus } from 'lucide-react'
 import { useAuth } from '@/features/auth/auth-provider'
 import { Button } from '@/components/ui/button'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
@@ -19,14 +19,13 @@ export function ChatPage() {
   if (!session) return <Navigate to="/auth/login/" replace state={{ returnTo: groupId ? `/chat/${groupId}/` : '/chat/' }} />
   return <main className={`chat-shell ${groupId ? 'chat-selected' : ''}`}>
     <aside className="chat-sidebar">
-      <header><Link to="/auth/session/" className="brand">Jetaime<span className="brand-dot">.</span></Link><Link to="/contacts/">加好友</Link></header>
-      <h1>我的群聊</h1><p className="chat-connection" role="status">{connected ? '实时消息已连接' : '正在连接，消息会自动补齐'}</p>
+      <header><h1>聊天</h1><Link to="/contacts/" className="add-friend"><UserPlus size={19} />加好友</Link></header>
+      <p className="chat-connection" role="status">{connected ? '实时消息已连接' : '正在连接，消息会自动补齐'}</p>
       {groups.isPending ? <p>正在加载…</p> : groups.isError ? <p role="alert">{errorMessage(groups.error)} <button onClick={() => { void groups.refetch() }}>重试</button></p> : groups.data?.length === 0 ? <p>还没有群聊。<Link to="/contacts/">添加好友</Link></p> : groups.data?.map(g => <Link to={`/chat/${g.id}/`} className={`chat-group ${g.id === groupId ? 'active' : ''}`} key={g.id}>
         <span className="chat-avatar">{g.peer.nickname.slice(0, 1)}</span><div><strong>{g.peer.nickname}</strong><small>{g.lastMessage || '开始一起聊聊吧'}</small></div>{g.unreadCount > 0 && <span className="unread-badge" aria-label={`${g.peer.nickname}：${g.unreadCount} 条未读`}>{g.unreadCount > 99 ? '99+' : g.unreadCount}</span>}
       </Link>)}
-      <footer><Link to="/contacts/">好友与群组</Link><Link to="/auth/password/">修改密码</Link></footer>
     </aside>
-    {groupId ? <Conversation key={`${session.user.id}:${groupId}`} groupId={groupId} /> : <section className="chat-empty"><MessageSquare size={44} /><h2>一起聊，慢慢完成</h2><p>选择一个双人群，开始对话。</p></section>}
+    {groupId ? <Conversation key={`${session.user.id}:${groupId}`} groupId={groupId} /> : null}
   </main>
 }
 

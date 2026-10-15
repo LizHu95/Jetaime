@@ -2,7 +2,7 @@
 
 ## Web 前端
 
-响应式 Web 客户端位于 `apps/web/`，使用 React、TypeScript、Vite、shadcn/ui 和 TanStack Query。已提供登录、注册及登录结果/退出页面，适配手机与 PC，并接入现有认证 API。
+响应式 Web 客户端位于 `apps/web/`，使用 React、TypeScript、Vite、shadcn/ui 和 TanStack Query。已提供登录、注册，以及登录后的聊天和我两个底部 Tab，支持群聊、加好友、修改密码和退出登录，适配手机与 PC，并接入现有 API。
 
 首次运行 `cd apps/web && npm ci`，随后在仓库根目录运行 `make web`，打开 <http://127.0.0.1:5173/page/auth/login/>。真实认证需另行启动 `make dev` 并完成 PostgreSQL 配置与迁移。构建使用 `make web-build`，产物位于 `outputs/web/`；完整说明见 [Web 开发说明](apps/web/README.md)。
 

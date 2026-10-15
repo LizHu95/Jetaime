@@ -44,7 +44,7 @@ export function NotificationsPage() {
     } catch (error) { setMessage(error instanceof ApiError ? errorMessage(error) : error instanceof Error ? error.message : errorMessage(error)) }
     finally { setBusy(false) }
   }
-  return <div className="auth-card">
+  return <div className="auth-card account-page">
     <h2>消息通知</h2>
     <p className="form-description">收到聊天消息或 AI 回复时提醒你，通知不显示聊天正文。登录过期或退出后停止推送。</p>
     {insecure ? <div role="status"><p>当前使用的是非安全地址，无法开启通知。原来的桌面图标可能仍保存着 HTTP 地址。</p><p>请用 Safari 打开下方 HTTPS 地址，再重新添加到主屏幕，并从新图标进入。</p><a className="account-link" href={`https://${location.host}/page/notifications/`}>打开 HTTPS 通知设置</a></div>
@@ -57,6 +57,6 @@ export function NotificationsPage() {
       </div>}
     {(!supported || needsInstall) && <details className="form-description"><summary>查看通知环境检测</summary><p>地址：{environment.origin}</p><p>安全连接：{environment.secure ? '是' : '否'}；桌面 App 模式：{environment.standalone ? '是' : '否'}</p><p>后台处理：{environment.serviceWorker ? '可用' : '不可用'}；推送：{environment.pushManager ? '可用' : '不可用'}；通知：{environment.notification ? '可用' : '不可用'}</p></details>}
     {message && <p role="status" className="form-description">{message}</p>}
-    <Link className="account-link" to="/auth/session/">返回我的账号</Link>
+    <Link className="account-link" to="/me/">返回我的账号</Link>
   </div>
 }

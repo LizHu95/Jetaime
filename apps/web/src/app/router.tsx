@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
+import { MainLayout } from './main-layout'
 import { ChatPage } from '@/features/chat/chat-page'
 import { NotificationsPage } from '@/features/notifications/notifications-page'
 import { AuthLayout } from '@/features/auth/auth-layout'
@@ -10,27 +11,30 @@ import { useAuth } from '@/features/auth/auth-provider'
 
 function Entry() {
   const { session } = useAuth()
-  return <Navigate to={session ? '/auth/session/' : '/auth/login/'} replace />
+  return <Navigate to={session ? '/chat/' : '/auth/login/'} replace />
 }
 
 function GuestPage() {
   const { session } = useAuth()
   const { pathname } = useLocation()
-  if (session) return <Navigate to="/auth/session/" replace />
+  if (session) return <Navigate to="/chat/" replace />
   return <AuthForm key={pathname} mode={pathname.includes('/register') ? 'register' : 'login'} />
 }
 
 export const router = createBrowserRouter([
-  { path: '/chat/', element: <ChatPage /> },
-  { path: '/chat/:groupId/', element: <ChatPage /> },
-  { element: <AuthLayout />, children: [
+  { element: <MainLayout />, children: [
+    { path: '/chat/', element: <ChatPage /> },
+    { path: '/chat/:groupId/', element: <ChatPage /> },
+    { path: '/me/', element: <SessionPage /> },
+    { path: '/auth/session/', element: <Navigate to="/me/" replace /> },
+    { path: '/auth/password/', element: <PasswordPage /> },
+    { path: '/contacts/', element: <ContactsPage /> },
     { path: '/notifications/', element: <NotificationsPage /> },
+  ] },
+  { element: <AuthLayout />, children: [
     { path: '/', element: <Entry /> },
     { path: '/auth/login/', element: <GuestPage /> },
     { path: '/auth/register/', element: <GuestPage /> },
-    { path: '/auth/session/', element: <SessionPage /> },
-    { path: '/auth/password/', element: <PasswordPage /> },
-    { path: '/contacts/', element: <ContactsPage /> },
     { path: '*', element: <Entry /> },
   ] },
 ], { basename: '/page' })

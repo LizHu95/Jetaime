@@ -61,7 +61,7 @@ export function AuthForm({ mode }: { mode: 'login' | 'register' }) {
         const session = await loginMutation.mutateAsync(fields)
         form.reset()
         setSession(session)
-        const target = typeof state?.returnTo === 'string' && /^\/chat\/(?:[0-9a-f-]{36}\/)?$/.test(state.returnTo) ? state.returnTo : '/auth/session/'
+        const target = typeof state?.returnTo === 'string' && /^\/chat\/(?:[0-9a-f-]{36}\/)?$/.test(state.returnTo) ? state.returnTo : '/chat/'
         navigate(target, { replace: true })
       }
     } catch (error) {

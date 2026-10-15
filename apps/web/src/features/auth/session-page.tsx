@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Check, LoaderCircle, LogOut } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Bell, ChevronRight, KeyRound, LoaderCircle, LogOut } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { errorMessage } from '@/lib/api'
 import { useAuth } from './auth-provider'
@@ -12,7 +11,7 @@ export function SessionPage() {
   const { session, setSession } = useAuth()
   const [error, setError] = useState('')
   const mutation = useMutation({ mutationFn: logout })
-  useEffect(() => { document.title = '登录成功 · Jetaime' }, [])
+  useEffect(() => { document.title = '我 · Jetaime' }, [])
   if (!session) return <Navigate to="/auth/login/" replace />
   async function signOut() {
     setError('')
@@ -22,18 +21,25 @@ export function SessionPage() {
     } catch (reason) { setError(errorMessage(reason)) }
     finally { mutation.reset() }
   }
-  return <div className="auth-card session-card">
-    <div className="session-check"><Check size={27} /></div>
-    <p className="form-eyebrow">CONNECTED TO JETAIME</p>
-    <h2>你好，{session.user.nickname || session.user.username}</h2>
-    <p className="form-description">你已成功登录，新的协作从这里开始。</p>
-    <div className="session-details"><span>当前账号</span><strong>{session.user.username}</strong><span>登录状态</span><strong className="connected-state"><i />已连接</strong></div>
-    <div className="account-actions session-links"><Link className="account-link" to="/chat/">我的群聊</Link><Link className="account-link" to="/contacts/">加好友 / 创建群</Link><Link className="account-link" to="/auth/password/">修改密码</Link></div>
-    <Link className="account-link" to="/notifications/">消息通知设置</Link>
+  const nickname = session.user.nickname || session.user.username
+  return <main className="profile-page">
+    <header className="page-heading"><h1>我</h1></header>
+    <section className="profile-card" aria-label="个人资料">
+      <div className="profile-avatar" role="img" aria-label={`${nickname}的头像`}>{Array.from(nickname)[0]}</div>
+      <div><h2>{nickname}</h2><p>账号：{session.user.username}</p></div>
+    </section>
+    <section className="account-management" aria-labelledby="accountTitle">
+      <h2 id="accountTitle">账号管理</h2>
+      <Link className="settings-row" to="/auth/password/"><KeyRound size={20} /><span>修改密码</span><ChevronRight size={18} /></Link>
+      <button className="settings-row logout-row" onClick={signOut} disabled={mutation.isPending}>
+        {mutation.isPending ? <LoaderCircle className="animate-spin" size={20} /> : <LogOut size={20} />}
+        <span>{mutation.isPending ? '正在退出…' : '退出登录'}</span><ChevronRight size={18} />
+      </button>
+    </section>
+    <section className="account-management" aria-labelledby="notificationTitle">
+      <h2 id="notificationTitle">消息通知</h2>
+      <Link className="settings-row" to="/notifications/"><Bell size={20} /><span>消息通知设置</span><ChevronRight size={18} /></Link>
+    </section>
     {error && <Alert className="feedback feedback-error" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-    <Button className="submit-button" onClick={signOut} disabled={mutation.isPending}>
-      {mutation.isPending ? <LoaderCircle className="animate-spin" size={17} /> : <LogOut size={17} />}
-      {mutation.isPending ? '正在退出…' : '退出当前账号'}
-    </Button>
-  </div>
+  </main>
 }

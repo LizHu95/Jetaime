@@ -32,7 +32,7 @@ export function PasswordPage() {
       else setError(reason instanceof ApiError && reason.code === 'invalid_credentials' ? '旧密码不正确' : errorMessage(reason))
     } finally { setPending(false) }
   }
-  return <div className="auth-card">
+  return <div className="auth-card account-page">
     <h2>修改密码</h2><p className="form-description">修改成功后，所有设备需使用新密码重新登录。</p>
     <form onSubmit={submit} className="account-form">
       <label htmlFor="oldPassword">旧密码</label><Input id="oldPassword" type="password" autoComplete="current-password" value={oldPassword} onChange={e => setOld(e.target.value)} required disabled={pending} />
@@ -40,6 +40,6 @@ export function PasswordPage() {
       <label htmlFor="confirmPassword">确认新密码</label><Input id="confirmPassword" type="password" autoComplete="new-password" value={confirm} onChange={e => setConfirm(e.target.value)} required disabled={pending} />
       {error && <p role="alert" className="account-error">{error}</p>}
       <Button type="submit" className="submit-button" disabled={pending}>{pending ? '正在修改…' : '保存新密码'}</Button>
-    </form><Link className="account-link" to="/auth/session/">返回我的账号</Link>
+    </form><Link className="account-link" to="/me/">返回我的账号</Link>
   </div>
 }

@@ -262,3 +262,76 @@ fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 .message-sources button { color: #a6c8ff; background: #172a40; border: 1px solid #35516d; padding: 4px 9px; border-radius: 7px; font-size: 12px; }
 .highlighted-source { border-radius: 10px; background: #304a3b66; outline: 1px solid #80b896; }
 @media (max-width: 700px) { .composer-actions { flex-wrap: wrap; } .agent-kind-selector { flex: 1; } .composer-actions:has(.agent-kind-selector) > small { display: none; } }
+
+/* Signed-in workspace */
+.main-app { height: 100dvh; display: flex; flex-direction: column; background: #0c1421; }
+.main-content { flex: 1; min-height: 0; overflow: auto; }
+.bottom-tabs { flex-shrink: 0; display: flex; justify-content: center; gap: clamp(40px, 15vw, 180px); padding: 9px 20px calc(9px + env(safe-area-inset-bottom)); border-top: 1px solid #283447; background: #101a29; }
+.bottom-tabs .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-width: 88px; min-height: 48px; color: #8297ae; font-size: 12px; border-radius: 10px; }
+.bottom-tabs .tab.active { color: #a1e7da; background: #83e3d809; }
+.bottom-tabs a:focus-visible, .settings-row:focus-visible, .add-friend:focus-visible { outline: 2px solid #83e3d8; outline-offset: 3px; }
+.main-content .chat-shell { height: 100%; }
+.main-content .chat-shell:not(.chat-selected) .chat-sidebar { width: 100%; max-width: 800px; margin: 0 auto; border-right: 0; background: transparent; padding: 28px 24px; }
+.chat-sidebar header h1 { margin: 0; font-size: 26px; font-weight: 600; }
+.chat-sidebar .chat-connection { margin: 12px 0 24px; }
+.add-friend { display: inline-flex; gap: 7px; align-items: center; padding: 10px 12px; border-radius: 10px; background: #83e3d80c; }
+.profile-page { max-width: 800px; margin: 0 auto; padding: 28px 24px; }
+.page-heading h1 { font-size: 26px; font-weight: 600; margin: 0 0 28px; }
+.profile-card { display: flex; align-items: center; gap: 20px; padding: 28px 24px; border: 1px solid #2b3a4b; border-radius: 18px; background: linear-gradient(120deg, #192d39, #131e2f); }
+.profile-avatar { display: grid; place-items: center; flex-shrink: 0; width: 72px; height: 72px; border-radius: 24px; color: #c7f5e9; background: #2c5356; font-size: 30px; }
+.profile-card > div:last-child { min-width: 0; }
+.profile-card h2 { margin: 0 0 8px; font-size: 23px; overflow-wrap: anywhere; }
+.profile-card p { margin: 0; color: #9fb2c7; font-size: 14px; overflow-wrap: anywhere; }
+.account-management { margin: 32px 0 24px; }
+.account-management h2 { margin: 0 4px 12px; color: #8ea2b9; font-size: 13px; font-weight: 500; }
+.settings-row { display: flex; align-items: center; gap: 14px; width: 100%; padding: 20px; border: 1px solid #29394c; background: #131f30; color: #dbe7f3; font-size: 15px; text-align: left; }
+.settings-row span { flex: 1; }
+.settings-row > svg:last-child { color: #71869f; }
+.settings-row:first-of-type { border-radius: 14px 14px 0 0; }
+.settings-row:last-child { border-top: 0; border-radius: 0 0 14px 14px; }
+.settings-row:first-of-type:last-child { border-top: 1px solid #29394c; border-radius: 14px; }
+.settings-row:hover { background: #1b2a3e; }
+.logout-row { color: #f1aeb4; }
+.main-content > .account-page { margin: 28px auto; max-width: 620px; width: calc(100% - 40px); }
+.page-back { display: inline-block; margin-bottom: 24px; color: #a1e7da; font-size: 14px; }
+@media (max-width: 700px) {
+  .main-content .chat-shell:not(.chat-selected) .chat-sidebar, .profile-page { padding: 24px 18px; }
+  .profile-card { padding: 24px 18px; gap: 16px; }
+  .profile-avatar { width: 62px; height: 62px; border-radius: 20px; }
+  .profile-card h2 { font-size: 21px; }
+  .main-content > .account-page { margin-block: 20px; }
+  .main-content .message-composer { padding-bottom: 12px; }
+}
+
+.contacts-page { max-width: 680px; margin: 0 auto; padding: 28px 24px 40px; }
+.contacts-header { display: flex; align-items: center; gap: 14px; margin-bottom: 32px; }
+.contacts-header > a { display: grid; place-items: center; width: 40px; height: 40px; color: #a1e7da; border: 1px solid #29394c; border-radius: 12px; }
+.contacts-header h1 { font-size: 24px; font-weight: 600; margin: 0; }
+.contact-search > label { display: block; color: #9fb2c7; font-size: 13px; margin-bottom: 12px; }
+.contact-search .account-actions { gap: 12px; }
+.contact-search-input { flex: 1; min-width: 0; position: relative; }
+.contact-search-input > svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #8297ae; pointer-events: none; }
+.contact-search-input input { height: 46px; padding-left: 42px; background: #131f30; border-color: #29394c; font-size: 16px; }
+.contact-search button { height: 46px; padding-inline: 20px; }
+.contacts-page .contact-row { gap: 16px; padding: 18px 0; border-color: #29394c; }
+.contact-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.contact-identity > div { min-width: 0; }
+.contacts-page .contact-row strong { font-size: 15px; }
+.contacts-page .contact-row small { font-size: 12px; color: #93a5bb; }
+.contact-search-result { margin-top: 20px; }
+.contact-requests { margin-top: 36px; }
+.contact-requests h2 { display: flex; align-items: center; gap: 10px; margin: 0 0 20px; font-size: 17px; font-weight: 550; }
+.contact-requests h2 > span { padding: 2px 8px; border-radius: 12px; background: #214340; color: #a1e7da; font-size: 12px; }
+.contact-requests h3 { font-size: 12px; color: #8297ae; font-weight: 400; margin: 24px 0 0; }
+.contact-request-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-shrink: 0; }
+.contact-request-actions small { margin: 0; }
+.contact-chat-link { color: #a1e7da; font-size: 14px; white-space: nowrap; }
+.account-notice .contact-chat-link { margin-left: 12px; }
+.contact-empty { color: #8297ae; font-size: 14px; padding-block: 20px; }
+.contact-history { margin-top: 24px; }
+.contact-history summary { cursor: pointer; padding-block: 12px; font-size: 13px; color: #93a5bb; }
+@media (max-width: 700px) { .contacts-page { padding: 24px 18px 32px; } }
+@media (max-width: 420px) {
+ .contacts-page .contact-row { flex-wrap: wrap; }
+ .contact-request-actions { flex-shrink: 1; flex-wrap: wrap; margin-left: auto; }
+}
