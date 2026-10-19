@@ -71,7 +71,7 @@ python3 scripts/freeze-chat-evals.py --version chat-v1.2-draft-r1 \
 make eval EVAL_ARGS='--cases local/data/evals/versions/chat-v1.1-extract6-draft-r1/cases.json --suite-version chat-v1.1-extract6-draft-r1 --timeout 300 --context-tokens 16384'
 ```
 
-新运行自动生成outputs/evals/snapshot-<runId>/：cases.json、manifest.json、被测Go源码、runner、评估器和Schema。manifest记录案例/源码哈希、Git状态、模型digest、服务版本、上下文、超时、重复次数和裁判配置；summary关联这个目录、原始结果和Phoenix实验。输出默认被Git忽略，不能只依赖Git留存：需要长期保留的运行，将整个snapshot、summary和结果一起归档。真实聊天的冻结案例、run-registry、报告和源码快照仅在本地保留，相关目录已被Git忽略；仓库只保留评测代码、Schema和管理说明。新克隆需要自行提供本地聊天及案例文件。
+新运行自动生成outputs/evals/snapshot-<runId>/：cases.json、manifest.json、被测Go源码、runner、评估器和Schema。manifest记录案例/源码哈希、Git状态、模型digest、服务版本、上下文、超时、重复次数和裁判配置；summary关联这个目录和原始结果；新运行不上传到旧实验平台。输出默认被Git忽略，不能只依赖Git留存：需要长期保留的运行，将整个snapshot、summary和结果一起归档。真实聊天的冻结案例、run-registry、报告和源码快照仅在本地保留，相关目录已被Git忽略；仓库只保留评测代码、Schema和管理说明。新克隆需要自行提供本地聊天及案例文件。
 
 生成旧实验报告必须明确指定旧案例包，不能默认读取当前工作稿：
 
@@ -81,7 +81,7 @@ python3 scripts/report-chat-eval.py outputs/evals/experiment-340d01bb.jsonl \
   --output outputs/evals/reports/extract-v4-report.md
 ```
 
-当前管理与本地快照流程已验证；完整产品评测说明见 ../docs/v2/Phoenix评测说明.md。
+当前管理与本地快照流程已验证；完整产品评测说明见 ../docs/v2/Workflow评测说明.md。
 
 ## 2026-10-12耗时优化试验
 
@@ -122,4 +122,4 @@ make eval EVAL_ARGS='--model-config local/other-models.json --model-profile clou
 
 每次实验保存所选公共配置和 `internal/llm` 源码快照；profile 在实验启动后冻结，修改原配置不会影响正在运行的实验。每个工作流统一使用所选模型。语义裁判 `--judge-model` 暂仍使用 Ollama，可与任务模型独立配置。
 
-`--check-services` 验证 Phoenix、配置、密钥存在性及所需本地模型，云端不发送推理请求，因此不代表云调用成功。云配置不会要求安装同名 Ollama 模型。默认不启用语义裁判，也不自动切换模型。目标模型不支持原生 Schema 时，显式选择 `json_object`；模型效果需用 reviewed 案例另外评测。
+`--check-services` 验证配置、密钥存在性及所需本地模型，云端不发送推理请求，因此不代表云调用成功。云配置不会要求安装同名 Ollama 模型。默认不启用语义裁判，也不自动切换模型。目标模型不支持原生 Schema 时，显式选择 `json_object`；模型效果需用 reviewed 案例另外评测。

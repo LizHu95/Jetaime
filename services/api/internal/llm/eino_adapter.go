@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/cloudwego/eino-ext/components/model/ollama"
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	einomodel "github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Adapter struct {
@@ -92,8 +95,29 @@ func (t *captureTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (a *Adapter) Call(ctx context.Context, in Request) (Result, error) {
-	var out Result
+func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr error) {
+	ctx, span := telemetry.Start(ctx, "llm.call", "LLM", attribute.String("langfuse.observation.model.name", a.config.Model), attribute.String("langfuse.observation.metadata.provider", a.config.Provider))
+	if span.IsRecording() && strings.EqualFold(os.Getenv("JETAIME_TRACE_CAPTURE_CONTENT"), "true") {
+		messages, err := json.Marshal(in.Messages)
+		if err == nil {
+			telemetry.Content(span, "langfuse.observation.input", string(messages))
+		}
+	}
+	defer func() {
+		telemetry.Content(span, "langfuse.observation.output", out.Content)
+		usage := map[string]int{}
+		if out.PromptTokens != nil {
+			usage["input"] = *out.PromptTokens
+		}
+		if out.CompletionTokens != nil {
+			usage["output"] = *out.CompletionTokens
+		}
+		if len(usage) > 0 {
+			data, _ := json.Marshal(usage)
+			span.SetAttributes(attribute.String("langfuse.observation.usage_details", string(data)))
+		}
+		telemetry.End(span, callErr)
+	}()
 	if in.Model != a.config.Model {
 		return out, fmt.Errorf("model is fixed at startup; restart to switch")
 	}
@@ -102,6 +126,9 @@ func (a *Adapter) Call(ctx context.Context, in Request) (Result, error) {
 	}
 	if !json.Valid(in.Format) {
 		return out, fmt.Errorf("valid output schema is required")
+	}
+	if err := CheckContextBudget(in, a.config.ContextTokens); err != nil {
+		return out, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, a.timeout)
 	defer cancel()

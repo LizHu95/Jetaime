@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/LizHu95/Jetaime/services/api/internal/webpush"
 )
 
@@ -80,6 +82,19 @@ func run() error {
 	var modules []httpapi.Module
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	shutdownTrace, err := telemetry.Init(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		flush, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTrace(flush); err != nil {
+			log.Print("trace shutdown failed")
+		}
+	}()
+	var workers sync.WaitGroup
+
 	if *databaseEnabled || *migrateOnly || *authEnabled {
 		startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -88,6 +103,16 @@ func run() error {
 			return err
 		}
 		defer pool.Close()
+		defer func() {
+			stop()
+			done := make(chan struct{})
+			go func() { workers.Wait(); close(done) }()
+			select {
+			case <-done:
+			case <-time.After(12 * time.Second):
+				log.Print("AI workers shutdown timed out")
+			}
+		}()
 		if *migrateOnly {
 			if err := database.Migrate(startup, pool); err != nil {
 				return err
@@ -131,8 +156,10 @@ func run() error {
 			chatService := chat.NewService(chatStore, model, modelName, capacity, *timeout)
 			realtime := chat.NewRealtime(ctx, chatStore, service)
 			go realtime.Listen(ctx)
-			go chatService.Work(ctx)
-			go chatService.Work(ctx)
+			for i := 0; i < 2; i++ {
+				workers.Add(1)
+				go func() { defer workers.Done(); chatService.Work(ctx) }()
+			}
 			modules = append(modules, chat.NewHandler(chatService, authentication, realtime))
 		}
 	}

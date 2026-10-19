@@ -34,8 +34,8 @@ for r in rows:
     c = cases[r['caseId']]; run = r['output'].get('run', {})
     lines += ['', '## '+r['caseId'], '', c['input'].get('question','提取截至片段末尾的待办'), '', '**真实输出**', '', '```json',
               json.dumps(run.get('answer', run.get('suggestions', [])), ensure_ascii=False, indent=2), '```', '',
-              '**待审参考**', '', '```json', json.dumps(c['expected']['reference'], ensure_ascii=False, indent=2), '```', '',
-              'Trace ID：`'+r['taskTraceId']+'`']
+              '**待审参考**', '', '```json', json.dumps(c.get('expected', {}).get('reference', {}), ensure_ascii=False, indent=2), '```', '',
+              ('Trace ID：`'+r['taskTraceId']+'`' if r.get('taskTraceId') else '运行 ID：`'+r['experimentRunId']+'`')]
     for step in run.get('steps', []):
         if step['name'] == 'review_actions':
             lines += ['', '**候选行动状态核对（模型判断）**', '', '```json', json.dumps(step['output'], ensure_ascii=False, indent=2), '```']

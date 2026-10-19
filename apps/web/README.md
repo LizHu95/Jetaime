@@ -128,7 +128,7 @@ server {
 普通聊天随 `make dev` 可用；AI 需 `make dev API_ARGS='-chat-ai'` 及有效模型配置。完整回答后统一保存和推送。联调脚本还会在 18082 端口启动受控模型验证 AI 成功/失败/重试，不消耗真实模型额度。
 
 
-原 Agent 能力已接入：点击 @AI 后可选择历史问答或提取待办，回答带证据状态和来源跳转。回复的结构化结果保存到 PostgreSQL，重新打开仍可查看。需要应用迁移 000003；使用 `make dev API_ARGS='-chat-ai -model-profile local-qwen'` 调用本地 Ollama。提取结果仅为待办建议，未自动创建规划。
+@AI 已改为主 Agent 直接回答，移除能力选择。点击 @AI 或直接输入 @AI 后，普通问题在一次模型调用中回答，只有明确的待办提取请求才调用专用子 Agent。历史事实保留来源校验，回复的答案依据和 main-v1 版本保存到 PostgreSQL。需要应用迁移至 000007；使用 `make dev API_ARGS='-chat-ai -model-profile local-qwen'` 调用本地 Ollama。提取结果仅为待办建议，未自动创建规划。历史检索工具和问答 skill 将在后续接入。
 
 ## 登录后的页面
 

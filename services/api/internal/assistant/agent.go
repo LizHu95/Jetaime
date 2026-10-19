@@ -2,32 +2,47 @@ package assistant
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
-var ErrBudget = errors.New("agent context exceeds capacity")
+var ErrBudget = llm.ErrContextLimit
 
 // Agent exposes the existing workflow against an immutable, authorized snapshot.
 // Every execution owns its workflow state, so different groups do not share a
 // global lock, history, suggestions or experimental review cache.
 type Agent struct {
-	model  ChatModel
-	name   string
-	tokens int
+	model            ChatModel
+	name             string
+	tokens           int
+	mainInstructions MainInstructionProvider
 }
 
-func NewAgent(model ChatModel, name string, tokens int) (*Agent, error) {
+type AgentOption func(*Agent)
+
+func WithMainInstructions(provider MainInstructionProvider) AgentOption {
+	return func(agent *Agent) { agent.mainInstructions = provider }
+}
+
+func NewAgent(model ChatModel, name string, tokens int, options ...AgentOption) (*Agent, error) {
 	if model == nil || strings.TrimSpace(name) == "" || tokens < 4096 {
 		return nil, fmt.Errorf("agent requires model and context >=4096")
 	}
-	return &Agent{model: model, name: name, tokens: tokens}, nil
+	agent := &Agent{model: model, name: name, tokens: tokens}
+	for _, option := range options {
+		option(agent)
+	}
+	return agent, nil
 }
 func (a *Agent) Execute(ctx context.Context, input Context, kind, question string) (Run, error) {
 	if kind == "" {
-		kind = "qa"
+		kind = "main"
+	}
+	if kind == "main" {
+		return a.ExecuteMain(ctx, input, question, func(context.Context) (Context, error) { return input, nil })
 	}
 	if err := validateSnapshot(input); err != nil {
 		return Run{}, err
@@ -69,14 +84,17 @@ func validateSnapshot(c Context) error {
 // Result is the bounded, durable user-facing part of a workflow run. Internal
 // model requests and raw provider responses stay out of message API responses.
 type Result struct {
-	Kind          string       `json:"kind"`
-	PromptVersion string       `json:"promptVersion"`
-	Answer        *Answer      `json:"answer,omitempty"`
-	Suggestions   []Suggestion `json:"suggestions,omitempty"`
+	Basis         string         `json:"basis,omitempty"`
+	Route         *RouteDecision `json:"route,omitempty"`
+	HistoryScope  *HistoryScope  `json:"historyScope,omitempty"`
+	Kind          string         `json:"kind"`
+	PromptVersion string         `json:"promptVersion"`
+	Answer        *Answer        `json:"answer,omitempty"`
+	Suggestions   []Suggestion   `json:"suggestions,omitempty"`
 }
 
 func ResultFromRun(run Run) (Result, string, error) {
-	result := Result{Kind: run.Kind, PromptVersion: run.PromptVersion, Answer: run.Answer, Suggestions: run.Suggestions}
+	result := Result{Kind: run.Kind, PromptVersion: run.PromptVersion, Answer: run.Answer, Suggestions: run.Suggestions, HistoryScope: run.HistoryScope, Route: run.Route, Basis: run.Basis}
 	for _, suggestion := range run.Suggestions {
 		if strings.ContainsRune(suggestion.Title, '\x00') || strings.ContainsRune(suggestion.TimeExpression, '\x00') {
 			return Result{}, "", fmt.Errorf("invalid agent suggestion")
@@ -85,6 +103,9 @@ func ResultFromRun(run Run) (Result, string, error) {
 	text := ""
 	if run.Answer != nil {
 		text = run.Answer.Answer
+		if run.HistoryScope != nil && run.HistoryScope.EarlierMessagesOmitted {
+			text += "\n\n本次仅参考近期聊天，未检索更早记录。"
+		}
 	} else if run.Kind == "extract" {
 		if len(run.Suggestions) == 0 {
 			text = "当前对话中没有发现需要确认的新待办。"

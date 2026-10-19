@@ -20,7 +20,6 @@
 make dev          # 认证、好友和群聊 API，需要 PostgreSQL
 make assistant    # 显式启用 Assistant 调试模块
 make model-check  # 只校验模型配置与密钥存在性，不调用模型
-make trace        # Phoenix
 make feishu       # 飞书长连接
 ```
 
@@ -103,7 +102,7 @@ local/data/assistant/           本地状态与运行日志，Git 忽略
 local/data/chat-history/        用户提供的历史、原始整理结果与说明
 local/data/evals/               私有评测输入、审核材料与冻结版本
 outputs/evals/reports/          生成的私有评测报告
-local/data/phoenix-v2/          本地 Phoenix 数据库
+local/data/phoenix-v2/          旧 Phoenix SQLite 历史归档
 docs/v2/                       当前设计、技术方案、任务与运行说明
 outputs/evals/                 实验结果、汇总与源码快照
 outputs/agent-check/           链路验证结果
@@ -118,7 +117,7 @@ docs/v1/                       一期历史文档与评测结果
 
 ## 开发与检查
 
-Go 工具链版本由 `.go-version` 管理；Go 模块最低要求 Go 1.24，依赖 UUID 库、飞书官方 Go SDK 和 Eino 模型组件；Phoenix 评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
+Go 工具链版本由 `.go-version` 管理；Go 模块最低要求 Go 1.24，依赖 UUID 库、飞书官方 Go SDK 和 Eino 模型组件；本地评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
 
 ```sh
 make fmt        # 格式化 Go 源码
@@ -141,9 +140,11 @@ golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bi
 - [V2 运行说明](docs/v2/运行说明.md)
 - [V1 历史产品方案](docs/v1/产品方案.md)
 
-## Phoenix 评测
+## AI Trace 与本地评测
 
-`make trace` 启动本地 Phoenix，`make eval-check` 离线验证案例，`make eval` 执行 V2 Workflow 实验。正式案例与预期结果待提供，当前文件为空。完整输入契约、评估器与运行方式见 [Phoenix 评测说明](docs/v2/Phoenix评测说明.md)。
+Go API 使用 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 调用链，只采集 @AI、重试、Workflow 和模型调用；普通聊天和其他 HTTP 请求不上报。无需部署 Trace 服务或数据库，配置与查看方式见 [Langfuse 接入说明](deploy/langfuse/README.md)。
+
+`make eval-check` 离线验证案例，`make eval` 执行本地 Workflow 评测并保存 JSONL 与汇总报告，不依赖 Trace 平台。输入契约、评估器与运行方式见 [Workflow 评测说明](docs/v2/Workflow评测说明.md)。
 
 
 ### 双人群聊与共享 AI

@@ -28,7 +28,7 @@ GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: dev api-build feishu feishu-build model-check trace eval eval-check eval-services eval-test eval-smoke assistant assistant-check help tools fmt fmt-check build test vet lint check \
+.PHONY: dev api-build feishu feishu-build model-check eval eval-check eval-services eval-test assistant assistant-check help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
@@ -43,12 +43,10 @@ help:
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make feishu-build Build the private Feishu deployment package"
-	@echo "make trace      Start local Phoenix at http://127.0.0.1:6006"
-	@echo "make eval       Run V2 Phoenix experiment (EVAL_ARGS)"
+	@echo "make eval       Run local V2 evaluation (EVAL_ARGS)"
 	@echo "make eval-check Validate case schema offline"
-	@echo "make eval-services Check Phoenix and installed Ollama models"
+	@echo "make eval-services Check model configuration and installed Ollama models"
 	@echo "make eval-test  Run isolated evaluator tests"
-	@echo "make eval-smoke Verify protocol with local Phoenix and a test model"
 	@echo "make assistant  Start debug console with imported chat history at http://127.0.0.1:8081"
 	@echo "make assistant-check Verify real model, confirmation and persistence with imported history"
 	@echo "make tools      Install development tools"
@@ -132,9 +130,6 @@ go-lint: go-tools
 
 go-check: go-fmt-check go-build go-vet go-test go-lint
 
-trace:
-	python3 scripts/dev.py trace
-
 eval:
 	JETAIME_UV="$(UV)" python3 scripts/dev.py eval $(EVAL_ARGS)
 
@@ -146,6 +141,3 @@ eval-services:
 
 eval-test:
 	$(UV) run --project evals --locked python -m unittest discover -s evals/tests -p 'test_*.py'
-
-eval-smoke:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-smoke $(EVAL_ARGS)

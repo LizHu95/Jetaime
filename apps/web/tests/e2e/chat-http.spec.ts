@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import type { Message } from '../../src/features/chat/types'
 
-test('sending and retrying work without secure-context randomUUID', async ({ page }) => {
+test('sending and retrying preserve an editable draft without secure-context randomUUID', async ({ page }) => {
   const me = { id: 'alice', username: 'Alice', nickname: '小林' }
   const peer = { id: 'bob', username: 'Bob', nickname: '小夏' }
   await page.addInitScript(session => {
@@ -13,6 +13,8 @@ test('sending and retrying work without secure-context randomUUID', async ({ pag
   })
   const attempts: { clientMessageId: string; content: string }[] = []
   const messages: Message[] = []
+  let finishRetry!: () => void
+  const retryResponse = new Promise<void>(resolve => { finishRetry = resolve })
   const browserErrors: string[] = []
   page.on('pageerror', error => browserErrors.push(error.message))
   await page.route('**/api/**', async route => {
@@ -25,7 +27,9 @@ test('sending and retrying work without secure-context randomUUID', async ({ pag
       const body = route.request().postDataJSON()
       attempts.push(body)
       if (attempts.length === 1) return route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } })
-      const message: Message = { ...body, id: 'message-1', groupId: 'group-1', seq: 1, senderType: 'user', senderId: me.id, senderName: me.nickname, replyToId: null, createdAt: new Date().toISOString() }
+      if (attempts.length === 2) await retryResponse
+      const seq = messages.length + 1
+      const message: Message = { ...body, id: `message-${seq}`, groupId: 'group-1', seq, senderType: 'user', senderId: me.id, senderName: me.nickname, replyToId: null, createdAt: new Date().toISOString() }
       messages.push(message)
       return route.fulfill({ json: message })
     }
@@ -38,9 +42,24 @@ test('sending and retrying work without secure-context randomUUID', async ({ pag
   expect(attempts).toHaveLength(1)
   expect(attempts[0].clientMessageId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
   await page.getByRole('button', { name: '重试发送' }).click()
+  const input = page.getByLabel('消息内容')
+  try {
+    await expect(page.getByRole('button', { name: '发送中…', exact: true })).toBeVisible()
+    await expect(input).toBeEditable()
+    await input.click()
+    await expect(input).toBeFocused()
+    await input.fill('下一条草稿')
+    await input.press('Enter')
+    expect(attempts).toHaveLength(2)
+  } finally { finishRetry() }
   await expect(page.getByText('HTTP 部署发送测试', { exact: true })).toBeVisible()
-  await expect(page.getByLabel('消息内容')).toHaveValue('')
+  await expect(input).toHaveValue('下一条草稿')
+  await expect(input).toBeFocused()
   expect(attempts).toHaveLength(2)
   expect(attempts[1].clientMessageId).toBe(attempts[0].clientMessageId)
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(page.getByText('下一条草稿', { exact: true })).toBeVisible()
+  await expect(input).toHaveValue('')
+  expect(attempts).toHaveLength(3)
   expect(browserErrors).toEqual([])
 })

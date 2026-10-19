@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 const acceptancePrompt = basePrompt + `
@@ -60,8 +62,8 @@ func (w *Workflow) supplementAcceptances(ctx context.Context, run *Run, input Co
 		return nil, err
 	}
 	request := ModelRequest{Model: run.Model, Messages: []ChatMessage{{Role: "system", Content: acceptancePrompt + "\nSchema: " + string(extractSchema)}, {Role: "user", Content: string(payload)}}, Format: extractSchema, Options: ModelOptions{Temperature: 0, NumCtx: w.Tokens, NumPredict: 2048}}
-	if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > w.Tokens {
-		return nil, fmt.Errorf("接受核对上下文超过容量限制；没有截断证据")
+	if err := llm.CheckContextBudget(request, w.Tokens); err != nil {
+		return nil, err
 	}
 	start := time.Now()
 	result, err := w.ChatModel.Call(ctx, request)

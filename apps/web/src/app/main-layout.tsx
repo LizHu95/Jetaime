@@ -1,10 +1,12 @@
 import { MessageSquare, UserRound } from 'lucide-react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
+import { useKeyboardViewport } from './use-keyboard-viewport'
 
 export function MainLayout() {
   const { pathname } = useLocation()
+  const root = useKeyboardViewport()
   const inAccount = pathname === '/me/' || pathname.startsWith('/auth/') || pathname.startsWith('/notifications/')
-  return <div className="main-app">
+  return <div className="main-app" ref={root}>
     <div className="main-content"><Outlet /></div>
     <nav className="bottom-tabs" aria-label="主导航">
       <Link to="/chat/" className={!inAccount ? 'tab active' : 'tab'} aria-current={!inAccount ? 'page' : undefined}><MessageSquare size={23} /><span>聊天</span></Link>

@@ -44,12 +44,12 @@ function Conversation({ groupId }: { groupId: string }) {
   const confirmedRead = useRef(0)
   const reading = useRef(false)
   const [text, setText] = useState('')
+  const draftRevision = useRef(0)
   const [mention, setMention] = useState(false)
-  const [agentKind, setAgentKind] = useState<'qa' | 'extract'>('qa')
   const [sourceId, setSourceId] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
-  const [failed, setFailed] = useState<{ content: string; clientMessageId: string; mentionsAI: boolean; agentKind: 'qa' | 'extract' } | null>(null)
+  const [failed, setFailed] = useState<{ content: string; clientMessageId: string; mentionsAI: boolean } | null>(null)
   const [older, setOlder] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [hasNew, setHasNew] = useState(false)
@@ -124,9 +124,10 @@ function Conversation({ groupId }: { groupId: string }) {
   }, [messages.data, state.data, markVisible])
   async function send(input?: NonNullable<typeof failed>) {
     if (sending) return
-    const payload = input || (failed && failed.content === text && failed.mentionsAI === mention && failed.agentKind === (mention ? agentKind : 'qa') ? failed : { content: text, clientMessageId: createMessageId(), mentionsAI: mention, agentKind: mention ? agentKind : 'qa' })
+    const payload = input || (failed && failed.content === text && failed.mentionsAI === mention ? failed : { content: text, clientMessageId: createMessageId(), mentionsAI: mention })
     if (!payload.content.trim()) return
     if (Array.from(payload.content).length > 4000) { setError('消息最多 4000 个字符'); return }
+    const sentRevision = draftRevision.current
     setSending(true); setError('')
     try {
       const message = await apiRequest<Message>(`${base}/messages`, { token, body: payload })
@@ -135,7 +136,7 @@ function Conversation({ groupId }: { groupId: string }) {
         if (old && (old.at(-1)?.seq || 0) + 1 === message.seq) return mergeMessages(old, [message])
         return old
       })
-      if (text === payload.content) { setText(''); setMention(false); setAgentKind('qa') }
+      if (draftRevision.current === sentRevision && text === payload.content) { setText(''); setMention(false) }
       setFailed(null)
       pinned.current = true
       void client.invalidateQueries({ queryKey: key })
@@ -202,7 +203,7 @@ function Conversation({ groupId }: { groupId: string }) {
           <div className="message-body"><div className="message-meta">{m.senderName}<time>{new Date(m.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time></div>
             {m.mentionsAI && <small className="ai-reply-label">@AI 提问</small>}
             {m.replyToId && <small className="ai-reply-label">回复群内 @AI 提问</small>}<p className="message-bubble">{m.content}</p>
-            {m.agentResult?.answer && <small className="agent-answer-status">{m.agentResult.answer.status === 'answered' ? '依据群聊记录回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '历史证据存在冲突' : '历史证据不足'}</small>}
+            {m.agentResult?.answer && <small className="agent-answer-status">{m.agentResult.kind === 'main' ? (m.agentResult.answer.status === 'answered' ? 'AI 回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : m.agentResult.kind === 'help' ? (m.agentResult.answer.status === 'answered' ? 'AI 建议' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : (m.agentResult.answer.status === 'answered' ? '依据群聊记录回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '历史证据存在冲突' : '历史证据不足')}</small>}
             {sourceIDs(m).length > 0 && <div className="message-sources" aria-label="回答来源">{sourceIDs(m).map((id, index) => <button type="button" key={id} onClick={() => { void showSource(id) }}>来源 {index + 1}</button>)}</div>}
             <span data-read-seq={m.seq} className="read-sentinel" /></div>
         </article>
@@ -214,8 +215,8 @@ function Conversation({ groupId }: { groupId: string }) {
     </div>
     <form className="message-composer" onSubmit={e => { e.preventDefault(); void send() }}>
       {error && <div role="alert" className="account-error">{error}{failed && <button type="button" disabled={sending} onClick={() => { void send(failed) }}>重试发送</button>}</div>}
-      <label htmlFor="messageInput" className="sr-only">消息内容</label><textarea id="messageInput" value={text} onChange={e => setText(e.target.value)} placeholder="写点什么，需要帮忙时 @AI" disabled={sending} rows={2} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }} />
-      <div className="composer-actions"><button type="button" className={`mention-button ${mention ? 'selected' : ''}`} aria-pressed={mention} onClick={() => setMention(!mention)} disabled={sending}><Sparkles size={16} />@AI</button>{mention && <label className="agent-kind-selector">AI 能力<select aria-label="AI 能力" value={agentKind} disabled={sending} onChange={e => setAgentKind(e.target.value as 'qa' | 'extract')}><option value="qa">历史问答</option><option value="extract">提取待办</option></select></label>}<small>Enter 发送 · Shift + Enter 换行</small><Button disabled={sending || !text.trim()} type="submit"><Send size={16} />{sending ? '发送中…' : '发送'}</Button></div>
+      <label htmlFor="messageInput" className="sr-only">消息内容</label><textarea id="messageInput" value={text} onChange={e => { draftRevision.current++; setText(e.target.value) }} placeholder="写点什么，需要帮忙时 @AI" rows={2} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }} />
+      <div className="composer-actions"><button type="button" className={`mention-button ${mention ? 'selected' : ''}`} aria-pressed={mention} onClick={() => setMention(!mention)} disabled={sending}><Sparkles size={16} />@AI</button><small>Enter 发送 · Shift + Enter 换行</small><Button disabled={sending || !text.trim()} type="submit"><Send size={16} />{sending ? '发送中…' : '发送'}</Button></div>
     </form>
   </section>
 }

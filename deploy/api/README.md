@@ -87,3 +87,7 @@ tail -f runtime/api.log
 实际模型配置可参考包内 `models.example.json`。`start.sh` 自动加载 `.env`；直接运行二进制时需自行导出环境变量。直接运行二进制默认监听本机回环 IP，基础 API 可用 `-addr 0.0.0.0:8081` 对外监听；启用 assistant 时仅允许本机回环监听。
 
 页面为 `/page/assistant/`；API 使用 `/api/assistant/`。assistant 保留本机 Host 访问限制。`GET /test/healthz` 测试 HTTP 连通性。飞书仍使用独立长连接程序，此包只包含统一 HTTP API。
+
+## Trace 上报
+
+通过 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 入队、Worker、Workflow 和模型调用。普通聊天和其他 HTTP 请求不上报。配置见 [Langfuse 接入说明](../langfuse/README.md)，无需部署 Trace 服务或数据库。保留业务迁移 `000005_agent_trace_context.up.sql` 以关联持久化 AI 队列；更新二进制后先执行 `bash start.sh migrate`，再重启服务。

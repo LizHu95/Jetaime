@@ -50,7 +50,7 @@ for case in cases:
  variants=collections.Counter(json.dumps(normalized(r),ensure_ascii=False,sort_keys=True) for r in rs)
  observations.append({'caseId':case['id'],'kind':case['input']['kind'],'question':case['input'].get('question','提取待办'),
                       'repetitions':len(rs),'distinctOutputs':len(variants),'outputs':[{'count':n,'output':json.loads(out)} for out,n in variants.items()],
-                      'traceIds':[r['taskTraceId'] for r in rs],'performance':totals(rs)})
+                      'traceIds':[r['taskTraceId'] for r in rs if r.get('taskTraceId')],'performance':totals(rs)})
 
 checks={}
 gym=by['extract-explicit-schedule']
@@ -58,14 +58,14 @@ checks['gym_and_haircut_correct_subject']=[len(normalized(r))==2 and all(s['assi
 checks['invitation_not_extracted']=[normalized(r)==[] for r in by['extract-exam-invitation']]
 checks['completed_purchase_excluded']=[not any('面包' in s['title'] for s in normalized(r)) for r in by['extract-completed-purchase']]
 checks['future_english_preserved']=[any('英语' in s['title'] for s in normalized(r)) for r in by['extract-completed-purchase']]
-result={'suiteVersion':summary['metadata']['suiteVersion'],'experimentId':summary['experimentId'],'url':summary['url'],
+result={'suiteVersion':summary['metadata']['suiteVersion'],'experimentId':summary['experimentId'],'url':summary.get('url'),
         'metrics':summary['metrics'],'metadata':summary['metadata'],'current':totals(rows),'baseline':totals(baseline),
         'draftRegressionObservations':checks,'cases':observations,'officialSemanticScore':None}
 a.output.parent.mkdir(parents=True,exist_ok=True)
 a.output.with_suffix('.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
 lines=['# 固定聊天评测集：三次重复运行', '',f"案例包：{result['suiteVersion']}；23案例×3次，共{len(rows)}条运行。", '',
        '原始案例和参考没有修改；参考仍待人工审核。以下稳定性及规则对照不是正式语义通过率。输入为局部聊天片段，不代表全量历史检索效果。', '',
-       f"[Phoenix实验]({summary['url']})；源码和配置快照：`{snapshot}`。", '',
+       (f"[历史实验]({summary['url']})；源码和配置快照：`{snapshot}`。" if summary.get("url") else f"本地实验：`{summary['experimentId']}`；源码和配置快照：`{snapshot}`。"), '',
        '## 执行与稳定性', '', '```json',json.dumps(summary['metrics'],ensure_ascii=False,indent=2),'```', '',
        f"{sum(o['distinctOutputs']==1 for o in observations)}/{len(observations)}个案例的三次输出完全一致（比较回答文字、状态、来源及建议内容，忽略运行生成的建议ID）。文字不同不自动代表事实错误；相同也不自动代表正确。", '',
        '## 已知问题对照（待审规则观察）', '', '```json',json.dumps(checks,ensure_ascii=False,indent=2),'```', '',

@@ -50,17 +50,20 @@ type Page struct {
 	HasMore  bool      `json:"hasMore"`
 }
 type Run struct {
-	Kind        string  `json:"agentKind"`
-	ID          string  `json:"id"`
-	GroupID     string  `json:"groupId"`
-	AssistantID string  `json:"-"`
-	TriggerID   string  `json:"triggerMessageId"`
-	RequestedBy string  `json:"requestedBy"`
-	ContextEnd  int64   `json:"contextEndSeq"`
-	Status      string  `json:"status"`
-	Attempt     int     `json:"attempt"`
-	ErrorCode   *string `json:"errorCode"`
-	ResponseID  *string `json:"responseMessageId"`
+	TraceParent string    `json:"-"`
+	TraceState  string    `json:"-"`
+	QueuedAt    time.Time `json:"-"`
+	Kind        string    `json:"agentKind"`
+	ID          string    `json:"id"`
+	GroupID     string    `json:"groupId"`
+	AssistantID string    `json:"-"`
+	TriggerID   string    `json:"triggerMessageId"`
+	RequestedBy string    `json:"requestedBy"`
+	ContextEnd  int64     `json:"contextEndSeq"`
+	Status      string    `json:"status"`
+	Attempt     int       `json:"attempt"`
+	ErrorCode   *string   `json:"errorCode"`
+	ResponseID  *string   `json:"responseMessageId"`
 }
 type Event struct {
 	Type    string `json:"type"`

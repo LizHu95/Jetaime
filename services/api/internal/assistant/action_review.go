@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 const actionReviewPrompt = basePrompt + `
@@ -77,8 +79,8 @@ func (w *Workflow) reviewUnresolvedActions(ctx context.Context, run *Run, input 
 		return nil, err
 	}
 	request := ModelRequest{Model: run.Model, Messages: []ChatMessage{{Role: "system", Content: actionReviewPrompt + "\nSchema: " + string(actionReviewSchema)}, {Role: "user", Content: string(payload)}}, Format: actionReviewSchema, Options: ModelOptions{Temperature: 0, NumCtx: w.Tokens, NumPredict: 2048}}
-	if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > w.Tokens {
-		return nil, fmt.Errorf("行动核对上下文超过容量限制；没有截断证据")
+	if err := llm.CheckContextBudget(request, w.Tokens); err != nil {
+		return nil, err
 	}
 	cacheStart := time.Now()
 	key, cacheEnabled, bypassReason := "", false, "provider has no model fingerprint"

@@ -1,4 +1,4 @@
-"""Verify shared startup configuration without model calls or Phoenix uploads."""
+"""Verify shared startup configuration without model calls or uploads."""
 import json
 from pathlib import Path
 import sys
@@ -16,7 +16,7 @@ class ModelConfigurationTests(unittest.TestCase):
                                timeout=30, context_tokens=8192, provider="openai-compatible",
                                model_url="https://cloud.example/v1", api_key_env="TEST_KEY",
                                output_mode="json_object", model_config=None, model_profile=None,
-                               judge_model=None, phoenix_url="http://phoenix:6006")
+                               judge_model=None)
 
     def test_shared_cli_profile(self):
         args = self.args()
@@ -38,7 +38,7 @@ class ModelConfigurationTests(unittest.TestCase):
         http.get.return_value = response
         args = self.args()
         result = preflight(args)
-        http.get.assert_called_once_with("http://phoenix:6006/arize_phoenix_version")
+        http.get.assert_not_called()
         self.assertIn("-print-model-config", run.call_args.args[0])
         self.assertEqual(args.model, "cloud-test")
         self.assertEqual(args.context_tokens, 16384)

@@ -47,11 +47,29 @@ type diskState struct {
 	Tasks    []Task    `json:"tasks"`
 }
 type Context struct {
-	ActorID  string    `json:"actorId"`
-	GroupID  string    `json:"groupId"`
-	Users    []User    `json:"users"`
-	Messages []Message `json:"messages"`
-	Tasks    []Task    `json:"tasks"`
+	Request      *RequestContext `json:"request,omitempty"`
+	ActorID      string          `json:"actorId"`
+	GroupID      string          `json:"groupId"`
+	Users        []User          `json:"users"`
+	Messages     []Message       `json:"messages"`
+	Tasks        []Task          `json:"tasks"`
+	HistoryScope *HistoryScope   `json:"historyScope,omitempty"`
+}
+
+// RequestContext is execution metadata, separate from untrusted chat content.
+type RequestContext struct {
+	MessageID         string    `json:"messageId"`
+	SenderID          string    `json:"senderId"`
+	SentAt            time.Time `json:"sentAt"`
+	CurrentTime       time.Time `json:"currentTime"`
+	Timezone          string    `json:"timezone"`
+	RelatedMessageIDs []string  `json:"relatedMessageIds,omitempty"`
+}
+
+// HistoryScope describes selection of original messages, not a summary of them.
+type HistoryScope struct {
+	Policy                 string `json:"policy"`
+	EarlierMessagesOmitted bool   `json:"earlierMessagesOmitted"`
 }
 type Answer struct {
 	Status           string   `json:"status"`
@@ -81,23 +99,26 @@ type Step struct {
 	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
-	ModelIdentity *llm.Identity `json:"modelIdentity,omitempty"`
-	ID            string        `json:"id"`
-	GroupID       string        `json:"groupId"`
-	ActorID       string        `json:"actorId"`
-	Kind          string        `json:"kind"`
-	Question      string        `json:"question,omitempty"`
-	Model         string        `json:"model"`
-	PromptVersion string        `json:"promptVersion"`
-	StartedAt     time.Time     `json:"startedAt"`
-	DurationMS    int64         `json:"durationMs"`
-	Status        string        `json:"status"`
-	Steps         []Step        `json:"steps"`
-	Answer        *Answer       `json:"answer,omitempty"`
-	Suggestions   []Suggestion  `json:"suggestions,omitempty"`
-	Sources       []Message     `json:"sources,omitempty"`
-	Error         string        `json:"error,omitempty"`
-	Warning       string        `json:"warning,omitempty"`
+	Basis         string         `json:"basis,omitempty"`
+	Route         *RouteDecision `json:"route,omitempty"`
+	HistoryScope  *HistoryScope  `json:"historyScope,omitempty"`
+	ModelIdentity *llm.Identity  `json:"modelIdentity,omitempty"`
+	ID            string         `json:"id"`
+	GroupID       string         `json:"groupId"`
+	ActorID       string         `json:"actorId"`
+	Kind          string         `json:"kind"`
+	Question      string         `json:"question,omitempty"`
+	Model         string         `json:"model"`
+	PromptVersion string         `json:"promptVersion"`
+	StartedAt     time.Time      `json:"startedAt"`
+	DurationMS    int64          `json:"durationMs"`
+	Status        string         `json:"status"`
+	Steps         []Step         `json:"steps"`
+	Answer        *Answer        `json:"answer,omitempty"`
+	Suggestions   []Suggestion   `json:"suggestions,omitempty"`
+	Sources       []Message      `json:"sources,omitempty"`
+	Error         string         `json:"error,omitempty"`
+	Warning       string         `json:"warning,omitempty"`
 }
 type ChatModel = llm.ChatModel
 type ModelRequest = llm.Request

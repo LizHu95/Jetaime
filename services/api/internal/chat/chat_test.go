@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/contacts"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
@@ -124,6 +125,9 @@ func setup(t *testing.T) fixture {
 			return llm.Result{}, err
 		}
 		data, err := json.Marshal(map[string]any{"status": "answered", "answer": "共享 AI 回答", "sourceMessageIds": []string{payload.Context.Messages[0].ID}})
+		if strings.Contains(r.Messages[0].Content, "主Agent") {
+			data, err = json.Marshal(map[string]any{"action": "answer", "basis": "history", "answer": json.RawMessage(data)})
+		}
 		return llm.Result{Content: string(data)}, err
 	}}
 	f.service = NewService(f.store, model, "test", 8192, time.Second)
@@ -410,7 +414,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 	ctx := context.Background()
 	for _, answer := range []string{`{"answer":"\u0000"}`, `{"answer":""}`, `{"answer":"ok","other":1}`, `not json`} {
 		f.service.model = testModel{func(context.Context, llm.Request) (llm.Result, error) { return llm.Result{Content: answer}, nil }}
-		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString()})
+		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString(), AgentKind: "qa"})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -454,5 +458,71 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 	snapshot, _, err := f.store.AgentContext(ctx, other, 8192)
 	if err != nil || len(snapshot.Messages) != 1 || strings.Contains(snapshot.Messages[0].Text, "large") {
 		t.Fatal("other group context leaked", snapshot, err)
+	}
+}
+
+func TestPostgresRecentQAContextAndRetry(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	for i := 0; i < 205; i++ {
+		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: strings.Repeat("之前的聊天内容", 80), ClientID: uuid.NewString()})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 最近聊了什么？", ClientID: uuid.NewString(), AgentKind: "qa"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Send(ctx, f.group, f.users[1].ID, SendInput{Content: "未来消息不得进入原提问", ClientID: uuid.NewString()}); err != nil {
+		t.Fatal(err)
+	}
+	run, err := f.store.Claim(ctx, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Reproduce a failed run, then retry the same immutable trigger with a
+	// usable budget. The long history must no longer make retry fail forever.
+	f.service.tokens = 100
+	f.service.execute(ctx, run)
+	if err := f.store.Retry(ctx, f.group, f.users[0].ID, run.ID); err != nil {
+		t.Fatal(err)
+	}
+	run, err = f.store.Claim(ctx, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.service.tokens = 16384
+	calls := 0
+	f.service.model = testModel{func(_ context.Context, request llm.Request) (llm.Result, error) {
+		calls++
+		var payload struct {
+			Context  assistant.Context `json:"context"`
+			Question string            `json:"question"`
+		}
+		if err := json.Unmarshal([]byte(request.Messages[1].Content), &payload); err != nil {
+			t.Fatal(err)
+		}
+		messages := payload.Context.Messages
+		if len(messages) == 0 || len(messages) > 200 || messages[len(messages)-1].ID != trigger.ID || payload.Question != "最近聊了什么？" {
+			t.Fatal("trigger was lost", payload)
+		}
+		if payload.Context.HistoryScope == nil || !payload.Context.HistoryScope.EarlierMessagesOmitted || strings.Contains(request.Messages[1].Content, "未来消息不得进入") {
+			t.Fatal("context coverage or snapshot boundary invalid")
+		}
+		if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > f.service.tokens {
+			t.Fatal("over-budget request reached model")
+		}
+		body, _ := json.Marshal(map[string]any{"status": "answered", "answer": "近期聊天", "sourceMessageIds": []string{trigger.ID}})
+		return llm.Result{Content: string(body)}, nil
+	}}
+	f.service.execute(ctx, run)
+	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
+	if err != nil || calls != 1 || len(runs) != 1 || runs[0].Status != "succeeded" {
+		t.Fatal("long-history retry did not recover", runs, err)
+	}
+	page, err := f.store.Messages(ctx, f.group, f.users[0].ID, trigger.Seq+1, 0, 100)
+	if err != nil || len(page.Messages) != 1 || !strings.Contains(page.Messages[0].Content, "未检索更早记录") || page.Messages[0].AgentResult == nil || page.Messages[0].AgentResult.HistoryScope == nil {
+		t.Fatal("coverage was not persisted", page, err)
 	}
 }

@@ -47,22 +47,18 @@ def command(action, args, environment):
     if action in ["eval", "eval-check", "eval-services"]:
         flags = {"eval": [], "eval-check": ["--check-only"], "eval-services": ["--check-services"]}[action]
         return ROOT, [uv, "run", "--project", "evals", "--locked", "python", "evals/runner.py", *flags, *args]
-    if action == "eval-smoke":
-        return ROOT, [uv, "run", "--project", "evals", "--locked", "python", "evals/tests/smoke_phoenix.py", *args]
     if action == "assistant-check":
         return ROOT, ["python3", "scripts/check-assistant.py", *args]
-    if action == "trace":
-        return ROOT, ["bash", "deploy/phoenix/start.sh", *args]
     if action == "feishu-build":
         return ROOT, ["bash", "deploy/feishu/build.sh", *args]
-    raise ValueError("unknown service; choose api, assistant, feishu, trace, eval, eval-check, eval-services, eval-smoke, assistant-check, model-check or feishu-build")
+    raise ValueError("unknown service; choose api, assistant, feishu, eval, eval-check, eval-services, assistant-check, model-check or feishu-build")
 
 
 def main():
     action = sys.argv[1] if len(sys.argv) > 1 else "api"
     args = sys.argv[2:]
     if action in ["-h", "--help", "help"]:
-        print("python3 scripts/dev.py [api|assistant|feishu|trace|eval|eval-check|eval-services|eval-smoke|assistant-check|model-check|feishu-build] [arguments]")
+        print("python3 scripts/dev.py [api|assistant|feishu|eval|eval-check|eval-services|assistant-check|model-check|feishu-build] [arguments]")
         return
     environment = os.environ.copy()
     inherited = set(environment)

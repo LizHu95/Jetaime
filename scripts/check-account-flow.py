@@ -68,7 +68,9 @@ def main():
                 self.wfile.write(b'{"error":{"message":"fixture failure"}}')
                 return
             system = body['messages'][0]['content']
-            if '独立核对候选行动' in system:
+            if '主Agent' in system:
+                output = {'action': 'extract', 'basis': 'none', 'answer': None} if '提取待办' in prompt else {'action': 'answer', 'basis': 'general', 'answer': {'status': 'answered', 'answer': '测试 AI 回答：' + prompt, 'sourceMessageIds': [source]}}
+            elif '独立核对候选行动' in system:
                 output = {'reviews': [{'candidateIndex': i, 'status': 'active', 'evidenceMessageIds': candidate['sourceMessageIds'], 'reason': '直接本人安排，没有后续完成'} for i, candidate in enumerate(payload['candidates'])]}
             elif '提取明确' in system:
                 evidence = next((m for m in payload['context']['messages'] if '我明天负责准备食材' in m['text']), None)
