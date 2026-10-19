@@ -19,7 +19,7 @@ import (
 
 func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	f := setup(t)
-	fake := f.service.model
+	fake := f.model
 	modelServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
 			Messages []llm.Message `json:"messages"`
@@ -46,7 +46,7 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.service.model = model
+	f.model = model
 	old := otel.GetTracerProvider()
 	t.Cleanup(func() { otel.SetTracerProvider(old) })
 	exporter := tracetest.NewInMemoryExporter()
@@ -75,7 +75,7 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	if run.TraceParent == "" || run.QueuedAt.IsZero() {
 		t.Fatal("queue context not persisted")
 	}
-	f.service.execute(context.Background(), run)
+	f.worker(t).Execute(context.Background(), run)
 	spans := exporter.GetSpans()
 	var enqueueID trace.SpanID
 	for _, span := range spans {

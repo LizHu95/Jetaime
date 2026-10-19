@@ -89,7 +89,10 @@ python3 scripts/report-chat-eval.py outputs/evals/experiment-340d01bb.jsonl \
 
 ## 缓存探索暂不接入
 
-2026-10-12完成状态核对缓存探索，测试和报告保留于代码及outputs/evals/reports/review-cache-check.md。用户决定暂不接入；常规Workflow、make assistant与Phoenix评测默认关闭缓存，使用当前提取版本，不执行缓存模型指纹查询。scripts/check-review-cache.py显式开启experimental-review-cache，专门复现探索结果。
+2026-10-19 服务端收敛为一个 `main` Agent。生产、调试与评测共用 `ai.Service` 和运行时；`main/auto` 案例覆盖正式主入口，`qa/help/extract` 保留为能力级回归。每次结果记录实际 Agent 与独立 invocation ID。评测在内存中适配输入，源码快照递归包含服务端内部依赖，历史案例和结果不改写。
+
+早期状态核对缓存实验已退出当前代码，专用开关、验证脚本与模型指纹接口一并移除；原实验报告和冻结源码保留供追溯。正常提取仍执行证据校验和状态核对。
+
 
 ## reviewed-r2逐行动断言
 
@@ -123,3 +126,5 @@ make eval EVAL_ARGS='--model-config local/other-models.json --model-profile clou
 每次实验保存所选公共配置和 `internal/llm` 源码快照；profile 在实验启动后冻结，修改原配置不会影响正在运行的实验。每个工作流统一使用所选模型。语义裁判 `--judge-model` 暂仍使用 Ollama，可与任务模型独立配置。
 
 `--check-services` 验证配置、密钥存在性及所需本地模型，云端不发送推理请求，因此不代表云调用成功。云配置不会要求安装同名 Ollama 模型。默认不启用语义裁判，也不自动切换模型。目标模型不支持原生 Schema 时，显式选择 `json_object`；模型效果需用 reviewed 案例另外评测。
+
+`main/auto` 案例的 fixture 最后一条消息应为本次请求，发送者与 `actorId` 一致；完整提取范围由同一份授权 fixture 提供。旧 `qa/extract` 案例仍保留独立问题输入的历史协议。

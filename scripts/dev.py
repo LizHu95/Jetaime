@@ -36,10 +36,10 @@ def command(action, args, environment):
     go = ROOT / "services/api"
     uv = environment.get("JETAIME_UV", "uv")
     if action in ["api", "assistant", "feishu", "model-check"]:
-        program = "api" if action in ["api", "assistant"] else action
+        program = action
         flags = []
         if action == "assistant":
-            flags = ["-auth=false", "-assistant"]
+            flags = []
         elif action == "model-check":
             program = "workflow-eval"
             flags = ["-print-model-config"]

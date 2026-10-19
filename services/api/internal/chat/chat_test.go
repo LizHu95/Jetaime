@@ -12,12 +12,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
-	"github.com/LizHu95/Jetaime/services/api/internal/contacts"
+	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5"
@@ -74,6 +78,12 @@ func (m testModel) Call(ctx context.Context, r llm.Request) (llm.Result, error) 
 }
 
 type fixture struct {
+	model     llm.ChatModel
+	capacity  int
+	modelName string
+	timeout   time.Duration
+	injector  aicontext.ContextInjector
+
 	store   *Store
 	service *Service
 	auth    *auth.Service
@@ -103,7 +113,7 @@ func setup(t *testing.T) fixture {
 		f.users = append(f.users, u)
 		f.tokens = append(f.tokens, login.Token)
 	}
-	friends := contacts.NewService(contacts.NewPostgresStore(pool))
+	friends := collaboration.NewService(collaboration.NewPostgresStore(pool))
 	r, err := friends.Send(ctx, f.users[0].ID, "Bob")
 	if err != nil {
 		t.Fatal(err)
@@ -130,7 +140,7 @@ func setup(t *testing.T) fixture {
 		}
 		return llm.Result{Content: string(data)}, err
 	}}
-	f.service = NewService(f.store, model, "test", 8192, time.Second)
+	f.configureAI(model, "test", 8192, time.Second)
 	return f
 }
 func TestPostgresMessagesAndRead(t *testing.T) {
@@ -300,7 +310,7 @@ func TestPostgresAIExecutionAndLeaseRecovery(t *testing.T) {
 	if err != nil || recovered.ID != expired.ID || recovered.Attempt != 2 {
 		t.Fatal("lease not recovered")
 	}
-	f.service.execute(ctx, recovered)
+	f.worker(t).Execute(ctx, recovered)
 	runs, _ := f.store.Runs(ctx, f.group, f.users[0].ID)
 	if runs[0].Status != "succeeded" {
 		t.Fatal("model response not saved", runs)
@@ -314,8 +324,7 @@ func TestPostgresRealtimeIsolationAndRevocation(t *testing.T) {
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rt := NewRealtime(ctx, f.store, f.auth)
-	go rt.Listen(ctx)
+	rt := realtime.New(ctx, f.store, f.auth)
 	mux := httpapi.NewRouter(NewHandler(f.service, auth.NewHandler(f.auth), rt))
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -341,21 +350,16 @@ func TestPostgresRealtimeIsolationAndRevocation(t *testing.T) {
 	defer func() { _ = b.Close() }()
 	c := dial(f.tokens[2])
 	defer func() { _ = c.Close() }()
-	// Test the notification route deterministically, then exercise the actual
-	// PostgreSQL listener via a committed send. Client reads ignore resync hints.
-	rt.broadcast(Event{Type: "message", GroupID: f.group}, map[string]bool{f.users[0].ID: true, f.users[1].ID: true})
-	for _, conn := range []*websocket.Conn{a, b} {
+	// Start listening after authentication so every client sees the initial resync.
+	go rt.Listen(ctx)
+	for _, conn := range []*websocket.Conn{a, b, c} {
 		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
-		for {
-			var event Event
-			if err := conn.ReadJSON(&event); err != nil {
-				t.Fatal(err)
-			}
-			if event.Type == "message" {
-				break
-			}
+		var event Event
+		if err := conn.ReadJSON(&event); err != nil || event.Type != "resync" {
+			t.Fatal("listener did not become ready", event, err)
 		}
 	}
+
 	_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "realtime", ClientID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
@@ -413,7 +417,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	for _, answer := range []string{`{"answer":"\u0000"}`, `{"answer":""}`, `{"answer":"ok","other":1}`, `not json`} {
-		f.service.model = testModel{func(context.Context, llm.Request) (llm.Result, error) { return llm.Result{Content: answer}, nil }}
+		f.model = testModel{func(context.Context, llm.Request) (llm.Result, error) { return llm.Result{Content: answer}, nil }}
 		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString(), AgentKind: "qa"})
 		if err != nil {
 			t.Fatal(err)
@@ -422,7 +426,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		f.service.execute(ctx, run)
+		f.worker(t).Execute(ctx, run)
 		runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
 		if err != nil || runs[0].Status != "failed" || runs[0].ErrorCode == nil || *runs[0].ErrorCode != "invalid_model_response" {
 			t.Fatal("invalid model output persisted", runs, err)
@@ -439,7 +443,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 		t.Fatal("large context silently truncated")
 	}
 	// A second group's context contains none of the first group's conversation.
-	friends := contacts.NewService(contacts.NewPostgresStore(f.store.pool))
+	friends := collaboration.NewService(collaboration.NewPostgresStore(f.store.pool))
 	request, err := friends.Send(ctx, f.users[0].ID, "Carol")
 	if err != nil {
 		t.Fatal(err)
@@ -483,8 +487,8 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 	}
 	// Reproduce a failed run, then retry the same immutable trigger with a
 	// usable budget. The long history must no longer make retry fail forever.
-	f.service.tokens = 100
-	f.service.execute(ctx, run)
+	f.capacity = 100
+	f.worker(t).Execute(ctx, run)
 	if err := f.store.Retry(ctx, f.group, f.users[0].ID, run.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -492,13 +496,13 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.service.tokens = 16384
+	f.capacity = 16384
 	calls := 0
-	f.service.model = testModel{func(_ context.Context, request llm.Request) (llm.Result, error) {
+	f.model = testModel{func(_ context.Context, request llm.Request) (llm.Result, error) {
 		calls++
 		var payload struct {
-			Context  assistant.Context `json:"context"`
-			Question string            `json:"question"`
+			Context  ai.Context `json:"context"`
+			Question string     `json:"question"`
 		}
 		if err := json.Unmarshal([]byte(request.Messages[1].Content), &payload); err != nil {
 			t.Fatal(err)
@@ -510,13 +514,13 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 		if payload.Context.HistoryScope == nil || !payload.Context.HistoryScope.EarlierMessagesOmitted || strings.Contains(request.Messages[1].Content, "未来消息不得进入") {
 			t.Fatal("context coverage or snapshot boundary invalid")
 		}
-		if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > f.service.tokens {
+		if len(request.Messages[0].Content)+len(request.Messages[1].Content)+2560 > f.capacity {
 			t.Fatal("over-budget request reached model")
 		}
 		body, _ := json.Marshal(map[string]any{"status": "answered", "answer": "近期聊天", "sourceMessageIds": []string{trigger.ID}})
 		return llm.Result{Content: string(body)}, nil
 	}}
-	f.service.execute(ctx, run)
+	f.worker(t).Execute(ctx, run)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
 	if err != nil || calls != 1 || len(runs) != 1 || runs[0].Status != "succeeded" {
 		t.Fatal("long-history retry did not recover", runs, err)
@@ -525,4 +529,23 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 	if err != nil || len(page.Messages) != 1 || !strings.Contains(page.Messages[0].Content, "未检索更早记录") || page.Messages[0].AgentResult == nil || page.Messages[0].AgentResult.HistoryScope == nil {
 		t.Fatal("coverage was not persisted", page, err)
 	}
+}
+
+func (f *fixture) configureAI(model llm.ChatModel, name string, tokens int, timeout time.Duration, injectors ...aicontext.ContextInjector) {
+	f.model = model
+	f.modelName = name
+	f.capacity = tokens
+	f.timeout = timeout
+	if len(injectors) > 0 {
+		f.injector = injectors[0]
+	}
+	f.service = NewService(f.store, model != nil)
+}
+func (f *fixture) worker(t *testing.T) *jobs.Worker {
+	t.Helper()
+	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return jobs.New(f.store, executor, f.capacity, f.timeout, f.injector)
 }

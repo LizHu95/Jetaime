@@ -258,7 +258,10 @@
           },
           "kind": {
             "enum": [
+              "main",
+              "auto",
               "qa",
+              "help",
               "extract"
             ]
           },

@@ -15,6 +15,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -79,12 +80,12 @@ func testModelAgentPush(t *testing.T, config llm.Config, outputEnv string) {
 		t.Logf("%s model output (test records): %.2000s error=%v", config.Model, output.Content, err)
 		return output, err
 	}}
-	f.service = NewService(f.store, traced, config.Model, config.ContextTokens, 2*time.Minute)
+	f.configureAI(traced, config.Model, config.ContextTokens, 2*time.Minute)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	rt := NewRealtime(ctx, f.store, f.auth)
+	rt := realtime.New(ctx, f.store, f.auth)
 	go rt.Listen(ctx)
-	go f.service.Work(ctx)
+	go f.worker(t).Work(ctx)
 	router := httpapi.NewRouter(NewHandler(f.service, auth.NewHandler(f.auth), rt))
 	server := httptest.NewServer(router)
 	defer server.Close()

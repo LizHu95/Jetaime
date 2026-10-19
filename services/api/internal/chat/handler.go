@@ -14,10 +14,10 @@ import (
 type Handler struct {
 	service        *Service
 	authentication *auth.Handler
-	realtime       *Realtime
+	realtime       http.Handler
 }
 
-func NewHandler(service *Service, authentication *auth.Handler, realtime *Realtime) *Handler {
+func NewHandler(service *Service, authentication *auth.Handler, realtime http.Handler) *Handler {
 	return &Handler{service, authentication, realtime}
 }
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
@@ -90,7 +90,7 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 }
 func (h *Handler) state(w http.ResponseWriter, r *http.Request, u auth.User) {
 	state, err := h.service.store.State(r.Context(), r.PathValue("group"), u.ID)
-	state.AIEnabled = h.service.model != nil
+	state.AIEnabled = h.service.aiEnabled
 	respond(w, state, err)
 }
 func (h *Handler) messages(w http.ResponseWriter, r *http.Request, u auth.User) {
@@ -145,7 +145,7 @@ func (h *Handler) retry(w http.ResponseWriter, r *http.Request, u auth.User) {
 		fail(w, 400, "invalid_input")
 		return
 	}
-	if h.service.model == nil {
+	if !h.service.aiEnabled {
 		fail(w, 503, "ai_unavailable")
 		return
 	}

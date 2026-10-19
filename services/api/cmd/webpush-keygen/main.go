@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	push "github.com/SherClockHolmes/webpush-go"
 	"log"
+
+	push "github.com/SherClockHolmes/webpush-go"
 )
 
 func main() {

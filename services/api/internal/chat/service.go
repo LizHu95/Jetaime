@@ -3,47 +3,22 @@ package chat
 import (
 	"context"
 	"errors"
-	"github.com/LizHu95/Jetaime/services/api/internal/assistant"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"regexp"
+	"strings"
+	"unicode/utf8"
+
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
-	"regexp"
-	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 type Service struct {
-	store            *Store
-	model            llm.ChatModel
-	modelName        string
-	tokens           int
-	timeout          time.Duration
-	contextInjector  assistant.ContextInjector
-	mainInstructions assistant.MainInstructionProvider
+	store     *Store
+	aiEnabled bool
 }
 
-type ServiceOption func(*Service)
-
-func WithMainInstructions(provider assistant.MainInstructionProvider) ServiceOption {
-	return func(service *Service) { service.mainInstructions = provider }
-}
-
-func WithDefaultContextInjector(inject assistant.ContextInjector) ServiceOption {
-	return func(service *Service) {
-		if inject != nil {
-			service.contextInjector = inject
-		}
-	}
-}
-
-func NewService(store *Store, model llm.ChatModel, name string, tokens int, timeout time.Duration, options ...ServiceOption) *Service {
-	service := &Service{store: store, model: model, modelName: name, tokens: tokens, timeout: timeout, contextInjector: assistant.InjectDefaultContext}
-	for _, option := range options {
-		option(service)
-	}
-	return service
+func NewService(store *Store, aiEnabled bool) *Service {
+	return &Service{store: store, aiEnabled: aiEnabled}
 }
 
 var aiMention = regexp.MustCompile(`(?i)(^|[\s，。！？,:：!?])@AI(\s|$|[，。！？,:：!?]|\p{Han})`)
@@ -86,11 +61,11 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 		return Message{}, ErrInvalid
 	}
 	if !input.MentionsAI {
-		return s.store.Send(ctx, group, actor, input, s.model != nil)
+		return s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	}
 	ctx, span := telemetry.Start(ctx, "chat.ai", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor))
 	telemetry.Content(span, "langfuse.observation.input", input.Content)
-	message, err := s.store.Send(ctx, group, actor, input, s.model != nil)
+	message, err := s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	var traceErr error
 	if err != nil {
 		traceErr = errors.New("enqueue failed")

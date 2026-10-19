@@ -135,8 +135,8 @@ def run_experiment(args, cases, digest):
     revision = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True).stdout)
     source_hash = hashlib.sha256()
-    for path in sorted(list((ROOT / "services/api/internal/assistant").glob("*.go")) + list((ROOT / "services/api/internal/llm").glob("*.go")) + list((ROOT / "services/api/cmd/workflow-eval").glob("*.go"))):
-        source_hash.update(path.name.encode()); source_hash.update(path.read_bytes())
+    for path in sorted(list((ROOT / "services/api/internal").rglob("*.go")) + list((ROOT / "services/api/cmd/workflow-eval").glob("*.go"))):
+        source_hash.update(str(path.relative_to(ROOT)).encode()); source_hash.update(path.read_bytes())
         saved = snapshot / "source" / path.relative_to(ROOT)
         saved.parent.mkdir(parents=True, exist_ok=True)
         saved.write_bytes(path.read_bytes())

@@ -136,9 +136,6 @@ func TestEinoCloudFailuresAndPinnedModel(t *testing.T) {
 			if _, err := a.Call(context.Background(), req); err == nil || calls != 1 {
 				t.Fatal("startup model overridden")
 			}
-			if _, err := a.ReviewCacheIdentity(context.Background(), "test"); err == nil {
-				t.Fatal("mutable cloud alias cached")
-			}
 		})
 	}
 }
@@ -175,38 +172,6 @@ func TestEinoOllamaRejectsIncompleteAndTruncatedResponses(t *testing.T) {
 		if err == nil {
 			t.Fatalf("incomplete/truncated response accepted: %s", body)
 		}
-	}
-}
-
-func TestEinoOllamaCacheIdentityTracksDigestAndEndpoint(t *testing.T) {
-	digest := "first"
-	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tags" || r.Method != http.MethodGet {
-			t.Error("wrong fingerprint endpoint")
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"models": []map[string]string{{"name": "test:latest", "digest": digest}}})
-	}))
-	defer s.Close()
-	c := Config{Provider: "ollama", BaseURL: s.URL, Model: "test", ContextTokens: 8192}
-	a, err := c.New(time.Second)
-	if err != nil {
-		t.Fatal(err)
-	}
-	first, err := a.ReviewCacheIdentity(context.Background(), "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(first, s.URL+"|") {
-		t.Fatal("endpoint missing from fingerprint")
-	}
-	digest = "second"
-	second, err := a.ReviewCacheIdentity(context.Background(), "test")
-	if err != nil || first == second {
-		t.Fatal("changed weights reused cache identity")
-	}
-	digest = ""
-	if identity, err := a.ReviewCacheIdentity(context.Background(), "test"); err == nil || identity != "" {
-		t.Fatal("missing digest accepted")
 	}
 }
 

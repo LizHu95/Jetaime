@@ -48,6 +48,32 @@ func TestIsolatedWorkflowUsesRealImplementation(t *testing.T) {
 	}
 }
 
+func TestMainEvaluationUsesRegisteredAgent(t *testing.T) {
+	var input request
+	if err := json.Unmarshal([]byte(`{"users":[{"id":"u","nickname":"user"}],"groups":[{"id":"g","name":"group"}],"members":[{"groupId":"g","userId":"u"}],"messages":[{"id":"m","groupId":"g","senderId":"u","sentAt":"2026-10-19T10:00:00+08:00","text":"你好"}]}`), &input.Fixture); err != nil {
+		t.Fatal(err)
+	}
+	input.GroupID, input.ActorID, input.Question = "g", "u", "你好"
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		_ = json.NewEncoder(w).Encode(map[string]any{"done": true, "message": map[string]string{"content": `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"你好！","sourceMessageIds":[]}}`}})
+	}))
+	defer server.Close()
+	var previous string
+	for _, mode := range []string{"main", "auto"} {
+		input.Kind = mode
+		out, err := execute(context.Background(), input, server.URL, "test", time.Second, 16384)
+		if err != nil || out.Error != "" || out.Run.AgentID != "main" || out.Run.Kind != "main" || out.Run.InvocationID == "" || out.Run.InvocationID == previous {
+			t.Fatalf("main evaluation bypassed runtime: %+v %v", out, err)
+		}
+		previous = out.Run.InvocationID
+	}
+	if calls != 2 {
+		t.Fatalf("ordinary answers made %d model calls", calls)
+	}
+}
+
 func execute(ctx context.Context, input request, base, model string, timeout time.Duration, tokens int) (result, error) {
 	return executeConfigured(ctx, input, llm.Config{Provider: "ollama", BaseURL: base, Model: model, OutputMode: "json_schema", ContextTokens: tokens}, timeout)
 }

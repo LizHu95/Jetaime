@@ -87,31 +87,39 @@ Nginx 配置源为 `deploy/nginx/default.conf`。部署时自动匹配 `DEPLOY_W
 
 ```text
 services/api/
-├── cmd/api/main.go             统一 HTTP 服务入口
-├── internal/httpapi/router.go 总 Router，装配业务模块
-├── internal/assistant/
-│   ├── types.go               实体与输入输出类型
-│   ├── store.go               群组隔离、消息与待办 JSON 存储
-│   ├── workflow.go            历史问答与待办提取
-│   ├── server.go              本地 API 与页面适配
-│   ├── web/                   内嵌 HTML / CSS / JS 调试页面
-│   └── *_test.go              Workflow、存储、HTTP 和模型协议测试
-services/api/internal/llm/      Eino 适配器与共享启动模型配置
-services/api/config/            无密钥的模型配置示例
-local/data/assistant/           本地状态与运行日志，Git 忽略
-local/data/chat-history/        用户提供的历史、原始整理结果与说明
-local/data/evals/               私有评测输入、审核材料与冻结版本
-outputs/evals/reports/          生成的私有评测报告
-local/data/phoenix-v2/          旧 Phoenix SQLite 历史归档
-docs/v2/                       当前设计、技术方案、任务与运行说明
-outputs/evals/                 实验结果、汇总与源码快照
-outputs/agent-check/           链路验证结果
-outputs/feishu/                构建及部署产物（可能含凭据）
-local/notes/                   私人文档
-docs/v1/                       一期历史文档与评测结果
+├── cmd/api/                   正式服务入口
+├── cmd/assistant/             本地调试入口
+├── cmd/workflow-eval/         离线评测入口
+├── internal/app/             配置、模块装配与后台任务生命周期
+├── internal/auth/            账号与会话
+├── internal/collaboration/   好友申请、群组、成员与关闭事务
+├── internal/chat/            消息、阅读进度与 PostgreSQL 适配
+├── internal/ai/
+│   ├── service.go            共用执行入口与协议
+│   ├── bootstrap/            注册当前唯一的 main Agent
+│   ├── runtime/              按 Agent ID 调度与执行身份、Trace
+│   ├── agent/main/           主 Agent，内部包含问答与行动提取流程
+│   ├── context/              上下文选择、引用保留与预算
+│   ├── prompts/              提示词与 Schema
+│   └── jobs/                 持久队列执行、超时与结果提交
+├── internal/debugconsole/    JSON 模拟状态、调试 HTTP 与内嵌页面
+├── internal/notification/    实时通知与 Web Push
+├── internal/llm/             模型配置与 Eino 供应商适配
+├── internal/database/        PostgreSQL 连接与嵌入式迁移
+└── internal/telemetry/       调用链
 ```
 
-先从 [workflow.go](services/api/internal/assistant/workflow.go) 阅读两条固定流程：组装授权群组上下文 → Prompt / Schema → 模型调用 → 校验结果。问答调用一次；提取产生候选时追加状态核对调用。任务保存由确认接口触发，模型不能直接创建任务。当前不使用 Agent Loop、自动模型路由、摘要、检索或长期记忆。
+当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通请求由主 Agent 直接回答，明确的提取请求执行 main 内部的固定提取与核对流程，不额外注册提取 Agent。`qa/help/extract` 保留为旧请求和能力评测的执行模式，模式与 Agent 身份分别建模。主提示词版本为 `main-v2-single-agent`。
+
+生产群聊、调试台和离线评测均调用 `ai.Service → runtime → agent/main`。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天、数据库或调试台；未来新增 Agent 在注册点装配，不向聊天 worker 添加分支。尚未实现跨 Agent 委派、调用树恢复或共享记忆。
+
+`ai.Job` 表示数据库排队与租约状态，`ai.Run` 表示一次执行记录，`ai.Result` 是允许保存并展示的回答或建议。每次运行带独立的 `agentId/invocationId`，原始模型响应和内部步骤不会进入消息 API 的结果对象。`chat` 的上下文适配器执行群权限与触发序号检查，`ai/context` 负责原文选择与预算。
+
+消息与 AI 入队、AI 回复与完成状态分别保持单事务提交；群关闭事务仍会禁用助手并取消未完成任务，过期 worker 的 attempt/租约保护保留。数据库结构与已有 HTTP 路径不变。WebSocket 和 Web Push 位于通知模块，通知丢失后仍以数据库补拉为准。
+
+调试台独立管理模拟身份、JSON 消息与任务、候选忽略和运行日志。评测在内存中适配 fixture，不再为了调用执行内核创建临时 JSON 文件；案例支持 `main/auto` 完整入口与 `qa/help/extract` 能力模式。模型、提示词、执行器、案例与评估器均纳入新实验快照，历史冻结文件不改写。
+
+已移除默认关闭的核对缓存实验、模型指纹查询和预留指令提供器；提取中的证据边界与行动状态核对继续保留。私有输入在 `local/`，生成产物在 `outputs/`，部署定义在 `deploy/`。
 
 目录职责、迁移与清理规则见 [目录约定](docs/目录约定.md)。`deploy/` 保存部署定义，`local/` 保存实际配置和持久数据，`outputs/` 保存生成产物。
 
@@ -125,7 +133,7 @@ make check      # Go 检查 + Python 评估器测试
 make test       # Go 与 Python 测试
 ```
 
-`make go-check` 仅运行 Go 检查。在 `services/api` 内运行 `go test -race ./...` 可检查并发访问。JavaScript 语法可通过 `node --check services/api/internal/assistant/web/app.js` 验证。
+`make go-check` 仅运行 Go 检查。在 `services/api` 内运行 `go test -race ./...` 可检查并发访问。JavaScript 语法可通过 `node --check services/api/internal/debugconsole/web/app.js` 验证。
 
 golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bin/`；首次安装需要 curl 与网络。CI 运行 `make check`。修改嵌入页面后需重启服务并刷新浏览器。
 

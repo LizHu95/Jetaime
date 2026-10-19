@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
+	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
+	"github.com/LizHu95/Jetaime/services/api/internal/notification"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -15,7 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const notificationChannel = "jetaime_chat_v1"
+const notificationChannel = notification.Channel
 
 type Store struct{ pool *pgxpool.Pool }
 
@@ -197,28 +199,14 @@ func (s *Store) Read(ctx context.Context, group, actor string, seq int64) (int64
 	}
 	return read, tx.Commit(ctx)
 }
+
+// Close preserves the existing chat API while collaboration owns group lifecycle.
 func (s *Store) Close(ctx context.Context, group, actor string) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return err
+	err := collaboration.NewPostgresStore(s.pool).Close(ctx, group, actor)
+	if errors.Is(err, collaboration.ErrNotFound) {
+		return ErrNotFound
 	}
-	defer rollback(tx)
-	if err = lockGroup(ctx, tx, group, actor); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE chat_groups SET status='closed',closed_at=now(),closed_by=$2 WHERE id=$1`, group, actor); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE group_assistants SET enabled=false WHERE group_id=$1`, group); err != nil {
-		return err
-	}
-	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status='cancelled',lease_expires_at=NULL,finished_at=now(),error_code='group_closed' WHERE group_id=$1 AND status IN ('queued','running')`, group); err != nil {
-		return err
-	}
-	if err = notify(ctx, tx, Event{Type: "group_closed", GroupID: group}); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return err
 }
 
 const runSelect = `SELECT id::text,group_id::text,assistant_id::text,trigger_message_id::text,requested_by::text,context_end_seq,status,attempt_count,error_code,response_message_id::text,agent_kind,trace_parent,trace_state,queued_at FROM agent_runs `

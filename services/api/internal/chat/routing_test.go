@@ -16,7 +16,7 @@ func TestPostgresAutomaticRoutingPersistsChildResult(t *testing.T) {
 		t.Run(kind+"/"+basis, func(t *testing.T) {
 			f := setup(t)
 			ctx := context.Background()
-			f.service.tokens = 16384
+			f.capacity = 16384
 			for i := 0; i < 15; i++ {
 				if _, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "普通对话", ClientID: uuid.NewString()}); err != nil {
 					t.Fatal(err)
@@ -30,7 +30,7 @@ func TestPostgresAutomaticRoutingPersistsChildResult(t *testing.T) {
 				t.Fatal(err)
 			}
 			calls := 0
-			f.service.model = testModel{func(_ context.Context, request llm.Request) (llm.Result, error) {
+			f.model = testModel{func(_ context.Context, request llm.Request) (llm.Result, error) {
 				calls++
 				if strings.Contains(request.Messages[1].Content, "future-only-secret") {
 					t.Fatal("future context leaked")
@@ -58,7 +58,7 @@ func TestPostgresAutomaticRoutingPersistsChildResult(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			f.service.execute(ctx, run)
+			f.worker(t).Execute(ctx, run)
 			runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
 			expectedCalls := 1
 			if kind == "extract" {
@@ -89,10 +89,10 @@ func TestPostgresRoutingFailureCanRetrySameRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.service.model = testModel{func(context.Context, llm.Request) (llm.Result, error) {
+	f.model = testModel{func(context.Context, llm.Request) (llm.Result, error) {
 		return llm.Result{Content: `{"kind":"unsupported"}`}, nil
 	}}
-	f.service.execute(ctx, run)
+	f.worker(t).Execute(ctx, run)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
 	if err != nil || len(runs) != 1 || runs[0].ErrorCode == nil || *runs[0].ErrorCode != "invalid_model_response" {
 		t.Fatal("routing failure misclassified", runs, err)
@@ -100,7 +100,7 @@ func TestPostgresRoutingFailureCanRetrySameRun(t *testing.T) {
 	if err := f.store.Retry(ctx, f.group, f.users[0].ID, run.ID); err != nil {
 		t.Fatal(err)
 	}
-	f.service.model = testModel{func(_ context.Context, r llm.Request) (llm.Result, error) {
+	f.model = testModel{func(_ context.Context, r llm.Request) (llm.Result, error) {
 		if strings.Contains(r.Messages[0].Content, "主Agent") {
 			return llm.Result{Content: `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"保持通风","sourceMessageIds":[]}}`}, nil
 		}
@@ -110,7 +110,7 @@ func TestPostgresRoutingFailureCanRetrySameRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.service.execute(ctx, run)
+	f.worker(t).Execute(ctx, run)
 	runs, err = f.store.Runs(ctx, f.group, f.users[0].ID)
 	if err != nil || len(runs) != 1 || runs[0].Status != "succeeded" || runs[0].Attempt != 2 {
 		t.Fatal("routing retry failed", runs, err)

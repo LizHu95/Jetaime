@@ -220,39 +220,3 @@ func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr err
 	}
 	return out, nil
 }
-
-func (a *Adapter) ReviewCacheIdentity(ctx context.Context, name string) (string, error) {
-	if a.config.Provider != "ollama" {
-		return "", fmt.Errorf("cloud model version fingerprint unavailable; review cache disabled")
-	}
-	ctx, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(a.config.BaseURL, "/")+"/api/tags", nil)
-	if err != nil {
-		return "", err
-	}
-	client := &http.Client{Timeout: time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("model fingerprint unavailable")
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("model fingerprint HTTP %d", resp.StatusCode)
-	}
-	var tags struct {
-		Models []struct {
-			Name   string `json:"name"`
-			Digest string `json:"digest"`
-		} `json:"models"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&tags); err != nil {
-		return "", fmt.Errorf("invalid model fingerprint response")
-	}
-	for _, m := range tags.Models {
-		if m.Digest != "" && (m.Name == name || m.Name == name+":latest") {
-			return a.config.BaseURL + "|" + m.Name + "|" + m.Digest, nil
-		}
-	}
-	return "", fmt.Errorf("model fingerprint unavailable")
-}
