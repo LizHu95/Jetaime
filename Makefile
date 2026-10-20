@@ -3,7 +3,11 @@
 .PHONY: db-migrate db-test memory-backfill
 .PHONY: web web-build web-check deploy
 
-DEPLOY_DEST ?= jetaime-server:~/
+DEPLOY_CONFIG ?= local/deploy.mk
+-include $(DEPLOY_CONFIG)
+
+DEPLOY_SSH ?= jetaime-server
+DEPLOY_DEST ?= $(DEPLOY_SSH):~/
 DEPLOY_WEB_DIR ?= /var/www/jetaime
 
 deploy:
@@ -32,7 +36,7 @@ GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
-	@echo "make deploy     Build and upload API to ~/api, Web to /var/www/jetaime (DEPLOY_DEST, DEPLOY_WEB_DIR)"
+	@echo "make deploy     Build, upload and restart API; deploy Web (local/deploy.mk, DEPLOY_SSH, DEPLOY_DEST, DEPLOY_WEB_DIR)"
 	@echo "make web        Start responsive Web client at http://127.0.0.1:5173/page/auth/login/"
 	@echo "make web-build  Build Web client into outputs/web"
 	@echo "make web-check  Run Web unit/browser tests and build"

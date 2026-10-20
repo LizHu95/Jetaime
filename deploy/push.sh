@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build API and Web locally, then copy both output directories to the server.
+# Build and upload API/Web, apply Nginx, then migrate and restart the API.
 set -euo pipefail
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
@@ -99,4 +99,6 @@ ssh "$server" "chmod -R a+rX -- $quoted_web_dir"
 printf 'Installing and reloading Nginx configuration on %s...\n' "$server"
 quoted_installer=$(python3 -c 'import pathlib, shlex, sys; print(shlex.quote(pathlib.Path(sys.argv[1]).read_text()))' "$repo_root/deploy/nginx/install.sh")
 ssh "$server" "if [ \"\$(id -u)\" -eq 0 ]; then bash -c $quoted_installer; else sudo -n bash -c $quoted_installer; fi" < "$nginx_config"
-printf 'Upload complete: API %s, Web %s:%s/\n' "$destination" "$server" "$web_dir"
+printf 'Restarting API on %s...\n' "$server"
+ssh "$server" "cd -- $quoted_api_parent && bash api/start.sh restart"
+printf 'Deploy complete: API %s, Web %s:%s/\n' "$destination" "$server" "$web_dir"

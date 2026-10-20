@@ -85,18 +85,23 @@ make assistant                            # 注入 Assistant 调试模块
 
 统一 HTTP API 打包运行 `make api-build`，产物保存到 `outputs/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。
 
-编译 API 和 Web 并上传到云服务器（本机需已配置 SSH 别名 `jetaime-server`，首次构建 Web 前运行 `cd apps/web && npm ci`）：
+编译 API 和 Web、上传到云服务器并自动迁移和重启 API（本机需能通过 SSH 登录，首次构建 Web 前运行 `cd apps/web && npm ci`）：
 
 ```sh
+# 首次配置：复制模板，在 local/deploy.mk 中填写 DEPLOY_SSH ?= user@host
+cp deploy/deploy.mk.example local/deploy.mk
 make deploy
-# 等效：bash deploy/push.sh
+# 临时覆盖 SSH 目标（也可通过环境变量 DEPLOY_SSH 注入）：
+make deploy DEPLOY_SSH=user@host
 # 自定义 API 上传目录和 Web 静态文件目录（同一服务器）：
 make deploy DEPLOY_DEST='user@host:/srv/jetaime/' DEPLOY_WEB_DIR='/var/www/jetaime'
 ```
 
-API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。服务器执行 `bash start.sh restart` 即可自动应用待执行的数据库迁移并重启 API；已应用的迁移会跳过。迁移失败时退出并保留旧 API 进程。脚本自动加载同目录 `.env`。
+`make deploy` 自动读取 `local/deploy.mk`；该文件被 Git 忽略，地址无需写进受版本管理的文件。配置使用 Make 语法，值不加引号；环境变量和命令行赋值可覆盖模板中的 `?=` 默认值。未配置时仍使用 SSH 别名 `jetaime-server`。可用 `DEPLOY_CONFIG` 指定其他配置文件。
 
-脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。脚本不重启 API；上传后自动应用并重新加载 Nginx。Phoenix 部署定义随 API 打包；服务器执行 `bash api/start.sh restart` 时自动部署同机 Phoenix、等待其自身迁移，再迁移业务库并重启 API。访问入口为 `/page/phoenix/`，认证信息见 [Phoenix 说明](deploy/phoenix/README.md)。
+API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。`make deploy` 上传和 Nginx 配置成功后，自动 SSH 到同一服务器，在 API 上传父目录执行 `bash api/start.sh restart`，应用待执行的数据库迁移并重启 API；已应用的迁移会跳过。迁移失败时退出并保留旧 API 进程。脚本自动加载同目录 `.env`。
+
+脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。上传后自动应用并重新加载 Nginx，再迁移和重启 API；任一步骤失败都会让 `make deploy` 以非零状态退出。Phoenix 部署定义随 API 打包；部署最后的 `bash api/start.sh restart` 会自动部署同机 Phoenix、等待其自身迁移，再迁移业务库并重启 API。访问入口为 `/page/phoenix/`，认证信息见 [Phoenix 说明](deploy/phoenix/README.md)。
 
 Nginx 配置源为 `deploy/nginx/default.conf`。部署时自动匹配 `DEPLOY_WEB_DIR` 并替换服务器 `/etc/nginx/sites-available/default`，确保默认站点已启用，执行 `nginx -t` 后重新加载 Nginx（未启动则启动）。原配置保存在 `/etc/nginx/default.backup.*`；检查或加载失败时恢复原配置并退出。服务器需安装 Nginx 和 systemd；应用配置使用 root 权限，非 root 账号需可通过 `sudo -n` 执行安装脚本，Web 上传仍需目录写入权限。完整配置见 [Web 部署约定](apps/web/README.md#部署约定)。
 
