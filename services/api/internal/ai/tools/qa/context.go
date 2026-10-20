@@ -31,7 +31,7 @@ func HistoryContext(search Searcher, reader MessageReader) ContextProvider {
 		}
 
 		if input.HistoryScope != nil && input.HistoryScope.HistoricalSearch && r.Arguments.Question == r.Scope.Question {
-			return input, nil // The same query was retrieved before the main model call.
+			return input, nil // Reuse explicitly supplied evidence for the same query.
 		}
 		recent, err := reader.RecentMessages(ctx, input.GroupID, input.ActorID, r.Scope.ContextEndSeq, 40)
 		if err != nil {

@@ -69,7 +69,7 @@ HTTP 接口以实际客户端调用为边界；记忆检索、Worker 调度、�
 
 PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，默认认证模块开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口默认开启，见 [认证接口说明](docs/v2/认证接口.md)；双人群聊、实时同步、阅读进度和共享 AI 接口已实现，见 [双人群聊接口](docs/v2/双人群聊接口.md)。
 
-历史向量化与增量记忆已实现独立 Worker、持久游标/检查点、pgvector 和受群成员权限保护的内部检索方法。正式群聊在首次模型调用前直接混合检索历史并回查原文，主 Agent 可直接引用回答，`answer_question` 仅按需补充检索，所有取数遵守原提问截止序号。正式 API 启动时自动运行记忆 Worker，无需 enabled 开关，需有效的记忆模型配置与密钥；首次部署需安装 pgvector 并执行迁移，重启复用已完成数据。配置、恢复保证和接口见 [历史向量化与增量记忆](docs/v2/历史向量化与增量记忆.md)。
+历史向量化与增量记忆已实现独立 Worker、持久游标/检查点、pgvector 和受群成员权限保护的内部检索方法。正式群聊首次模型调用只携带有预算限制的近期消息；依赖历史且证据不足时，主 Agent 调用 `answer_question` 混合检索并回查原文，所有取数遵守原提问截止序号。正式 API 启动时自动运行记忆 Worker，无需 enabled 开关，需有效的记忆模型配置与密钥；首次部署需安装 pgvector 并执行迁移，重启复用已完成数据。配置、恢复保证和接口见 [历史向量化与增量记忆](docs/v2/历史向量化与增量记忆.md)。
 
 - `POST /api/auth/register`、`/api/auth/login`、`/api/auth/logout`：账号认证模块，`make dev` 默认启用。
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
@@ -136,7 +136,7 @@ services/api/
 └── internal/telemetry/       调用链
 ```
 
-当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问会在首次模型调用前直接混合检索并注入原消息，模型可据此直接回答；需要新的查询或补充证据时使用 `answer_question`；正式群聊额外注册 `set_reminder` 调用提醒领域 Service。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v6-direct-answer`，QA 为 `answer-question-v1`。
+当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 12 条/4 KiB 近期背景判断需求；只有需要历史证据时才调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v8-on-demand-history`，QA 为 `answer-question-v2-hybrid`。
 
 提示词按能力维护：主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（上下文预算检查复用该子包）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
 

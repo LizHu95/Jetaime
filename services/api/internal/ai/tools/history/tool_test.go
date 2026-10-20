@@ -30,15 +30,17 @@ func (r *fakeReader) HistoryMessages(_ context.Context, group, actor string, fen
 }
 
 type fakeModel struct {
-	calls   int
-	request llm.Request
-	answer  string
+	calls            int
+	request          llm.Request
+	answer           string
+	promptTokens     *int
+	completionTokens *int
 }
 
 func (m *fakeModel) Call(_ context.Context, r llm.Request) (llm.Result, error) {
 	m.calls++
 	m.request = r
-	return llm.Result{Content: m.answer}, nil
+	return llm.Result{Content: m.answer, PromptTokens: m.promptTokens, CompletionTokens: m.completionTokens}, nil
 }
 func testScope() tools.Scope {
 	return tools.Scope{Context: ai.Context{GroupID: "group", ActorID: "user", Users: []ai.User{{ID: "user", Nickname: "用户"}}}, ContextEndSeq: 42, Question: "上周聊了什么"}
@@ -89,7 +91,49 @@ func TestHistoryLimitsBeforeSummary(t *testing.T) {
 					t.Fatal("missing evidence or truncated input")
 				}
 			}
+			if tc.status == "ok" || tc.status == "token_limit_exceeded" {
+				budget := out.Budget
+				if budget == nil || budget.Method != "utf8_byte_upper_bound" || budget.ContextLimitTokens != tc.tokens || budget.OutputReserveTokens != 2048 || budget.AvailableInputTokens != tc.tokens-2048 || budget.InputTokenUpperBound <= 0 || budget.Exceeded != (tc.status == "token_limit_exceeded") {
+					t.Fatalf("missing or incorrect budget: %+v", budget)
+				}
+				if tc.status == "ok" && budget.InputTokenUpperBound != llm.InputTokenUpperBound(model.request) {
+					t.Fatal("reported budget does not match model request")
+				}
+				found := false
+				for _, step := range result.Execution.Steps {
+					if step.Name == "budget" {
+						found = true
+						if (step.Status == "failed") != budget.Exceeded {
+							t.Fatal("incorrect budget trace status")
+						}
+					}
+				}
+				if !found {
+					t.Fatal("missing budget trace")
+				}
+			} else if out.Budget != nil {
+				t.Fatal("budget reported before request was built")
+			}
+			if out.Usage != nil {
+				t.Fatal("fabricated provider usage")
+			}
 		})
+	}
+}
+
+func TestHistoryReportsProviderUsageSeparatelyFromBudget(t *testing.T) {
+	prompt, completion := 123, 45
+	model := &fakeModel{answer: `{"status":"answered","answer":"讨论项目。","sourceMessageIds":["0"]}`, promptTokens: &prompt, completionTokens: &completion}
+	result, err := New(model, "test", 20000, &fakeReader{messages: testMessages(1)}).Invoke(context.Background(), testScope(), json.RawMessage(`{"startTime":"2026-10-12T00:00:00Z","endTime":"2026-10-19T00:00:00Z"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out Output
+	if err := json.Unmarshal(result.Data, &out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Budget == nil || out.Usage == nil || out.Usage.PromptTokens == nil || *out.Usage.PromptTokens != prompt || out.Usage.CompletionTokens == nil || *out.Usage.CompletionTokens != completion {
+		t.Fatalf("missing provider usage: %+v", out)
 	}
 }
 func TestHistoryRejectsBadRangesAndMissingFence(t *testing.T) {

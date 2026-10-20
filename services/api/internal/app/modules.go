@@ -155,9 +155,6 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 	}
 	if cfg.EnableChatAI {
 		inject := remindertool.New(reminders, chat.ReminderOperation).Inject
-		if m.memoryService != nil {
-			inject = qa.HybridContextInjector(m.memoryService, m.memoryService.Store, inject)
-		}
 		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, inject)
 		m.background = append(m.background, worker.Work, worker.Work)
 	}

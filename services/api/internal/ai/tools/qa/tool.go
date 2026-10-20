@@ -33,7 +33,7 @@ func New(model llm.ChatModel, name string, tokens int, provider ContextProvider)
 	t := &Tool{Model: model, ModelName: name, Tokens: tokens, ContextProvider: provider}
 	t.Typed = tools.NewTyped(tools.Metadata{
 		Name:        Name,
-		Description: "回答问题、日常建议、写作或澄清。自动混合检索历史并回查原文，同一问题复用已检索上下文；区分群聊事实与一般知识。只读，不创建任务或提醒。",
+		Description: "当问题依赖群聊历史且近期上下文证据不足时，混合检索历史并回查原文后回答。普通知识、闲聊和当前上下文足够的问题直接用respond。只读，不创建任务或提醒。",
 		Version:     Version,
 		Kind:        "main",
 		Model:       name,
