@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const PromptVersion = "main-v4-tools"
+const PromptVersion = "main-v5-tool-contracts"
 const MaxToolSteps = 3
 
 // ExecuteMain only selects and executes registered capabilities. QA prompts,
@@ -119,26 +119,55 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		call, e := a.Tools.Decode(output.Content)
 		if e != nil {
 			run.Steps = append(run.Steps, ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
+			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < MaxToolSteps {
+				observations = append(observations, map[string]any{"error": feedback})
+				continue
+			}
 			return run, e
 		}
 		run.Steps = append(run.Steps, ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
 		result, e := a.Tools.Execute(ctx, scope, call)
+		run.Steps = append(run.Steps, result.Execution.Steps...)
+		step = ai.Step{Name: "tool_result", Status: "succeeded", StartedAt: result.Execution.StartedAt, DurationMS: result.Execution.DurationMS, Input: call, Output: result.Data}
 		if e != nil {
-			run.Steps = append(run.Steps, ai.Step{Name: "tool_result", Status: "failed", StartedAt: time.Now(), Error: e.Error(), Input: call})
+			step.Status = "failed"
+			step.Error = e.Error()
 		}
-		if e == nil && result.Data != nil {
-			run.Steps = append(run.Steps, ai.Step{Name: "tool_result", Status: "succeeded", StartedAt: time.Now(), Output: result.Data})
-		}
-		previous := run.Steps
-		if result.Terminal || e != nil {
-			if result.Run.ID != "" {
-				run = result.Run
-				run.Steps = append(previous, run.Steps...)
+		run.Steps = append(run.Steps, step)
+		if e != nil {
+			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < MaxToolSteps {
+				observations = append(observations, map[string]any{"name": call.Name, "arguments": call.Arguments, "error": feedback})
+				continue
 			}
-			run.Route = &ai.RouteDecision{Kind: run.Kind, Version: PromptVersion}
 			return run, e
+		}
+		if result.Terminal {
+			applyToolResult(&run, result)
+			run.Route = &ai.RouteDecision{Kind: run.Kind, Version: PromptVersion}
+			return run, nil
 		}
 		observations = append(observations, map[string]any{"name": call.Name, "result": result.Data})
 	}
-	return run, fmt.Errorf("main Agent exceeded %d tool steps", MaxToolSteps)
+	return run, fmt.Errorf("%w: main Agent exceeded %d tool steps", ai.ErrInvalidDecision, MaxToolSteps)
+}
+
+// The Agent owns its execution record; tools supply validated business data and
+// an optional presentation. Internal model diagnostics are appended separately.
+func applyToolResult(run *ai.Run, result tools.Result) {
+	record := result.Execution
+	if record.Kind != "" {
+		run.Kind = record.Kind
+	}
+	if record.Model != "" {
+		run.Model = record.Model
+	}
+	if record.PromptVersion != "" {
+		run.PromptVersion = record.PromptVersion
+	}
+	run.ModelIdentity = record.ModelIdentity
+	run.Answer = result.Completion.Answer
+	run.Suggestions = result.Completion.Suggestions
+	run.Sources = result.Completion.Sources
+	run.Basis = result.Completion.Basis
+	run.HistoryScope = result.Completion.HistoryScope
 }

@@ -38,10 +38,10 @@ func TestQAToolValidatesRetrievedEvidenceInsteadOfInitialWindow(t *testing.T) {
 	}
 	tool := New(m, "test", 16384, provider)
 	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot(), ContextEndSeq: 10}, MarshalArguments("之前说什么？", "history"))
-	if err != nil || out.Run.Answer == nil || len(out.Run.Sources) != 1 || out.Run.Sources[0].ID != "old" || !out.Terminal {
+	if err != nil || out.Completion.Answer == nil || len(out.Completion.Sources) != 1 || out.Completion.Sources[0].ID != "old" || !out.Terminal {
 		t.Fatal("retrieved citation rejected", err)
 	}
-	_, text, err := ai.ResultFromRun(out.Run)
+	_, text, err := ai.ResultFromRun(ai.Run{Kind: "main", Answer: out.Completion.Answer, Sources: out.Completion.Sources, Basis: out.Completion.Basis, HistoryScope: out.Completion.HistoryScope})
 	if err != nil || strings.Contains(text, "未检索更早记录") {
 		t.Fatal("retrieval coverage mislabeled", err)
 	}
@@ -57,7 +57,7 @@ func TestQAToolRejectsInvalidAnswersAndCitations(t *testing.T) {
 	} {
 		model := &modelStub{content: body}
 		out, err := New(model, "test", 16384, nil).Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("之前说什么？", "history"))
-		if err == nil || out.Run.Answer != nil {
+		if err == nil || out.Completion.Answer != nil {
 			t.Fatal("invalid answer exposed", body)
 		}
 	}
@@ -110,7 +110,7 @@ func TestGeneralQAAllowsKnowledgeWithoutHistoricalCitations(t *testing.T) {
 	m := &modelStub{content: `{"status":"answered","answer":"通风并清洁","sourceMessageIds":[]}`}
 	tool := New(m, "test", 16384, nil)
 	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("怎么除味？", "general"))
-	if err != nil || out.Run.Basis != "general" || m.calls != 1 {
+	if err != nil || out.Completion.Basis != "general" || m.calls != 1 {
 		t.Fatal("general QA regressed", err)
 	}
 }

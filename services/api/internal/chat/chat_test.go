@@ -17,6 +17,7 @@ import (
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
@@ -545,7 +546,11 @@ func (f *fixture) configureAI(model llm.ChatModel, name string, tokens int, time
 }
 func (f *fixture) worker(t *testing.T) *jobs.Worker {
 	t.Helper()
-	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity), f.qaContext)
+	registry, err := tools.New(qa.New(f.model, f.modelName, max(4096, f.capacity), f.qaContext))
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity), registry)
 	if err != nil {
 		t.Fatal(err)
 	}

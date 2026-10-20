@@ -16,6 +16,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 )
 
@@ -37,7 +39,12 @@ func executeConfigured(ctx context.Context, input request, config llm.Config, ti
 	if err != nil {
 		return result{}, err
 	}
-	executor, err := bootstrap.New(provider, config.Model, config.ContextTokens)
+	// Evaluation uses its fixture context and explicitly enables only read-only QA.
+	registry, err := tools.New(qa.New(provider, config.Model, config.ContextTokens, nil))
+	if err != nil {
+		return result{}, err
+	}
+	executor, err := bootstrap.New(provider, config.Model, config.ContextTokens, registry)
 	if err != nil {
 		return result{}, err
 	}

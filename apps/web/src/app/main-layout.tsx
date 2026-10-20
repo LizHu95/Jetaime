@@ -4,10 +4,10 @@ import { useKeyboardViewport } from './use-keyboard-viewport'
 
 export function MainLayout() {
   const { pathname } = useLocation()
-  const inConversation = !!useMatch('/chat/:groupId/')
+  const inConversation = !!useMatch('/chat/:groupId/*')
   const root = useKeyboardViewport()
   const inAccount = pathname === '/me/' || pathname.startsWith('/auth/') || pathname.startsWith('/notifications/')
-  return <div className="main-app" ref={root}>
+  return <div className={`main-app${inConversation ? ' without-tabs' : ''}`} ref={root}>
     <div className="main-content"><Outlet /></div>
     {!inConversation && <nav className="bottom-tabs" aria-label="主导航">
       <Link to="/chat/" className={!inAccount ? 'tab active' : 'tab'} aria-current={!inAccount ? 'page' : undefined}><MessageSquare size={23} /><span>聊天</span></Link>

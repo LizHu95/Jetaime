@@ -16,6 +16,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/reminder"
@@ -30,6 +31,9 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 	delivery := reminder.NewWorker(store)
 	scopeFor := func(actor string) reminder.Scope { return reminder.Scope{GroupID: f.group, UserID: actor} }
 	apply := func(scope tools.Scope, args remindertool.Arguments) (tools.Result, error) {
+		if args.SourceMessageIDs == nil {
+			args.SourceMessageIDs = []string{scope.Context.Request.MessageID}
+		}
 		raw, err := json.Marshal(args)
 		if err != nil {
 			return tools.Result{}, err
@@ -45,7 +49,7 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 		if err := json.Unmarshal([]byte(req.Messages[1].Content), &payload); err != nil {
 			return llm.Result{}, err
 		}
-		args := remindertool.Arguments{Action: "save", Title: "吃饭"}
+		args := remindertool.Arguments{Action: "save", Title: "吃饭", SourceMessageIDs: []string{payload.Context.Request.MessageID}}
 		switch payload.Question {
 		case "提醒我吃饭":
 		case "明天":
@@ -53,7 +57,9 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 				t.Fatal("draft missing from context")
 			}
 			args.Date = tomorrow
-			args.Time = "09:00" // Even an invented model default must not create.
+			if len(req.Messages) == 2 {
+				args.Time = "09:00"
+			} // First attempt must be rejected, then repaired.
 		case "中午12点":
 			if payload.Context.ReminderDraft == nil || payload.Context.ReminderDraft.Date != tomorrow {
 				t.Fatal("date lost")
@@ -66,7 +72,11 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 		raw, err := json.Marshal(map[string]any{"name": "set_reminder", "arguments": args})
 		return llm.Result{Content: string(raw)}, err
 	}}
-	executor, err := bootstrap.NewWithTools(model, "test", 8192, nil, adapter)
+	registry, err := tools.New(qa.New(model, "test", 8192, nil), adapter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := bootstrap.New(model, "test", 8192, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,6 +189,9 @@ func TestReminderRecoveryCancellationAndClosedGroup(t *testing.T) {
 	delivery := reminder.NewWorker(store)
 	scopeFor := func(actor string) reminder.Scope { return reminder.Scope{GroupID: f.group, UserID: actor} }
 	apply := func(scope tools.Scope, args remindertool.Arguments) (tools.Result, error) {
+		if args.SourceMessageIDs == nil {
+			args.SourceMessageIDs = []string{scope.Context.Request.MessageID}
+		}
 		raw, err := json.Marshal(args)
 		if err != nil {
 			return tools.Result{}, err

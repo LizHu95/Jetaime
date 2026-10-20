@@ -10,6 +10,7 @@ require (
 	github.com/cloudwego/eino v0.7.13
 	github.com/cloudwego/eino-ext/components/model/ollama v0.1.9
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.13
+	github.com/google/jsonschema-go v0.4.3
 	github.com/gorilla/websocket v1.5.0
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/larksuite/oapi-sdk-go/v3 v3.12.1

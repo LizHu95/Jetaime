@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Send, Sparkles, UserPlus } from 'lucide-react'
+import { Send, Settings, Sparkles, UserPlus } from 'lucide-react'
 import { useAuth } from '@/features/auth/auth-provider'
 import { Button } from '@/components/ui/button'
+import { NavBar } from '@/components/nav-bar'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { createMessageId } from '@/lib/message-id'
 import { useRealtime } from './realtime-provider'
-import { ReminderSettings } from './reminder-settings'
+import { AIFailureDetails } from './ai-failure-details'
 import { mergeMessages, type ChatState, type Group, type Message, type MessagePage, type Run } from './types'
 
 export function ChatPage() {
@@ -49,6 +50,8 @@ function Conversation({ groupId }: { groupId: string }) {
   const [sourceId, setSourceId] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [retrying, setRetrying] = useState<string[]>([])
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({})
   const [failed, setFailed] = useState<{ content: string; clientMessageId: string; mentionsAI: boolean } | null>(null)
   const [older, setOlder] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
@@ -178,15 +181,28 @@ function Conversation({ groupId }: { groupId: string }) {
     return [...new Set([...(message.agentResult?.answer?.sourceMessageIds || []), ...(message.agentResult?.suggestions?.flatMap(suggestion => suggestion.sourceMessageIds) || [])])]
   }
   async function retry(run: Run) {
+    if (retrying.includes(run.id)) return
+    setRetrying(ids => [...ids, run.id])
+    setRetryErrors(errors => ({ ...errors, [run.id]: '' }))
     try { await apiRequest(`${base}/runs/${run.id}/retry`, { token }); await client.invalidateQueries({ queryKey: [...key, 'runs'] }) }
-    catch (reason) { setError(errorMessage(reason)) }
+    catch (reason) {
+      if (reason instanceof ApiError && reason.code === 'unauthorized') setSession(null)
+      else setRetryErrors(errors => ({ ...errors, [run.id]: errorMessage(reason) }))
+    } finally { setRetrying(ids => ids.filter(id => id !== run.id)) }
   }
   if (state.isPending) return <section className="chat-empty" role="status">正在打开群聊…</section>
   if (state.isError) return <section className="chat-empty"><p role="alert">{errorMessage(state.error)}</p><Link to="/chat/">返回群列表</Link></section>
   const peer = state.data.members.find(user => user.id !== actor)
   const activeRuns = runs.data?.filter(run => run.status === 'queued' || run.status === 'running') || []
   return <section className="conversation">
-    <header className="conversation-header"><Link to="/chat/" aria-label="返回群列表"><ArrowLeft size={20} /></Link><div><h2>与 {peer?.nickname} 的群</h2><small>两位成员 + {state.data.assistantName}</small></div><ReminderSettings groupId={groupId} /></header>
+    <NavBar
+      title={`与 ${peer?.nickname} 的群`}
+      subtitle={`两位成员 + ${state.data.assistantName}`}
+      backTo="/chat/"
+      backLabel="返回群列表"
+      backVisibility="mobile"
+      actions={<Button asChild variant="outline"><Link to={`/chat/${groupId}/settings/`} aria-label="群聊配置"><Settings size={18} /><span>配置</span></Link></Button>}
+    />
     <div className="message-viewport" ref={viewport} onScroll={() => { const view = viewport.current!; pinned.current = view.scrollHeight - view.scrollTop - view.clientHeight < 80; if (pinned.current) setHasNew(false); void markVisible() }}>
       {older && <button className="history-button" disabled={historyBusy} onClick={() => { void loadOlder() }}>{historyBusy ? '加载中…' : '加载更早的消息'}</button>}
       {messages.isError && <p role="alert">{errorMessage(messages.error)} <button onClick={() => { void messages.refetch() }}>重试</button></p>}
@@ -195,7 +211,11 @@ function Conversation({ groupId }: { groupId: string }) {
         <article className={`message-row ${m.senderId === actor ? 'mine' : ''} ${m.senderType === 'assistant' ? 'ai-message' : ''}`} aria-label={`${m.senderName}的消息`}>
           <span className="chat-avatar">{m.senderType === 'assistant' ? <Sparkles size={19} /> : m.senderName.slice(0, 1)}</span>
           <div className="message-body"><div className="message-meta">{m.senderName}<time>{new Date(m.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time></div>
-            {m.mentionsAI && <small className="ai-reply-label">@AI 提问</small>}
+            {m.mentionsAI && <div className="message-ai-label"><small className="ai-reply-label">@AI 提问</small>{m.senderType === 'user' && runs.data?.filter(run => run.triggerMessageId === m.id && run.status === 'failed').map(run => <span className="message-ai-retry" key={run.id}>
+              <AIFailureDetails errorCode={run.errorCode} />
+              {run.requestedBy === actor && state.data.aiEnabled && <button type="button" aria-label="重试 AI 回复" disabled={retrying.includes(run.id)} onClick={() => { void retry(run) }}>{retrying.includes(run.id) ? '重试中…' : '重试'}</button>}
+              {retryErrors[run.id] && <small role="alert">{retryErrors[run.id]}</small>}
+            </span>)}</div>}
             {m.replyToId && <small className="ai-reply-label">回复群内 @AI 提问</small>}<p className="message-bubble">{m.content}</p>
             {m.agentResult?.answer && <small className="agent-answer-status">{m.agentResult.kind === 'main' ? (m.agentResult.answer.status === 'answered' ? 'AI 回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : m.agentResult.kind === 'help' ? (m.agentResult.answer.status === 'answered' ? 'AI 建议' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : (m.agentResult.answer.status === 'answered' ? '依据群聊记录回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '历史证据存在冲突' : '历史证据不足')}</small>}
             {sourceIDs(m).length > 0 && <div className="message-sources" aria-label="回答来源">{sourceIDs(m).map((id, index) => <button type="button" key={id} onClick={() => { void showSource(id) }}>来源 {index + 1}</button>)}</div>}
@@ -205,7 +225,6 @@ function Conversation({ groupId }: { groupId: string }) {
     </div>
     {hasNew && <button className="new-message-button" onClick={() => { const view = viewport.current!; view.scrollTop = view.scrollHeight; pinned.current = true; setHasNew(false); void markVisible() }}>回到最新消息 ↓</button>}
     <div className="ai-run-status" aria-live="polite">{activeRuns.length > 0 && <p>{activeRuns.some(run => run.status === 'running') ? 'AI 正在回复…' : 'AI 请求已排队…'}{activeRuns.length > 1 ? `（${activeRuns.length} 个请求）` : ''}</p>}
-      {runs.data?.filter(run => run.status === 'failed').map(run => <p key={run.id}><small className="failed-question">{messages.data?.find(message => message.id === run.triggerMessageId)?.content || '@AI 提问'}</small>AI 回复失败：{run.errorCode === 'ai_unavailable' ? '服务暂未启用' : run.errorCode === 'context_too_large' ? '聊天上下文超过模型容量' : '请稍后重试'}{run.requestedBy === actor && state.data.aiEnabled && <button onClick={() => { void retry(run) }}>重试 AI 回复</button>}</p>)}
     </div>
     <form className="message-composer" onSubmit={e => { e.preventDefault(); void send() }}>
       {error && <div role="alert" className="account-error">{error}{failed && <button type="button" disabled={sending} onClick={() => { void send(failed) }}>重试发送</button>}</div>}

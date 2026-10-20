@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/google/uuid"
 )
 
 type Agent struct {
@@ -36,5 +38,15 @@ func (a *Agent) Invoke(ctx context.Context, input ai.Invocation) (ai.Run, error)
 		return ai.Run{}, fmt.Errorf("tool registry is unavailable")
 	}
 	result, err := a.Tools.ExecuteLegacy(ctx, tools.Scope{Context: input.Context, ContextEndSeq: input.ContextEndSeq, Question: input.Question, LegacyMode: input.Mode})
-	return result.Run, err
+	run := ai.Run{ID: "run-" + uuid.NewString(), Kind: input.Mode, GroupID: input.Context.GroupID, ActorID: input.Context.ActorID, Question: input.Question, Model: a.DefaultModel, StartedAt: result.Execution.StartedAt, DurationMS: result.Execution.DurationMS, Steps: result.Execution.Steps, Status: "succeeded"}
+	if run.StartedAt.IsZero() {
+		run.StartedAt = time.Now()
+	}
+	applyToolResult(&run, result)
+	run.Kind = input.Mode
+	if err != nil {
+		run.Status = "failed"
+		run.Error = err.Error()
+	}
+	return run, err
 }

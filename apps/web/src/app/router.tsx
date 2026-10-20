@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
 import { MainLayout } from './main-layout'
+import { ReminderSettings } from '@/features/chat/reminder-settings'
 import { ChatPage } from '@/features/chat/chat-page'
 import { NotificationsPage } from '@/features/notifications/notifications-page'
 import { AuthLayout } from '@/features/auth/auth-layout'
@@ -25,6 +26,7 @@ export const router = createBrowserRouter([
   { element: <MainLayout />, children: [
     { path: '/chat/', element: <ChatPage /> },
     { path: '/chat/:groupId/', element: <ChatPage /> },
+    { path: '/chat/:groupId/settings/', element: <ReminderSettings /> },
     { path: '/me/', element: <SessionPage /> },
     { path: '/auth/session/', element: <Navigate to="/me/" replace /> },
     { path: '/auth/password/', element: <PasswordPage /> },

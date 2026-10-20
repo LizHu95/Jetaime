@@ -58,7 +58,7 @@ func TestMainRejectsDisabledExtractionTool(t *testing.T) {
 		t.Fatal("disabled tool loaded an extraction snapshot")
 		return input, nil
 	})
-	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 1 {
+	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps {
 		t.Fatal("disabled extraction tool executed", err)
 	}
 }
@@ -68,7 +68,7 @@ func TestMainRejectsUnregisteredCallsAndFormerDirectAnswerProtocol(t *testing.T)
 		model := &mainTestModel{decision: decision}
 		agent, _ := newTestAgent(model, "test", 16384)
 		_, err := agent.ExecuteMain(context.Background(), input, "test", nil)
-		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 1 {
+		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps {
 			t.Fatal("invalid tool call accepted", err)
 		}
 	}
@@ -106,10 +106,11 @@ func TestMainToolLoopHasAHardLimit(t *testing.T) {
 	m := &mainTestModel{decision: `{"name":"continue","arguments":{}}`}
 	a, _ := NewAgent(m, "test", 16384)
 	calls := 0
-	a.Tools, _ = tools.New(tools.Func{Spec: tools.Definition{Name: "continue", Description: "test", Parameters: json.RawMessage(`{"type":"object"}`)}, Execute: func(context.Context, tools.Scope, json.RawMessage) (tools.Result, error) {
-		calls++
-		return tools.Result{Data: "continue"}, nil
-	}})
+	a.Tools, _ = tools.New(tools.NewTyped(tools.Metadata{Name: "continue", Description: "test"}, func(context.Context, tools.Scope, struct{}) (struct {
+		Value string `json:"value"`
+	}, error) { calls++; return struct {
+		Value string `json:"value"`
+	}{Value: "continue"}, nil }))
 	if _, err := a.ExecuteMain(context.Background(), input, "test", nil); err == nil || calls != MaxToolSteps {
 		t.Fatal("unbounded tool loop", err, calls)
 	}

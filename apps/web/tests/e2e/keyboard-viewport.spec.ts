@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('composer follows the keyboard viewport and tabs return after dismissal', async ({ page }) => {
+test('hidden tabs retain the bottom safe area and the composer follows the keyboard', async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem('jetaime.auth.session', JSON.stringify({
       user: { id: 'alice', username: 'Alice', nickname: '小林' },
@@ -20,7 +20,7 @@ test('composer follows the keyboard viewport and tabs return after dismissal', a
   })
   await page.route('**/api/**', async route => {
     const path = new URL(route.request().url()).pathname
-    if (path === '/api/groups' || path.endsWith('/runs')) return route.fulfill({ json: [] })
+    if (path === '/api/groups' || path.endsWith('/runs') || path.endsWith('/reminders')) return route.fulfill({ json: [] })
     if (path.endsWith('/messages')) return route.fulfill({ json: { messages: [], hasMore: false } })
     return route.fulfill({ json: { id: 'group-1', members: [{ id: 'alice', nickname: '小林' }, { id: 'bob', nickname: '小夏' }], lastSeq: 0, readSeq: 0, assistantName: 'AI', aiEnabled: false } })
   })
@@ -28,19 +28,25 @@ test('composer follows the keyboard viewport and tabs return after dismissal', a
   const input = page.getByLabel('消息内容')
   const tabs = page.getByRole('navigation', { name: '主导航' })
   await expect(input).toBeVisible()
-  await expect(tabs).toBeVisible()
+  await expect(tabs).toHaveCount(0)
+  // Emulation has no physical home indicator; supply a nonzero safe inset.
+  await page.locator('.main-app').evaluate(node => (node as HTMLElement).style.setProperty('--app-safe-area-bottom', '34px'))
+  await expect(page.locator('.main-app')).toHaveCSS('padding-bottom', '34px')
+  const bottomGap = () => page.evaluate(() => window.innerHeight - document.querySelector('.message-composer')!.getBoundingClientRect().bottom)
+  await expect.poll(bottomGap).toBe(34)
   await input.click()
-  // Focus and browser-toolbar movement alone must not hide navigation.
+  // Focus and browser-toolbar movement must preserve the safe inset.
   await page.evaluate(() => {
     Object.assign(window.visualViewport!, { height: window.innerHeight - 60 })
     window.visualViewport!.dispatchEvent(new Event('resize'))
   })
-  await expect(tabs).toBeVisible()
+  await expect(tabs).toHaveCount(0)
   await page.evaluate(() => {
     Object.assign(window.visualViewport!, { height: window.innerHeight - 320, offsetTop: 70 })
     window.visualViewport!.dispatchEvent(new Event('resize'))
   })
-  await expect(tabs).toBeHidden()
+  await expect(tabs).toHaveCount(0)
+  await expect(page.locator('.main-app')).toHaveCSS('padding-bottom', '0px')
   const fitsViewport = () => page.evaluate(() => {
     const viewport = window.visualViewport!
     const input = document.querySelector('#messageInput')!.getBoundingClientRect()
@@ -59,7 +65,15 @@ test('composer follows the keyboard viewport and tabs return after dismissal', a
     Object.assign(window.visualViewport!, { height: window.innerHeight, offsetTop: 0 })
     window.visualViewport!.dispatchEvent(new Event('resize'))
   })
-  await expect(tabs).toBeVisible()
+  await expect(tabs).toHaveCount(0)
   await expect(page.locator('.main-app')).not.toHaveClass(/keyboard-open/)
   await expect(input).toHaveValue('键盘上方的草稿')
+  await expect(page.locator('.main-app')).toHaveCSS('padding-bottom', '34px')
+  await expect.poll(bottomGap).toBe(34)
+  await page.getByRole('link', { name: '群聊配置' }).click()
+  await expect(page.locator('.main-app')).toHaveCSS('padding-bottom', '34px')
+  await expect.poll(() => page.locator('.reminder-settings').evaluate(node => window.innerHeight - node.getBoundingClientRect().bottom)).toBe(34)
+  await page.goto('/page/chat/')
+  await expect(tabs).toBeVisible()
+  await expect(page.locator('.main-app')).toHaveCSS('padding-bottom', '0px')
 })

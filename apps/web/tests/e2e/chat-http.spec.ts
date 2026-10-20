@@ -63,3 +63,56 @@ test('sending and retrying preserve an editable draft without secure-context ran
   expect(attempts).toHaveLength(3)
   expect(browserErrors).toEqual([])
 })
+
+test('AI failures show a status and small retry beside the explicit mention', async ({ page }) => {
+  const me = { id: 'alice', username: 'Alice', nickname: '小林' }
+  await page.addInitScript(session => localStorage.setItem('jetaime.auth.session', JSON.stringify(session)), { user: me, token: 'x'.repeat(43), tokenType: 'Bearer', expiresAt: new Date(Date.now() + 3600_000).toISOString() })
+  await page.routeWebSocket('**/api/chat/events', socket => { socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' }))) })
+  const messages = [true, false].map((mentionsAI, index) => ({ id: `m${index}`, groupId: 'g1', seq: index + 1, senderType: 'user', senderId: me.id, senderName: me.nickname, content: mentionsAI ? '帮我想想' : '普通聊天', mentionsAI, createdAt: new Date().toISOString() }))
+  const runs = messages.map(message => ({ id: `r${message.id}`, triggerMessageId: message.id, requestedBy: me.id, status: 'failed', errorCode: 'ai_unavailable' }))
+  let attempts = 0
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/groups') return route.fulfill({ json: [] })
+    if (path.endsWith('/retry')) {
+      attempts++
+      if (attempts === 1) return route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } })
+      runs[0].status = 'running'
+      return route.fulfill({ json: { ok: true } })
+    }
+    if (path.endsWith('/runs')) return route.fulfill({ json: runs })
+    if (path.endsWith('/messages')) return route.fulfill({ json: { messages, hasMore: false } })
+    if (path.endsWith('/read')) return route.fulfill({ json: { readSeq: 2 } })
+    return route.fulfill({ json: { id: 'g1', members: [me], assistantName: 'AI', aiEnabled: true, readSeq: 0 } })
+  })
+  await page.goto('/page/chat/g1/')
+  const question = page.locator('[data-message-id="m0"]')
+  const retry = question.getByRole('button', { name: '重试 AI 回复' })
+  await expect(retry).toBeVisible()
+  await expect(question.locator('.message-ai-label').getByRole('button', { name: '查看失败原因' })).toHaveText('回复失败')
+  await expect(question.locator('.message-ai-label').getByRole('button', { name: '重试 AI 回复' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '重试 AI 回复' })).toHaveCount(1)
+  await expect(page.getByText('AI 回复失败', { exact: false })).toHaveCount(0)
+  expect(await retry.evaluate(node => getComputedStyle(node).fontSize)).toBe('11px')
+  const failure = question.getByRole('button', { name: '查看失败原因' })
+  const details = page.getByRole('dialog', { name: 'AI 回复失败' })
+  await failure.click()
+  await expect(details).toBeVisible()
+  await expect(details).toContainText('AI 服务暂未启用，请稍后重试。')
+  expect(attempts).toBe(0)
+  await details.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(details).toHaveCount(0)
+  await expect(failure).toBeFocused()
+  runs[0].errorCode = 'invalid_model_response'
+  await page.reload()
+  await failure.click()
+  await expect(details).toContainText('AI 返回的内容未通过校验，请重试。')
+  await page.keyboard.press('Escape')
+  await expect(details).toHaveCount(0)
+  await retry.click()
+  await expect(question.getByRole('alert')).toBeVisible()
+  await expect(page.locator('.message-composer').getByRole('alert')).toHaveCount(0)
+  await retry.click()
+  await expect(retry).toHaveCount(0)
+  await expect(page.getByText('AI 正在回复…')).toBeVisible()
+})

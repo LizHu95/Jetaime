@@ -50,5 +50,9 @@ func executeExtractionTool(ctx context.Context, agent *Tool, input ai.Context, q
 		return ai.Run{}, err
 	}
 	result, err := registry.Execute(ctx, tools.Scope{Context: input}, tools.Call{Name: "extract_todos", Arguments: raw})
-	return result.Run, err
+	status := "succeeded"
+	if err != nil {
+		status = "failed"
+	}
+	return ai.Run{Kind: "extract", Status: status, Model: result.Execution.Model, PromptVersion: result.Execution.PromptVersion, StartedAt: result.Execution.StartedAt, Steps: result.Execution.Steps, Suggestions: result.Completion.Suggestions, Sources: result.Completion.Sources, HistoryScope: result.Completion.HistoryScope}, err
 }

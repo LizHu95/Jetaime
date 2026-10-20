@@ -11,6 +11,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
@@ -37,7 +39,11 @@ func setup(t *testing.T, content string) (*Store, *Workflow, *stubModel) {
 		t.Fatal(err)
 	}
 	m := &stubModel{content: content}
-	executor, err := bootstrap.New(m, "test", 16384)
+	registry, err := tools.New(qa.New(m, "test", 16384, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	executor, err := bootstrap.New(m, "test", 16384, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

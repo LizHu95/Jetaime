@@ -12,6 +12,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
@@ -73,19 +74,28 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		if modelErr != nil {
 			return nil, modelErr
 		}
+		fmt.Printf("Model: %s (%s), profile: %s\n", cfg.Model.Model, cfg.Model.Provider, cfg.Model.Profile)
+	}
+	if cfg.EnableChatAI {
+		if m.reminderService == nil {
+			return nil, fmt.Errorf("chat AI requires account services")
+		}
 		var provider qa.ContextProvider
 		if m.memoryService != nil {
 			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
 		}
-		if m.database != nil && cfg.EnableAccountAPI {
-			executor, err = bootstrap.NewWithTools(model, cfg.Model.Model, cfg.Model.ContextTokens, provider, remindertool.New(m.reminderService, chat.ReminderOperation))
-		} else {
-			executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider)
+		// Complete production chat capability list, including its domain dependencies.
+		registry, e := tools.New(
+			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
+			remindertool.New(m.reminderService, chat.ReminderOperation),
+		)
+		if e != nil {
+			return nil, e
 		}
+		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Model: %s (%s), profile: %s\n", cfg.Model.Model, cfg.Model.Provider, cfg.Model.Profile)
 	}
 	if cfg.EnableAccountAPI {
 		if err = m.addAccountModules(ctx, cfg, executor); err != nil {
@@ -93,7 +103,14 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		}
 	}
 	if cfg.DebugConsole.Enabled {
-		debugExecutor, e := bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens)
+		// The local console has no production write capabilities or database history.
+		registry, e := tools.New(
+			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, nil),
+		)
+		if e != nil {
+			return nil, e
+		}
+		debugExecutor, e := bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
 		if e != nil {
 			return nil, e
 		}

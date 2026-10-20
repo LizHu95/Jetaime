@@ -1,22 +1,35 @@
-// Package tools defines in-process capabilities available to the main Agent.
+// Package tools defines typed, in-process capabilities available to the main Agent.
 package tools
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
-	"go.opentelemetry.io/otel/attribute"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 )
 
+// Definition is the model-visible contract. Identity, permissions and execution
+// policy are owned by the backend and are not model arguments.
 type Definition struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	Parameters  json.RawMessage `json:"parameters"`
+	Name         string          `json:"name"`
+	Description  string          `json:"description"`
+	InputSchema  json.RawMessage `json:"inputSchema"`
+	OutputSchema json.RawMessage `json:"outputSchema"`
+	Annotations  Annotations     `json:"annotations"`
+}
+type Annotations struct {
+	ReadOnly   bool `json:"readOnlyHint"`
+	Idempotent bool `json:"idempotentHint"`
+}
+type Metadata struct {
+	Name, Description, Version, Kind, Model string
+	ReadOnly, Idempotent, Terminal          bool
+	Timeout                                 time.Duration
 }
 type Call struct {
 	Name      string          `json:"name"`
@@ -31,67 +44,81 @@ type Scope struct {
 	LegacyMode     string
 	LoadExtraction ai.ExtractContextLoader
 }
-type Result struct {
-	Run      ai.Run
-	Terminal bool
-	Data     any
+
+// Completion is an optional presentation of a successful business result.
+// Tools never construct the Agent's execution Run.
+type Completion struct {
+	Answer       *ai.Answer
+	Suggestions  []ai.Suggestion
+	Sources      []ai.Message
+	Basis        string
+	HistoryScope *ai.HistoryScope
 }
+type Execution struct {
+	StartedAt                  time.Time
+	DurationMS                 int64
+	Steps                      []ai.Step
+	ModelIdentity              *llm.Identity
+	Kind, Model, PromptVersion string
+}
+
+// Result contains validated JSON, presentation, and a separate execution record.
+// Data uses JSON at this heterogeneous registry boundary, never an unchecked any.
+type Result struct {
+	Data       json.RawMessage
+	Terminal   bool
+	Completion Completion
+	Execution  Execution
+}
+
+// Tool implementations are provided by NewTyped. Embedding Typed allows a
+// capability to expose additional backend methods, such as a context injector.
 type Tool interface {
 	Definition() Definition
 	Invoke(context.Context, Scope, json.RawMessage) (Result, error)
+	contractError() error
 }
-type Func struct {
-	Spec    Definition
-	Execute func(context.Context, Scope, json.RawMessage) (Result, error)
-}
-
-func (f Func) Definition() Definition { return f.Spec }
-func (f Func) Invoke(ctx context.Context, s Scope, args json.RawMessage) (Result, error) {
-	return f.Execute(ctx, s, args)
-}
-
 type Registry struct{ entries map[string]Tool }
 
 func New(entries ...Tool) (*Registry, error) {
 	r := &Registry{entries: map[string]Tool{}}
 	for _, t := range entries {
-		if t == nil {
+		if t == nil || reflect.ValueOf(t).Kind() == reflect.Pointer && reflect.ValueOf(t).IsNil() {
 			return nil, fmt.Errorf("nil tool")
 		}
+		if err := t.contractError(); err != nil {
+			return nil, err
+		}
 		d := t.Definition()
-		if d.Name == "" || d.Description == "" || !json.Valid(d.Parameters) || r.entries[d.Name] != nil {
-			return nil, fmt.Errorf("invalid or duplicate tool")
+		if r.entries[d.Name] != nil {
+			return nil, fmt.Errorf("duplicate tool %q", d.Name)
 		}
 		r.entries[d.Name] = t
 	}
 	return r, nil
 }
 func (r *Registry) Definitions() []Definition {
-	out := []Definition{}
+	out := make([]Definition, 0, len(r.entries))
 	for _, t := range r.entries {
 		out = append(out, t.Definition())
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out
 }
-func (r *Registry) Execute(ctx context.Context, s Scope, call Call) (out Result, err error) {
+func (r *Registry) Execute(ctx context.Context, s Scope, call Call) (Result, error) {
 	t, ok := r.entries[call.Name]
-	if !ok || !json.Valid(call.Arguments) || string(call.Arguments) == "null" {
-		return out, ai.ErrInvalidDecision
+	if !ok {
+		return Result{}, InvalidArguments("unknown_tool", "选择已注册的工具名称。")
 	}
-	if err = ai.ValidateContext(s.Context); err != nil {
-		return out, err
-	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	ctx, span := telemetry.Start(ctx, "ai.tool.execute", "TOOL", attribute.String("tool.name", call.Name), attribute.String("session.id", s.Context.GroupID), attribute.Int64("tool.context_end_seq", s.ContextEndSeq))
-	defer func() { telemetry.End(span, err) }()
 	return t.Invoke(ctx, s, call.Arguments)
 }
 func (r *Registry) Decode(content string) (Call, error) {
 	var c Call
-	if ai.DecodeJSON([]byte(content), &c) != nil || r.entries[c.Name] == nil || !json.Valid(c.Arguments) || string(c.Arguments) == "null" {
-		return c, ai.ErrInvalidDecision
+	if ai.DecodeJSON([]byte(content), &c) != nil {
+		return c, InvalidArguments("invalid_call", "返回仅包含 name 和 arguments 的工具调用对象。")
+	}
+	if r.entries[c.Name] == nil {
+		return c, InvalidArguments("unknown_tool", "选择已注册的工具名称。")
 	}
 	return c, nil
 }
