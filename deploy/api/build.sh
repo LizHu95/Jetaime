@@ -22,6 +22,7 @@ cp "$repo_root/services/api/config/models.example.json" "$build_dir/models.examp
 cp "$repo_root/services/api/config/memory.example.json" "$build_dir/memory.example.json"
 cp "$repo_root/deploy/api/README.md" "$build_dir/README.md"
 cp "$repo_root/deploy/api/start.sh" "$build_dir/start.sh"
+cp -R "$repo_root/deploy/phoenix" "$build_dir/phoenix"
 cp "$repo_root/local/.env" "$build_dir/.env"
 chmod 600 "$build_dir/.env"
 if [[ -f "$repo_root/local/models.json" ]]; then
@@ -40,6 +41,7 @@ from pathlib import Path
 
 source = Path(sys.argv[1])
 names = ["api-linux-amd64", "api-linux-arm64", "models.example.json", "memory.example.json", "README.md", "start.sh", ".env"]
+names.extend(str(path.relative_to(source)) for path in sorted((source / "phoenix").rglob("*")) if path.is_file())
 for optional in ("models.json", "memory.json"):
     if (source / optional).exists():
         names.append(optional)
@@ -52,6 +54,8 @@ with tarfile.open(source / "api-deploy.tar.gz", "w:gz") as archive:
         archive.add(source / name, arcname="api/" + name)
 PY
 chmod 600 "$build_dir/api-deploy.tar.gz"
+mkdir -p "$output_dir/phoenix"
+cp -R "$build_dir/phoenix/." "$output_dir/phoenix/"
 for name in api-linux-amd64 api-linux-arm64 models.example.json memory.example.json README.md start.sh .env SHA256SUMS api-deploy.tar.gz; do
     mv -f -- "$build_dir/$name" "$output_dir/$name"
 done

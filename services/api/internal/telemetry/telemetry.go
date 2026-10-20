@@ -1,11 +1,9 @@
-// Package telemetry configures optional AI tracing for Langfuse Cloud.
+// Package telemetry configures optional AI tracing for Phoenix.
 package telemetry
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -22,41 +20,24 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Init enables export only when both Langfuse project keys are configured.
+// Init enables batched OTLP/HTTP export when a Phoenix endpoint is configured.
 func Init(ctx context.Context) (func(context.Context) error, error) {
 	noop := func(context.Context) error { return nil }
-	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") {
+	endpoint := os.Getenv("JETAIME_PHOENIX_TRACES_ENDPOINT")
+	if strings.EqualFold(os.Getenv("OTEL_SDK_DISABLED"), "true") || endpoint == "" {
 		return noop, nil
 	}
-	public, secret := os.Getenv("LANGFUSE_PUBLIC_KEY"), os.Getenv("LANGFUSE_SECRET_KEY")
-	if public == "" && secret == "" {
-		return noop, nil
-	}
-	if public == "" || secret == "" {
-		return nil, fmt.Errorf("LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY must both be configured")
-	}
-	base := os.Getenv("LANGFUSE_BASE_URL")
-	if base == "" {
-		base = "https://cloud.langfuse.com"
-	}
-	u, err := url.Parse(base)
+	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || (u.Scheme != "https" && u.Scheme != "http") {
-		return nil, fmt.Errorf("LANGFUSE_BASE_URL must be an http(s) URL without credentials, query or fragment")
+		return nil, fmt.Errorf("JETAIME_PHOENIX_TRACES_ENDPOINT must be an http(s) URL without credentials, query or fragment")
 	}
-	if u.Scheme == "http" && u.Hostname() != "localhost" {
-		ip := net.ParseIP(u.Hostname())
-		if ip == nil || !ip.IsLoopback() {
-			return nil, fmt.Errorf("LANGFUSE_BASE_URL requires HTTPS except on loopback")
-		}
-	}
-	endpoint := strings.TrimRight(base, "/") + "/api/public/otel/v1/traces"
-	headers := map[string]string{
-		"Authorization":                "Basic " + base64.StdEncoding.EncodeToString([]byte(public+":"+secret)),
-		"x-langfuse-ingestion-version": "4",
+	headers := map[string]string{}
+	if key := os.Getenv("PHOENIX_API_KEY"); key != "" {
+		headers["Authorization"] = "Bearer " + key
 	}
 	exporter, err := otlptracehttp.New(ctx, otlptracehttp.WithEndpointURL(endpoint), otlptracehttp.WithHeaders(headers), otlptracehttp.WithTimeout(5*time.Second))
 	if err != nil {
-		return nil, fmt.Errorf("initialize Langfuse trace exporter")
+		return nil, fmt.Errorf("initialize Phoenix trace exporter")
 	}
 
 	name := os.Getenv("OTEL_SERVICE_NAME")
@@ -73,7 +54,7 @@ func Init(ctx context.Context) (func(context.Context) error, error) {
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 	// Exporter errors can contain endpoint/transport details. Keep credentials out of logs.
 	otel.SetErrorHandler(otel.ErrorHandlerFunc(func(error) {
-		fmt.Fprintln(os.Stderr, "trace export failed; check Langfuse keys, region and connectivity")
+		fmt.Fprintln(os.Stderr, "trace export failed; check trace backend configuration and connectivity")
 	}))
 	return provider.Shutdown, nil
 }
@@ -82,6 +63,11 @@ type attributesKey struct{}
 
 // Start carries only application-controlled identity fields to child observations.
 func Start(ctx context.Context, name, kind string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
+	return StartAt(ctx, name, kind, time.Time{}, attrs...)
+}
+
+// StartAt preserves the measured time of a diagnostic step recorded after completion.
+func StartAt(ctx context.Context, name, kind string, started time.Time, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
 	inherited, _ := ctx.Value(attributesKey{}).([]attribute.KeyValue)
 	fields := make(map[attribute.Key]attribute.KeyValue)
 	for _, attr := range inherited {
@@ -89,12 +75,9 @@ func Start(ctx context.Context, name, kind string, attrs ...attribute.KeyValue) 
 	}
 	for _, attr := range attrs {
 		switch attr.Key {
-		case "session.id", "user.id", "chat.run_id", "langfuse.trace.name":
+		case "session.id", "user.id", "chat.run_id":
 			fields[attr.Key] = attr
 		}
-	}
-	if _, ok := fields["langfuse.trace.name"]; !ok {
-		fields["langfuse.trace.name"] = attribute.String("langfuse.trace.name", name)
 	}
 	inherited = make([]attribute.KeyValue, 0, len(fields))
 	for _, attr := range fields {
@@ -102,26 +85,12 @@ func Start(ctx context.Context, name, kind string, attrs ...attribute.KeyValue) 
 	}
 	ctx = context.WithValue(ctx, attributesKey{}, inherited)
 	attrs = append(append([]attribute.KeyValue{}, attrs...), inherited...)
-	observationType := "span"
-	switch kind {
-	case "LLM":
-		observationType = "generation"
-	case "CHAIN":
-		observationType = "chain"
-	case "AGENT":
-		observationType = "agent"
-	case "EVALUATOR":
-		observationType = "evaluator"
+	attrs = append(attrs, attribute.String("openinference.span.kind", kind))
+	options := []trace.SpanStartOption{trace.WithAttributes(attrs...)}
+	if !started.IsZero() {
+		options = append(options, trace.WithTimestamp(started))
 	}
-	attrs = append(attrs, attribute.String("langfuse.observation.type", observationType))
-	// Langfuse indexes explicit metadata fields for filtering.
-	for _, attr := range attrs {
-		key := string(attr.Key)
-		if strings.HasPrefix(key, "chat.") || strings.HasPrefix(key, "workflow.") {
-			attrs = append(attrs, attribute.KeyValue{Key: attribute.Key("langfuse.observation.metadata." + strings.ReplaceAll(key, ".", "_")), Value: attr.Value})
-		}
-	}
-	return otel.Tracer("jetaime").Start(ctx, name, trace.WithAttributes(attrs...))
+	return otel.Tracer("jetaime").Start(ctx, name, options...)
 }
 
 // End records a bounded error category; callers must not pass provider bodies or secrets.

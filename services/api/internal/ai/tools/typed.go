@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/jsonschema-go/jsonschema"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Handler[I, O any] func(context.Context, Scope, I) (O, error)
@@ -126,7 +129,7 @@ func (t *Typed[I, O]) Invoke(ctx context.Context, scope Scope, raw json.RawMessa
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	ctx, span := telemetry.Start(ctx, "ai.tool.execute", "TOOL", attribute.String("tool.name", t.metadata.Name), attribute.String("session.id", scope.Context.GroupID), attribute.Int64("tool.context_end_seq", scope.ContextEndSeq))
-	telemetry.Content(span, "langfuse.observation.input", string(raw))
+	telemetry.Content(span, "input.value", string(raw))
 	defer func() {
 		record.DurationMS = time.Since(record.StartedAt).Milliseconds()
 		result.Execution = record
@@ -178,13 +181,14 @@ func (t *Typed[I, O]) Invoke(ctx context.Context, scope Scope, raw json.RawMessa
 	if t.present != nil {
 		result.Completion = t.present(output)
 	}
-	telemetry.Content(span, "langfuse.observation.output", string(data))
+	telemetry.Content(span, "output.value", string(data))
 	return result, nil
 }
 
 type executionKey struct{}
 
 func RecordStep(ctx context.Context, step ai.Step) {
+	TraceStep(ctx, step)
 	if r, ok := ctx.Value(executionKey{}).(*Execution); ok {
 		r.Steps = append(r.Steps, step)
 	}
@@ -193,4 +197,34 @@ func RecordModelIdentity(ctx context.Context, identity llm.Identity) {
 	if r, ok := ctx.Value(executionKey{}).(*Execution); ok {
 		r.ModelIdentity = &identity
 	}
+}
+
+// TraceStep exports measured workflow diagnostics under the current execution span.
+// Raw error text can contain model/provider data; only a stable category is exported.
+func TraceStep(ctx context.Context, step ai.Step) {
+	started := step.StartedAt
+	if started.IsZero() {
+		started = time.Now()
+	}
+	duration := time.Duration(step.DurationNS)
+	if duration <= 0 {
+		duration = time.Duration(step.DurationMS) * time.Millisecond
+	}
+	if duration < 0 {
+		duration = 0
+	}
+	_, span := telemetry.StartAt(ctx, "step."+step.Name, "CHAIN", started, attribute.String("step.status", step.Status))
+	for key, value := range map[string]any{"input.value": step.Input, "output.value": step.Output} {
+		if span.IsRecording() && value != nil && strings.EqualFold(os.Getenv("JETAIME_TRACE_CAPTURE_CONTENT"), "true") {
+			if data, err := json.Marshal(value); err == nil {
+				telemetry.Content(span, key, string(data))
+			}
+		}
+	}
+	if step.Status == "failed" {
+		span.SetStatus(codes.Error, "step failed")
+	} else {
+		span.SetStatus(codes.Ok, "")
+	}
+	span.End(trace.WithTimestamp(started.Add(duration)))
 }

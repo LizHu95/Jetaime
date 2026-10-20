@@ -96,7 +96,7 @@ make deploy DEPLOY_DEST='user@host:/srv/jetaime/' DEPLOY_WEB_DIR='/var/www/jetai
 
 API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。服务器执行 `bash start.sh restart` 即可自动应用待执行的数据库迁移并重启 API；已应用的迁移会跳过。迁移失败时退出并保留旧 API 进程。脚本自动加载同目录 `.env`。
 
-脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。脚本不重启 API；上传后自动应用并重新加载 Nginx。
+脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。脚本不重启 API；上传后自动应用并重新加载 Nginx。Phoenix 部署定义随 API 打包；服务器执行 `bash api/start.sh restart` 时自动部署同机 Phoenix、等待其自身迁移，再迁移业务库并重启 API。访问入口为 `/page/phoenix/`，认证信息见 [Phoenix 说明](deploy/phoenix/README.md)。
 
 Nginx 配置源为 `deploy/nginx/default.conf`。部署时自动匹配 `DEPLOY_WEB_DIR` 并替换服务器 `/etc/nginx/sites-available/default`，确保默认站点已启用，执行 `nginx -t` 后重新加载 Nginx（未启动则启动）。原配置保存在 `/etc/nginx/default.backup.*`；检查或加载失败时恢复原配置并退出。服务器需安装 Nginx 和 systemd；应用配置使用 root 权限，非 root 账号需可通过 `sudo -n` 执行安装脚本，Web 上传仍需目录写入权限。完整配置见 [Web 部署约定](apps/web/README.md#部署约定)。
 
@@ -172,7 +172,7 @@ golangci-lint 固定为 v2.14.0，自动安装到 Git 忽略的 `services/api/bi
 
 ## AI Trace 与本地评测
 
-Go API 使用 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 调用链，只采集 @AI、重试、Workflow 和模型调用；普通聊天和其他 HTTP 请求不上报。无需部署 Trace 服务或数据库，配置与查看方式见 [Langfuse 接入说明](deploy/langfuse/README.md)。
+Go API 使用 OpenTelemetry 直接向 Phoenix 上报 AI 调用链，只采集 @AI、重试、Workflow 和模型调用；普通聊天和其他 HTTP 请求不上报。Phoenix 使用独立 SQLite 存储，配置与查看方式见 [Phoenix 接入说明](deploy/phoenix/README.md)。
 
 `make eval-check` 离线验证案例，`make eval` 执行本地 Workflow 评测并保存 JSONL 与汇总报告，不依赖 Trace 平台。输入契约、评估器与运行方式见 [Workflow 评测说明](docs/v2/Workflow评测说明.md)。
 
@@ -180,3 +180,5 @@ Go API 使用 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 调用链，只�
 ### 双人群聊与共享 AI
 
 Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读角标、阅读进度和断线补拉。`make dev` 默认开启共享 AI，使用现有模型 profile；可用 `-chat-ai=false` 显式关闭；模型 ID 必须为实际可调用名称。普通消息不触发模型，@AI 提问排队，完整回复保存后向双方推送。实现和接口详见 [双人群聊接口](docs/v2/双人群聊接口.md)。
+
+同机部署 Phoenix 收集 Trace，见 [Phoenix 部署说明](deploy/phoenix/README.md)。

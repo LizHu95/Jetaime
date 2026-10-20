@@ -138,7 +138,7 @@ function Conversation({ groupId }: { groupId: string }) {
         if (old && (old.at(-1)?.seq || 0) + 1 === message.seq) return mergeMessages(old, [message])
         return old
       })
-      if (draftRevision.current === sentRevision && text === payload.content) { setText(''); setMention(false) }
+      if (draftRevision.current === sentRevision && text === payload.content) setText('')
       setFailed(null)
       pinned.current = true
       void client.invalidateQueries({ queryKey: key })
@@ -212,7 +212,7 @@ function Conversation({ groupId }: { groupId: string }) {
           <span className="chat-avatar">{m.senderType === 'assistant' ? <Sparkles size={19} /> : m.senderName.slice(0, 1)}</span>
           <div className="message-body"><div className="message-meta">{m.senderName}<time>{new Date(m.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time></div>
             {m.mentionsAI && <div className="message-ai-label"><small className="ai-reply-label">@AI 提问</small>{m.senderType === 'user' && runs.data?.filter(run => run.triggerMessageId === m.id && run.status === 'failed').map(run => <span className="message-ai-retry" key={run.id}>
-              <AIFailureDetails errorCode={run.errorCode} />
+              <AIFailureDetails run={run} groupId={groupId!} />
               {run.requestedBy === actor && state.data.aiEnabled && <button type="button" aria-label="重试 AI 回复" disabled={retrying.includes(run.id)} onClick={() => { void retry(run) }}>{retrying.includes(run.id) ? '重试中…' : '重试'}</button>}
               {retryErrors[run.id] && <small role="alert">{retryErrors[run.id]}</small>}
             </span>)}</div>}

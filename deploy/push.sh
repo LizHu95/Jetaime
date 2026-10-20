@@ -73,7 +73,11 @@ staging=$1
 parent=$2
 tar -xzf "$staging/api-deploy.tar.gz" -C "$staging"
 (cd "$staging/api" && sha256sum -c SHA256SUMS)
-mkdir -p "$parent/api"
+mkdir -p "$parent/api/phoenix"
+for file in "$staging/api/phoenix/"*; do
+    mv -f -- "$file" "$parent/api/phoenix/"
+done
+rmdir "$staging/api/phoenix"
 for name in api-linux-amd64 api-linux-arm64 models.example.json memory.example.json README.md start.sh .env SHA256SUMS; do
     mv -f -- "$staging/api/$name" "$parent/api/$name"
 done

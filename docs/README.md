@@ -28,7 +28,7 @@ docs/
 | [认证接口](v2/认证接口.md) | 注册、登录、退出接口，Argon2id 与 PostgreSQL 登录会话；handler/service/store 分层 |
 | [V2 第一周技术方案](v2/技术方案.md) | Go、Ollama、本地 HTTP 调试台、JSON 存储；七个核心职责、复用边界与升级条件 |
 | [V2 第一周开发任务清单](v2/开发任务清单.md) | 最小实体、历史问答与来源、待办提取确认、本地保存、七天节奏与验收；本轮已落地本地页面入口 |
-| [V2 Workflow 评测说明](v2/Workflow评测说明.md) | 本地案例、程序 / 语义评估器与 JSONL 报告；业务 Trace 使用 Langfuse Cloud |
+| [V2 Workflow 评测说明](v2/Workflow评测说明.md) | 本地案例、程序 / 语义评估器与 JSONL 报告；业务 Trace 使用 Phoenix |
 | [V2 Demo 运行说明](v2/运行说明.md) | 启动命令、调试路径、数据文件与当前限制 |
 | [V2 HTML 交互原型](v2/prototypes/daily-collaboration-demo.html) | 本地模拟交互参考；视觉与细节仍待调整，不作为已认可的最终设计 |
 

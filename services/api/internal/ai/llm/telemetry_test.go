@@ -2,7 +2,6 @@ package llm
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -59,11 +58,7 @@ func TestModelSpansUsageParentAndSanitizedFailure(t *testing.T) {
 	for _, attr := range spans[0].Attributes {
 		values[string(attr.Key)] = attr.Value.AsInterface()
 	}
-	var usage map[string]int
-	if err := json.Unmarshal([]byte(values["langfuse.observation.usage_details"].(string)), &usage); err != nil {
-		t.Fatal(err)
-	}
-	if usage["input"] != 10 || usage["output"] != 2 || values["langfuse.observation.output"] != "{}" || values["langfuse.observation.type"] != "generation" {
+	if values["llm.token_count.prompt"] != int64(10) || values["llm.token_count.completion"] != int64(2) || values["output.value"] != "{}" || values["openinference.span.kind"] != "LLM" {
 		t.Fatalf("missing model metadata: %v", values)
 	}
 	for _, span := range spans {

@@ -3,6 +3,7 @@ package remindertool
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -31,7 +32,7 @@ func New(service API, operation func(tools.Scope) (reminder.Operation, error)) *
 	t.Typed = tools.NewTyped(tools.Metadata{
 		Name:        "set_reminder",
 		Description: description,
-		Version:     "reminder-v4-contract",
+		Version:     "reminder-v5-source-feedback",
 		Kind:        "main",
 		Terminal:    true,
 		Idempotent:  true,
@@ -49,7 +50,7 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 	}
 	sources, err := reminderSources(scope.Context, args.SourceMessageIDs)
 	if err != nil {
-		return Output{}, tools.InvalidArguments("invalid_sources", "sourceMessageIds 必须指向上下文中同一用户、同一群且不晚于当前请求的原始消息。")
+		return Output{}, err
 	}
 	op, err := t.Operation(scope)
 	if err != nil {
@@ -185,17 +186,28 @@ func reminderSources(input ai.Context, cited []string) ([]string, error) {
 	if input.Request == nil {
 		return nil, ai.ErrInvalidDecision
 	}
-	messages := make(map[string]ai.Message, len(input.Messages))
+	eligible := make(map[string]bool, len(input.Messages))
+	allowed := []string{}
 	for _, m := range input.Messages {
-		messages[m.ID] = m
+		if m.SenderID == input.ActorID && m.GroupID == input.GroupID && !m.SentAt.After(input.Request.SentAt) {
+			eligible[m.ID] = true
+			allowed = append(allowed, m.ID)
+		}
+	}
+	invalid := []string{}
+	for _, id := range cited {
+		if !eligible[id] {
+			invalid = append(invalid, id)
+		}
+	}
+	if len(invalid) > 0 {
+		rejected, _ := json.Marshal(invalid)
+		choices, _ := json.Marshal(allowed)
+		return nil, tools.InvalidArguments("invalid_sources", fmt.Sprintf("sourceMessageIds 中这些 ID 不可用：%s。请移除它们，不能引用 AI 助手、其他用户、缺失或晚于当前请求的消息。当前可用的真人消息 ID 为：%s。只选择与本次提醒相关的原文；补全草稿时，已有标题和字段可直接沿用 reminderDraft，无需引用 AI 的追问。", rejected, choices))
 	}
 	ids := []string{input.Request.MessageID}
 	selected := map[string]bool{input.Request.MessageID: true}
 	for _, id := range cited {
-		m, ok := messages[id]
-		if !ok || m.SenderID != input.ActorID || m.GroupID != input.GroupID || m.SentAt.After(input.Request.SentAt) {
-			return nil, ai.ErrInvalidDecision
-		}
 		if !selected[id] {
 			ids = append(ids, id)
 			selected[id] = true

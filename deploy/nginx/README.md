@@ -33,3 +33,5 @@ systemctl list-timers jetaime-certbot-renew.timer
 `nginx -t` 和 `systemctl status nginx`；不要为排障删除仍在使用的证书。
 
 参考：https://letsencrypt.org/2026/03/11/shorter-certs-certbot/
+
+`/page/phoenix/` 独立反代至本机 6006，包含静态资源和 GraphQL，使用 Basic Auth。首次安装生成的凭据在 `/etc/jetaime-phoenix/access.txt`，后续部署保留；Phoenix 服务的 root path 必须为 `/page/phoenix`。

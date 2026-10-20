@@ -20,7 +20,7 @@ import (
 func (w *Tool) extract(ctx context.Context, input ai.Context, question string) (run ai.Run, err error) {
 	ctx, span := telemetry.Start(ctx, "assistant.workflow", "CHAIN", attribute.String("workflow.kind", "extract"), attribute.String("session.id", input.GroupID), attribute.String("user.id", input.ActorID))
 	defer func() {
-		span.SetAttributes(attribute.String("workflow.run_id", run.ID), attribute.String("langfuse.observation.metadata.prompt_version", run.PromptVersion))
+		span.SetAttributes(attribute.String("workflow.run_id", run.ID), attribute.String("llm.prompt_template.version", run.PromptVersion))
 		for _, step := range run.Steps {
 			span.AddEvent(step.Name, trace.WithTimestamp(step.StartedAt), trace.WithAttributes(attribute.String("step.status", step.Status), attribute.Int64("step.duration_ms", step.DurationMS)))
 		}

@@ -34,9 +34,20 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		}
 		telemetry.End(span, err)
 	}()
+	recordStep := func(step ai.Step) {
+		run.Steps = append(run.Steps, step)
+		tools.TraceStep(ctx, step)
+	}
 	if a.Tools == nil {
 		return run, fmt.Errorf("tool registry is unavailable")
 	}
+	buildStarted := time.Now()
+	building := true
+	defer func() {
+		if building && err != nil {
+			recordStep(ai.Step{Name: "build_context", Status: "failed", StartedAt: buildStarted, DurationNS: time.Since(buildStarted).Nanoseconds()})
+		}
+	}()
 	if err = ai.ValidateContext(input); err != nil {
 		return run, err
 	}
@@ -54,7 +65,8 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		end = fence[0]
 	}
 	scope := tools.Scope{Context: input, ContextEndSeq: end, Question: question, LoadExtraction: load}
-	run.Steps = append(run.Steps, ai.Step{Name: "build_context", Status: "succeeded", StartedAt: time.Now(), Output: input})
+	recordStep(ai.Step{Name: "build_context", Status: "succeeded", StartedAt: buildStarted, DurationNS: time.Since(buildStarted).Nanoseconds(), Output: input})
+	building = false
 	observations := []map[string]any{}
 	for stepIndex := 0; stepIndex < MaxToolSteps; stepIndex++ {
 		req, e := prompts.MainRequest(a.DefaultModel, input, question, a.Tokens, a.Tools.Definitions()...)
@@ -99,7 +111,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			}
 		}
 		if err = llm.CheckContextBudget(req, a.Tokens); err != nil {
-			run.Steps = append(run.Steps, ai.Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
+			recordStep(ai.Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
 			return run, err
 		}
 		if stepIndex == 0 {
@@ -112,20 +124,20 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			step.Status = "failed"
 			step.Error = e.Error()
 		}
-		run.Steps = append(run.Steps, step)
+		recordStep(step)
 		if e != nil {
 			return run, e
 		}
 		call, e := a.Tools.Decode(output.Content)
 		if e != nil {
-			run.Steps = append(run.Steps, ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
+			recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
 			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < MaxToolSteps {
 				observations = append(observations, map[string]any{"error": feedback})
 				continue
 			}
 			return run, e
 		}
-		run.Steps = append(run.Steps, ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
+		recordStep(ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
 		result, e := a.Tools.Execute(ctx, scope, call)
 		run.Steps = append(run.Steps, result.Execution.Steps...)
 		step = ai.Step{Name: "tool_result", Status: "succeeded", StartedAt: result.Execution.StartedAt, DurationMS: result.Execution.DurationMS, Input: call, Output: result.Data}
@@ -133,7 +145,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			step.Status = "failed"
 			step.Error = e.Error()
 		}
-		run.Steps = append(run.Steps, step)
+		recordStep(step)
 		if e != nil {
 			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < MaxToolSteps {
 				observations = append(observations, map[string]any{"name": call.Name, "arguments": call.Arguments, "error": feedback})

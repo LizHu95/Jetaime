@@ -10,7 +10,13 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/jsonschema-go/jsonschema"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type contractInput struct {
@@ -163,5 +169,57 @@ func TestTimeoutCancellationAndErrorsPreserveExecutionBoundary(t *testing.T) {
 	}
 	if _, ok := Repairable(err); ok {
 		t.Fatal("infrastructure failure treated as argument repair")
+	}
+}
+
+func TestToolDiagnosticStepsExportWithParentAndMeasuredTime(t *testing.T) {
+	old := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(old) })
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+	otel.SetTracerProvider(provider)
+	defer func() { _ = provider.Shutdown(context.Background()) }()
+	t.Setenv("JETAIME_TRACE_CAPTURE_CONTENT", "false")
+	started := time.Now().Add(-time.Second)
+	tool := NewTyped(contractMetadata(), func(ctx context.Context, _ Scope, in contractInput) (contractOutput, error) {
+		RecordStep(ctx, ai.Step{Name: "build_context", Status: "failed", StartedAt: started, DurationNS: (7 * time.Millisecond).Nanoseconds(), Error: "private-provider-body", Output: "private-chat"})
+		return contractOutput{Status: "saved", Count: in.Count}, nil
+	}, contractOptions())
+	ctx, root := telemetry.Start(context.Background(), "worker", "CHAIN")
+	_, err := tool.Invoke(ctx, contractScope(), json.RawMessage(`{"name":"test","mode":"save","count":1}`))
+	telemetry.End(root, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spans := exporter.GetSpans()
+	var toolID trace.SpanID
+	for _, span := range spans {
+		if span.Name == "ai.tool.execute" {
+			toolID = span.SpanContext.SpanID()
+		}
+	}
+	found := false
+	for _, span := range spans {
+		if span.Name != "step.build_context" {
+			continue
+		}
+		found = true
+		if span.Parent.SpanID() != toolID || span.SpanContext.TraceID() != root.SpanContext().TraceID() {
+			t.Fatal("step disconnected from tool trace")
+		}
+		if !span.StartTime.Equal(started) || span.EndTime.Sub(span.StartTime) != 7*time.Millisecond || span.Status.Code != codes.Error {
+			t.Fatal("step timing or failure lost")
+		}
+		for _, attr := range span.Attributes {
+			if strings.Contains(attr.Value.AsString(), "private-") {
+				t.Fatal("private diagnostics exported without opt-in")
+			}
+		}
+		if strings.Contains(span.Status.Description, "private-") {
+			t.Fatal("raw error exported")
+		}
+	}
+	if !found {
+		t.Fatal("missing context step span")
 	}
 }

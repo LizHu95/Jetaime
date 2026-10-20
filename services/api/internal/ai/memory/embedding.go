@@ -30,7 +30,7 @@ func newEmbedding(c EmbeddingConfig) (*embeddingClient, error) {
 	return &embeddingClient{c, key, &http.Client{Timeout: 60 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}, nil
 }
 func (e *embeddingClient) Embed(ctx context.Context, text string) (vector []float32, callErr error) {
-	ctx, span := telemetry.Start(ctx, "memory.embedding", "EMBEDDING", attribute.String("langfuse.observation.model.name", e.config.Model), attribute.Int("memory.embedding_dimension", e.config.Dimension))
+	ctx, span := telemetry.Start(ctx, "memory.embedding", "EMBEDDING", attribute.String("llm.model_name", e.config.Model), attribute.Int("memory.embedding_dimension", e.config.Dimension))
 	defer func() { telemetry.End(span, callErr) }()
 	if strings.TrimSpace(text) == "" || len(text) > e.config.MaxInputBytes {
 		return nil, ErrInvalid

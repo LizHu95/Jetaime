@@ -96,25 +96,20 @@ func (t *captureTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 }
 
 func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr error) {
-	ctx, span := telemetry.Start(ctx, "llm.call", "LLM", attribute.String("langfuse.observation.model.name", a.config.Model), attribute.String("langfuse.observation.metadata.provider", a.config.Provider))
+	ctx, span := telemetry.Start(ctx, "llm.call", "LLM", attribute.String("llm.model_name", a.config.Model), attribute.String("llm.provider", a.config.Provider))
 	if span.IsRecording() && strings.EqualFold(os.Getenv("JETAIME_TRACE_CAPTURE_CONTENT"), "true") {
 		messages, err := json.Marshal(in.Messages)
 		if err == nil {
-			telemetry.Content(span, "langfuse.observation.input", string(messages))
+			telemetry.Content(span, "input.value", string(messages))
 		}
 	}
 	defer func() {
-		telemetry.Content(span, "langfuse.observation.output", out.Content)
-		usage := map[string]int{}
+		telemetry.Content(span, "output.value", out.Content)
 		if out.PromptTokens != nil {
-			usage["input"] = *out.PromptTokens
+			span.SetAttributes(attribute.Int("llm.token_count.prompt", *out.PromptTokens))
 		}
 		if out.CompletionTokens != nil {
-			usage["output"] = *out.CompletionTokens
-		}
-		if len(usage) > 0 {
-			data, _ := json.Marshal(usage)
-			span.SetAttributes(attribute.String("langfuse.observation.usage_details", string(data)))
+			span.SetAttributes(attribute.Int("llm.token_count.completion", *out.CompletionTokens))
 		}
 		telemetry.End(span, callErr)
 	}()

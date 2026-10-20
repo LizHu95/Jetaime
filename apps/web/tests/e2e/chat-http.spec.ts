@@ -11,7 +11,7 @@ test('sending and retrying preserve an editable draft without secure-context ran
   await page.routeWebSocket('**/api/chat/events', socket => {
     socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' })))
   })
-  const attempts: { clientMessageId: string; content: string }[] = []
+  const attempts: { clientMessageId: string; content: string; mentionsAI: boolean }[] = []
   const messages: Message[] = []
   let finishRetry!: () => void
   const retryResponse = new Promise<void>(resolve => { finishRetry = resolve })
@@ -36,6 +36,9 @@ test('sending and retrying preserve an editable draft without secure-context ran
     return route.fulfill({ json: { id: 'group-1', members: [me, peer], lastSeq: messages.length, readSeq: 0, unreadCount: 0, assistantName: 'AI', aiEnabled: false } })
   })
   await page.goto('/page/chat/group-1/')
+  const mention = page.getByRole('button', { name: '@AI', exact: true })
+  await expect(mention).toHaveAttribute('aria-pressed', 'false')
+  await mention.click()
   await page.getByLabel('消息内容').fill('HTTP 部署发送测试')
   await page.getByRole('button', { name: '发送', exact: true }).click()
   await expect(page.getByRole('button', { name: '重试发送' })).toBeVisible()
@@ -61,6 +64,15 @@ test('sending and retrying preserve an editable draft without secure-context ran
   await expect(page.getByText('下一条草稿', { exact: true })).toBeVisible()
   await expect(input).toHaveValue('')
   expect(attempts).toHaveLength(3)
+  await expect(mention).toHaveAttribute('aria-pressed', 'true')
+  expect(attempts.map(attempt => attempt.mentionsAI)).toEqual([true, true, true])
+  await mention.click()
+  await input.fill('手动关闭 AI 后的消息')
+  await page.getByRole('button', { name: '发送', exact: true }).click()
+  await expect(input).toHaveValue('')
+  await expect(mention).toHaveAttribute('aria-pressed', 'false')
+  expect(attempts).toHaveLength(4)
+  expect(attempts[3].mentionsAI).toBe(false)
   expect(browserErrors).toEqual([])
 })
 
@@ -69,7 +81,7 @@ test('AI failures show a status and small retry beside the explicit mention', as
   await page.addInitScript(session => localStorage.setItem('jetaime.auth.session', JSON.stringify(session)), { user: me, token: 'x'.repeat(43), tokenType: 'Bearer', expiresAt: new Date(Date.now() + 3600_000).toISOString() })
   await page.routeWebSocket('**/api/chat/events', socket => { socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' }))) })
   const messages = [true, false].map((mentionsAI, index) => ({ id: `m${index}`, groupId: 'g1', seq: index + 1, senderType: 'user', senderId: me.id, senderName: me.nickname, content: mentionsAI ? '帮我想想' : '普通聊天', mentionsAI, createdAt: new Date().toISOString() }))
-  const runs = messages.map(message => ({ id: `r${message.id}`, triggerMessageId: message.id, requestedBy: me.id, status: 'failed', errorCode: 'ai_unavailable' }))
+  const runs = messages.map(message => ({ id: `r${message.id}`, triggerMessageId: message.id, requestedBy: me.id, status: 'failed', errorCode: 'ai_unavailable', traceId: '0123456789abcdef0123456789abcdef' as string | null, attempt: 1 }))
   let attempts = 0
   await page.route('**/api/**', route => {
     const path = new URL(route.request().url()).pathname
@@ -96,19 +108,41 @@ test('AI failures show a status and small retry beside the explicit mention', as
   expect(await retry.evaluate(node => getComputedStyle(node).fontSize)).toBe('11px')
   const failure = question.getByRole('button', { name: '查看失败原因' })
   const details = page.getByRole('dialog', { name: 'AI 回复失败' })
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text: string) => { (window as unknown as { copiedDiagnostics: string }).copiedDiagnostics = text } } })
+  })
   await failure.click()
   await expect(details).toBeVisible()
   await expect(details).toContainText('AI 服务暂未启用，请稍后重试。')
+  await details.getByRole('button', { name: '复制诊断信息' }).click()
+  await expect(details.getByRole('status')).toHaveText('诊断信息已复制')
+  const copied = await page.evaluate(() => (window as unknown as { copiedDiagnostics: string }).copiedDiagnostics)
+  expect(copied).toContain('Phoenix Trace ID: 0123456789abcdef0123456789abcdef')
+  expect(copied).toContain('Run ID: rm0')
+  expect(copied).toContain('Message ID: m0')
+  expect(copied).toContain('Group ID: g1')
+  expect(copied).toContain('错误码: ai_unavailable')
+  expect(copied).toContain('执行次数: 1')
+  await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async () => { throw new Error('denied') } } }) })
+  await details.getByRole('button', { name: '复制诊断信息' }).click()
+  await expect(details.getByRole('status')).toContainText('复制失败')
   expect(attempts).toBe(0)
   await details.getByRole('button', { name: '关闭', exact: true }).click()
   await expect(details).toHaveCount(0)
   await expect(failure).toBeFocused()
+  runs[0].traceId = null
   runs[0].errorCode = 'invalid_model_response'
   await page.reload()
   await failure.click()
   await expect(details).toContainText('AI 返回的内容未通过校验，请重试。')
+  await expect(details).toContainText('此记录没有可用的 Trace ID')
   await page.keyboard.press('Escape')
   await expect(details).toHaveCount(0)
+  runs[0].errorCode = 'invalid_sources'
+  await page.reload()
+  await failure.click()
+  await expect(details).toContainText('AI 引用了不符合要求的消息来源，未能完成提醒设置，请重试。')
+  await details.getByRole('button', { name: '关闭', exact: true }).click()
   await retry.click()
   await expect(question.getByRole('alert')).toBeVisible()
   await expect(page.locator('.message-composer').getByRole('alert')).toHaveCount(0)

@@ -58,6 +58,7 @@ func (s *Service) Execute(ctx context.Context, in Invocation) (Run, error) {
 
 // Job is durable scheduling state, independent from an agent's execution Run.
 type Job struct {
+	TraceID     *string   `json:"traceId"`
 	TraceParent string    `json:"-"`
 	TraceState  string    `json:"-"`
 	QueuedAt    time.Time `json:"-"`

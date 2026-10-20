@@ -89,7 +89,7 @@ tail -f runtime/api.log
 
 ## Trace 上报
 
-通过 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 入队、Worker、Workflow 和模型调用。普通聊天和其他 HTTP 请求不上报。配置见 [Langfuse 接入说明](../langfuse/README.md)，无需部署 Trace 服务或数据库。保留业务迁移 `000005_agent_trace_context.up.sql` 以关联持久化 AI 队列；更新二进制后执行 `bash start.sh restart`，自动增量迁移并重启。
+通过 OpenTelemetry 直接向 Phoenix 上报 AI 入队、Worker、Workflow 和模型调用。普通聊天和其他 HTTP 请求不上报。配置见 [Phoenix 接入说明](../phoenix/README.md)，Phoenix 使用独立 SQLite 存储。保留业务迁移 `000005_agent_trace_context.up.sql` 以关联持久化 AI 队列；更新二进制后执行 `bash start.sh restart`，自动增量迁移并重启。
 
 ## 历史向量化与增量记忆
 
@@ -100,3 +100,9 @@ tail -f runtime/api.log
 可前台执行 `bash start.sh memory-backfill` 继续处理尚未完成的消息；重复运行不清空数据库、不重置水位，不重复计算已完成向量。普通部署和重启同样复用持久化结果。模型调用成功但保存前崩溃的步骤可能重试，不承诺外部调用严格一次。完整配置、内部检索方法、权限、恢复机制见 `docs/v2/历史向量化与增量记忆.md`。
 
 正式群聊的自动问答由 main 选择 `answer_question`，再由 QA 生成并校验回答，通常调用两次对话模型。历史与混合问题还会进行查询向量化和原文回查，所有检索受原提问 seq 截止限制。工具为进程内调用，不新增 HTTP 接口；本次工具收敛不需要新增迁移或重新向量化已有数据。
+
+同机部署 Phoenix 收集 Trace，见 [Phoenix 部署说明](../phoenix/README.md)。
+
+## Phoenix 随包部署
+
+`make deploy` 同时打包并上传 `api/phoenix/` 部署定义，应用 `/page/phoenix/` 的 Nginx 反代和独立访问认证。配置同机 `JETAIME_PHOENIX_TRACES_ENDPOINT=http://127.0.0.1:6006/v1/traces` 后，`bash api/start.sh restart` 会先安装/启动 Phoenix，等待其数据库迁移和就绪，再迁移业务 PostgreSQL 并重启 API。首次安装需要包源网络及 root / `sudo -n`；已安装同版本不会重复下载依赖。访问账号和详细步骤见 [Phoenix 说明](../phoenix/README.md)。

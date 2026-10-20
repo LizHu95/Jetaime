@@ -6,6 +6,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // Claim locks the group first, as Send/Read/Close do. A live running lease
@@ -32,7 +33,7 @@ func (s *Store) Claim(ctx context.Context, lease time.Duration) (Run, error) {
 	if err = tx.QueryRow(ctx, `SELECT id::text FROM agent_runs WHERE group_id=$1 AND status='queued' ORDER BY context_end_seq,id LIMIT 1 FOR UPDATE`, group).Scan(&id); err != nil {
 		return Run{}, err
 	}
-	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status='running',attempt_count=attempt_count+1,started_at=now(),lease_expires_at=now()+$2*interval '1 second',error_code=NULL WHERE id=$1`, id, int64(lease/time.Second)); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status='running',attempt_count=attempt_count+1,started_at=now(),lease_expires_at=now()+$2*interval '1 second',error_code=NULL,trace_id=NULL WHERE id=$1`, id, int64(lease/time.Second)); err != nil {
 		return Run{}, err
 	}
 	r, err := scanRun(tx.QueryRow(ctx, runSelect+`WHERE id=$1`, id))
@@ -86,7 +87,9 @@ func (s *Store) Complete(ctx context.Context, run Run, answer, code string, resu
 	if code != "" {
 		errorCode = &code
 	}
-	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode); err != nil {
+	// Use the actual execution context, including recovered jobs with no enqueue context.
+	traceID := recordedTraceID(ctx)
+	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,trace_id=$5,finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode, traceID); err != nil {
 		return err
 	}
 	eventType := "ai"
@@ -103,4 +106,14 @@ func firstResult(results []*ai.Result) *ai.Result {
 		return nil
 	}
 	return results[0]
+}
+
+// Only expose an ID when this process actually records a sampled span.
+func recordedTraceID(ctx context.Context) *string {
+	span := trace.SpanFromContext(ctx)
+	if sc := span.SpanContext(); span.IsRecording() && sc.IsValid() && sc.IsSampled() {
+		id := sc.TraceID().String()
+		return &id
+	}
+	return nil
 }

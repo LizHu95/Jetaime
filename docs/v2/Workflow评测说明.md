@@ -1,6 +1,6 @@
 # Workflow 本地评测
 
-业务 AI Trace 使用 [Langfuse Cloud](../../deploy/langfuse/README.md)。批量评测独立执行，结果保存在本地 JSONL 和汇总 JSON，不需要 Trace 平台或额外数据库。
+业务 AI Trace 使用 [Phoenix](../../deploy/phoenix/README.md)。批量评测独立执行，结果保存在本地 JSONL 和汇总 JSON，不需要 Trace 平台或额外数据库。
 
 ## 运行
 

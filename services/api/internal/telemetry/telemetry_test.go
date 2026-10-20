@@ -35,8 +35,7 @@ func TestOTLPHTTPExportAndDurableParent(t *testing.T) {
 	restoreGlobals(t)
 	received := make(chan *collector.ExportTraceServiceRequest, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		public, secret, ok := r.BasicAuth()
-		if r.URL.Path != "/api/public/otel/v1/traces" || !ok || public != "test-public" || secret != "test-secret" || r.Header.Get("x-langfuse-ingestion-version") != "4" {
+		if r.URL.Path != "/v1/traces" || r.Header.Get("Authorization") != "Bearer test-key" {
 			t.Errorf("wrong OTLP path/auth")
 		}
 		body, err := io.ReadAll(r.Body)
@@ -52,9 +51,8 @@ func TestOTLPHTTPExportAndDurableParent(t *testing.T) {
 	}))
 	defer server.Close()
 	t.Setenv("OTEL_SDK_DISABLED", "false")
-	t.Setenv("LANGFUSE_BASE_URL", server.URL)
-	t.Setenv("LANGFUSE_PUBLIC_KEY", "test-public")
-	t.Setenv("LANGFUSE_SECRET_KEY", "test-secret")
+	t.Setenv("JETAIME_PHOENIX_TRACES_ENDPOINT", server.URL+"/v1/traces")
+	t.Setenv("PHOENIX_API_KEY", "test-key")
 	t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 	shutdown, err := Init(context.Background())
 	if err != nil {
@@ -111,10 +109,9 @@ func TestOTLPHTTPExportAndDurableParent(t *testing.T) {
 	}
 }
 
-func TestDisabledAndInvalidEndpoint(t *testing.T) {
+func TestDisabledAndMissingEndpoint(t *testing.T) {
 	restoreGlobals(t)
-	t.Setenv("LANGFUSE_PUBLIC_KEY", "")
-	t.Setenv("LANGFUSE_SECRET_KEY", "")
+	t.Setenv("JETAIME_PHOENIX_TRACES_ENDPOINT", "")
 	t.Setenv("OTEL_SDK_DISABLED", "false")
 	shutdown, err := Init(context.Background())
 	if err != nil {
@@ -123,15 +120,7 @@ func TestDisabledAndInvalidEndpoint(t *testing.T) {
 	if err := shutdown(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("LANGFUSE_PUBLIC_KEY", "test-public")
-	if _, err := Init(context.Background()); err == nil {
-		t.Fatal("partial Langfuse credentials accepted")
-	}
-	t.Setenv("LANGFUSE_SECRET_KEY", "test-secret")
-	t.Setenv("LANGFUSE_BASE_URL", "http://secret:password@example.com")
-	if _, err := Init(context.Background()); err == nil || strings.Contains(err.Error(), "password") {
-		t.Fatal("invalid endpoint accepted or leaked")
-	}
+	t.Setenv("JETAIME_PHOENIX_TRACES_ENDPOINT", "invalid")
 	t.Setenv("OTEL_SDK_DISABLED", "true")
 	if _, err := Init(context.Background()); err != nil {
 		t.Fatal(err)
@@ -149,7 +138,7 @@ func TestContentAndInheritedAttributes(t *testing.T) {
 	_, span := Start(ctx, "llm.call", "LLM")
 	Content(span, "hidden", "private")
 	t.Setenv("JETAIME_TRACE_CAPTURE_CONTENT", "true")
-	Content(span, "langfuse.observation.input", strings.Repeat("你", 30000))
+	Content(span, "input.value", strings.Repeat("你", 30000))
 	End(span, nil)
 	End(root, nil)
 	attrs := map[string]attribute.Value{}
@@ -159,14 +148,25 @@ func TestContentAndInheritedAttributes(t *testing.T) {
 	if _, ok := attrs["hidden"]; ok {
 		t.Fatal("content exported without opt-in")
 	}
-	value := attrs["langfuse.observation.input"].AsString()
-	if len(value) > 65536 || !utf8.ValidString(value) || !attrs["langfuse.observation.input.truncated"].AsBool() {
+	value := attrs["input.value"].AsString()
+	if len(value) > 65536 || !utf8.ValidString(value) || !attrs["input.value.truncated"].AsBool() {
 		t.Fatal("unbounded or invalid content")
 	}
-	if attrs["langfuse.observation.type"].AsString() != "generation" || attrs["session.id"].AsString() != "group-1" || attrs["user.id"].AsString() != "user-1" || attrs["langfuse.observation.metadata.chat_run_id"].AsString() != "run-1" {
-		t.Fatal("Langfuse type or inherited identity missing")
+	if attrs["openinference.span.kind"].AsString() != "LLM" || attrs["session.id"].AsString() != "group-1" || attrs["user.id"].AsString() != "user-1" || attrs["chat.run_id"].AsString() != "run-1" {
+		t.Fatal("Phoenix type or inherited identity missing")
 	}
 	if trace.SpanContextFromContext(Restore(context.Background(), "invalid", "")).IsValid() {
 		t.Fatal("invalid context accepted")
+	}
+}
+
+func TestInvalidPhoenixEndpoint(t *testing.T) {
+	restoreGlobals(t)
+	t.Setenv("OTEL_SDK_DISABLED", "false")
+	for _, endpoint := range []string{"garbage", "ftp://localhost/v1/traces", "http://user:secret@localhost/v1/traces", "http://localhost/v1/traces?key=secret"} {
+		t.Setenv("JETAIME_PHOENIX_TRACES_ENDPOINT", endpoint)
+		if _, err := Init(context.Background()); err == nil || strings.Contains(err.Error(), "secret") {
+			t.Fatal("invalid endpoint accepted or credentials leaked")
+		}
 	}
 }

@@ -59,7 +59,7 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 		return s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	}
 	ctx, span := telemetry.Start(ctx, "chat.ai", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor))
-	telemetry.Content(span, "langfuse.observation.input", input.Content)
+	telemetry.Content(span, "input.value", input.Content)
 	message, err := s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	var traceErr error
 	if err != nil {

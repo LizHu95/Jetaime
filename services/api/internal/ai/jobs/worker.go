@@ -8,6 +8,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -52,9 +53,9 @@ func (s *Worker) Work(ctx context.Context) {
 }
 func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 	ctx = telemetry.Restore(ctx, run.TraceParent, run.TraceState)
-	ctx, span := telemetry.Start(ctx, "chat.ai.execute", "CHAIN", attribute.String("langfuse.trace.name", "chat.ai"), attribute.String("user.id", run.RequestedBy), attribute.String("chat.run_id", run.ID), attribute.String("session.id", run.GroupID), attribute.String("chat.trigger_message_id", run.TriggerID), attribute.Int("chat.attempt", run.Attempt))
+	ctx, span := telemetry.Start(ctx, "chat.ai.execute", "CHAIN", attribute.String("user.id", run.RequestedBy), attribute.String("chat.run_id", run.ID), attribute.String("session.id", run.GroupID), attribute.String("chat.trigger_message_id", run.TriggerID), attribute.Int("chat.attempt", run.Attempt))
 	if !run.QueuedAt.IsZero() {
-		span.SetAttributes(attribute.Int64("langfuse.observation.metadata.queue_wait_ms", time.Since(run.QueuedAt).Milliseconds()))
+		span.SetAttributes(attribute.Int64("chat.queue_wait_ms", time.Since(run.QueuedAt).Milliseconds()))
 	}
 	var traceErr error
 	defer func() { telemetry.End(span, traceErr) }()
@@ -97,6 +98,9 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 			if errors.Is(e, ai.ErrInvalidDecision) {
 				code = "invalid_model_response"
 			}
+			if detail, ok := tools.Repairable(e); ok && (detail.Code == "invalid_sources" || detail.Code == "time_evidence_missing") {
+				code = detail.Code
+			}
 			if errors.Is(e, ai.ErrContext) {
 				code = "context_too_large"
 			}
@@ -115,7 +119,7 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 	// shutdown. Persist failures with a separate bounded context for recovery.
 	finish, cancelFinish := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancelFinish()
-	telemetry.Content(span, "langfuse.observation.output", answer)
+	telemetry.Content(span, "output.value", answer)
 	if code != "" {
 		traceErr = errors.New(code)
 	}

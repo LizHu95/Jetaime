@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -76,6 +77,21 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 		t.Fatal("queue context not persisted")
 	}
 	f.worker(t).Execute(context.Background(), run)
+	runs, err := f.store.Runs(context.Background(), f.group, f.users[0].ID)
+	if err != nil || len(runs) != 1 || runs[0].TraceID == nil || *runs[0].TraceID != parent.SpanContext().TraceID().String() {
+		t.Fatalf("execution trace not returned: %+v, %v", runs, err)
+	}
+	payload, err := json.Marshal(runs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var returned map[string]any
+	if err := json.Unmarshal(payload, &returned); err != nil || returned["traceId"] != parent.SpanContext().TraceID().String() {
+		t.Fatalf("traceId missing from API JSON: %s, %v", payload, err)
+	}
+	if _, leaked := returned["traceParent"]; leaked {
+		t.Fatal("propagation context exposed")
+	}
 	spans := exporter.GetSpans()
 	var enqueueID trace.SpanID
 	for _, span := range spans {
@@ -104,6 +120,11 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 		t.Fatal(err)
 	}
 	telemetry.End(retry, nil)
+
+	queued, err := f.store.Runs(context.Background(), f.group, f.users[0].ID)
+	if err != nil || queued[0].TraceID != nil {
+		t.Fatalf("retry retained old trace: %+v, %v", queued, err)
+	}
 	retried, err := f.store.Claim(context.Background(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
@@ -114,4 +135,80 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 		t.Fatal("retry parent not replaced")
 	}
 	telemetry.End(attempt, nil)
+	f.worker(t).Execute(context.Background(), retried)
+	runs, err = f.store.Runs(context.Background(), f.group, f.users[0].ID)
+	if err != nil || runs[0].TraceID == nil || *runs[0].TraceID != retry.SpanContext().TraceID().String() {
+		t.Fatalf("retry trace not replaced: %+v, %v", runs, err)
+	}
+}
+
+func TestPostgresFailureTraceID(t *testing.T) {
+	for _, sampled := range []bool{true, false} {
+		t.Run(fmt.Sprint(sampled), func(t *testing.T) {
+			f := setup(t)
+			old := otel.GetTracerProvider()
+			t.Cleanup(func() { otel.SetTracerProvider(old) })
+			sampler := sdktrace.NeverSample()
+			if sampled {
+				sampler = sdktrace.AlwaysSample()
+			}
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSampler(sampler))
+			otel.SetTracerProvider(provider)
+			defer func() { _ = provider.Shutdown(context.Background()) }()
+			if _, err := f.service.Send(context.Background(), f.group, f.users[0].ID, SendInput{Content: "@AI test", MentionsAI: true, ClientID: uuid.NewString()}); err != nil {
+				t.Fatal(err)
+			}
+			job, err := f.store.Claim(context.Background(), time.Minute)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// Simulate a recovered legacy job with no usable enqueue parent.
+			ctx, span := telemetry.Start(context.Background(), "chat.ai.execute", "CHAIN")
+			defer telemetry.End(span, nil)
+			if err := f.store.Complete(ctx, job, "", "model_failed"); err != nil {
+				t.Fatal(err)
+			}
+			runs, err := f.store.Runs(context.Background(), f.group, f.users[1].ID)
+			if err != nil || len(runs) != 1 {
+				t.Fatalf("runs: %+v, %v", runs, err)
+			}
+			if runs[0].Status != "failed" || runs[0].ErrorCode == nil || *runs[0].ErrorCode != "model_failed" {
+				t.Fatalf("failure lost: %+v", runs[0])
+			}
+			if sampled && (runs[0].TraceID == nil || *runs[0].TraceID != span.SpanContext().TraceID().String()) {
+				t.Fatal("actual failure trace not persisted")
+			}
+			if !sampled && runs[0].TraceID != nil {
+				t.Fatal("unsampled trace presented as available")
+			}
+
+			// Failures before worker execution still have the enqueue trace.
+			enqueueCtx, enqueue := telemetry.Start(context.Background(), "send", "CHAIN")
+			message, err := NewService(f.store, false).Send(enqueueCtx, f.group, f.users[0].ID, SendInput{Content: "@AI unavailable", ClientID: uuid.NewString()})
+			telemetry.End(enqueue, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runs, err = f.store.Runs(context.Background(), f.group, f.users[0].ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			found := false
+			for _, run := range runs {
+				if run.TriggerID != message.ID {
+					continue
+				}
+				found = true
+				if sampled && (run.TraceID == nil || *run.TraceID != enqueue.SpanContext().TraceID().String()) {
+					t.Fatal("enqueue failure trace lost")
+				}
+				if !sampled && run.TraceID != nil {
+					t.Fatal("unsampled enqueue trace exposed")
+				}
+			}
+			if !found {
+				t.Fatal("missing enqueue failure")
+			}
+		})
+	}
 }

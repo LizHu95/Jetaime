@@ -24,6 +24,19 @@ if [[ "$action" == start || "$action" == restart || "$action" == migrate || "$ac
   fi
 fi
 
+ensure_phoenix() {
+  case "${JETAIME_PHOENIX_TRACES_ENDPOINT:-}" in
+    http://127.0.0.1:6006/v1/traces|http://localhost:6006/v1/traces)
+      [[ -f "$api_dir/phoenix/install.sh" ]] || { echo '部署包缺少 phoenix/install.sh' >&2; return 1; }
+      if [[ $(id -u) -eq 0 ]]; then
+        bash "$api_dir/phoenix/install.sh" "$action"
+      else
+        sudo -n bash "$api_dir/phoenix/install.sh" "$action"
+      fi
+      ;;
+  esac
+}
+
 is_api() {
   local candidate=$1 executable
   [[ "$candidate" =~ ^[0-9]+$ ]] || return 1
@@ -102,6 +115,7 @@ case "$action" in
   start|restart)
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
     chmod +x "$binary"
+    ensure_phoenix
     if [[ "$action" == restart ]]; then
       echo '执行数据库增量迁移...'
       if ! (cd "$api_dir" && "$binary" -migrate "$@"); then
