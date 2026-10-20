@@ -9,7 +9,16 @@ command -v systemctl >/dev/null
 command -v curl >/dev/null
 command -v flock >/dev/null
 exec 9>/run/lock/jetaime-phoenix-deploy.lock
-flock -w 120 9
+if ! flock -n 9; then
+    echo '[Phoenix] 另一个部署正在运行，等待部署锁（最多 120 秒）...'
+    if ! flock -w 120 9; then
+        echo '[Phoenix] 等待部署锁超时，请检查其他 phoenix/install.sh 进程' >&2
+        exit 1
+    fi
+fi
+echo '[Phoenix] 检查版本与服务配置...'
+trap 'echo "[Phoenix] 部署已取消，未继续重启 API" >&2; exit 130' INT
+trap 'echo "[Phoenix] 部署已终止，未继续重启 API" >&2; exit 143' TERM
 version=$(sed -n 's/^arize-phoenix==//p' "$phoenix_dir/requirements.txt")
 [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo 'Phoenix 版本必须固定' >&2; exit 1; }
 venv=/opt/jetaime-phoenix
@@ -19,6 +28,7 @@ if [[ -x "$venv/bin/python" ]]; then
     installed=$("$venv/bin/python" -c 'from importlib.metadata import version; print(version("arize-phoenix"))' 2>/dev/null || true)
 fi
 if [[ "$installed" != "$version" ]]; then
+    echo "[Phoenix] 安装固定版本 $version（首次安装需要下载依赖）..."
     if ! python3 -c 'import venv, ensurepip' 2>/dev/null; then
         apt-get update
         apt-get install -y python3-venv python3-pip
@@ -49,18 +59,32 @@ if ! cmp -s "$phoenix_dir/phoenix.service" /etc/systemd/system/phoenix.service; 
     changed=true
 fi
 systemctl enable phoenix
+if [[ "$changed" == false && "$action" == start ]] && systemctl is-active --quiet phoenix && curl --max-time 2 -fsS http://127.0.0.1:6006/readyz >/dev/null 2>&1; then
+    echo "Phoenix $version 已运行且健康，复用现有进程"
+    exit 0
+fi
 if [[ "$changed" == true || "$action" == restart ]]; then
+    echo '[Phoenix] 正在重启服务...'
     systemctl restart phoenix
 else
+    echo '[Phoenix] 正在启动服务...'
     systemctl start phoenix
 fi
 # Phoenix applies its own Alembic migrations during startup; readiness checks DB access.
-for ((attempt=0; attempt<90; attempt++)); do
+echo '[Phoenix] 等待初始化和数据库迁移完成（最多 90 秒）...'
+started=$SECONDS
+next_report=5
+while ((SECONDS - started < 90)); do
     if curl --max-time 2 -fsS http://127.0.0.1:6006/readyz >/dev/null 2>&1; then
         echo "Phoenix $version 已就绪（数据库迁移完成）"
         exit 0
     fi
     if ! systemctl is-active --quiet phoenix; then break; fi
+    elapsed=$((SECONDS - started))
+    if ((elapsed >= next_report)); then
+        echo "[Phoenix] 初始化中，已等待 $elapsed 秒；日志：journalctl -u phoenix -n 20"
+        next_report=$((elapsed + 5))
+    fi
     sleep 1
 done
 echo 'Phoenix 未就绪，API 未重启；请运行 journalctl -u phoenix -n 50' >&2

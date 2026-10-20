@@ -29,9 +29,9 @@ ensure_phoenix() {
     http://127.0.0.1:6006/v1/traces|http://localhost:6006/v1/traces)
       [[ -f "$api_dir/phoenix/install.sh" ]] || { echo '部署包缺少 phoenix/install.sh' >&2; return 1; }
       if [[ $(id -u) -eq 0 ]]; then
-        bash "$api_dir/phoenix/install.sh" "$action"
+        bash "$api_dir/phoenix/install.sh" start
       else
-        sudo -n bash "$api_dir/phoenix/install.sh" "$action"
+        sudo -n bash "$api_dir/phoenix/install.sh" start
       fi
       ;;
   esac

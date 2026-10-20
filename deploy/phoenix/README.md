@@ -20,12 +20,12 @@ JETAIME_TRACE_CAPTURE_CONTENT=true
 
 当上报地址为同机 `127.0.0.1:6006` 或 `localhost:6006` 时，`bash api/start.sh restart` 依次：
 
-1. 安装或校验 Phoenix 固定版本，更新 systemd 配置并启动/重启。
+1. 安装或校验 Phoenix 固定版本，更新 systemd 配置；健康且版本/配置未变时复用已有进程，仅在变更或未运行时启动/重启。
 2. 等待 Phoenix `/readyz` 就绪。Phoenix 启动时自动迁移自己的 SQLite。
 3. 执行 API 的 PostgreSQL 增量迁移。
 4. 停止旧 API 并启动新版。
 
-Phoenix 或业务迁移失败时不重启 API。重复部署复用数据和已安装的同版本依赖；升级 Phoenix 版本前自动用 SQLite online backup 保存到 `/var/backups/jetaime-phoenix/`。部署 Phoenix 需要 root，非 root 用户需能执行 `sudo -n`。`start` 同样确保 Phoenix 就绪，但保留原来的 API 只检查、不自动迁移行为；`migrate` 只迁移业务 PostgreSQL。远程 Phoenix 地址不会触发本机安装。
+Phoenix 或业务迁移失败时不重启 API。重复部署复用数据、已安装的同版本依赖和健康进程。等待初始化时每 5 秒显示进度；部署锁等待最多 120 秒，就绪等待最多 90 秒。显式重启 Phoenix 可用 `sudo bash api/phoenix/install.sh restart`；升级 Phoenix 版本前自动用 SQLite online backup 保存到 `/var/backups/jetaime-phoenix/`。部署 Phoenix 需要 root，非 root 用户需能执行 `sudo -n`。`start` 同样确保 Phoenix 就绪，但保留原来的 API 只检查、不自动迁移行为；`migrate` 只迁移业务 PostgreSQL。远程 Phoenix 地址不会触发本机安装。
 
 ## 访问
 
