@@ -16,7 +16,7 @@ action=${1:-restart}
 if (($#)); then shift; fi
 
 # Only actions that launch the binary need runtime configuration.
-if [[ "$action" == start || "$action" == restart || "$action" == migrate ]]; then
+if [[ "$action" == start || "$action" == restart || "$action" == migrate || "$action" == memory-backfill ]]; then
   if [[ -f "$api_dir/.env" ]]; then
     set -a
     source "$api_dir/.env"
@@ -90,11 +90,14 @@ restart_api() {
 }
 
 case "$action" in
-  migrate)
+  migrate|memory-backfill)
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
     chmod +x "$binary"
     cd "$api_dir"
-    exec "$binary" -migrate "$@"
+    if [[ "$action" == migrate ]]; then
+      exec "$binary" -migrate "$@"
+    fi
+    exec "$binary" -memory-backfill -memory-config "${JETAIME_MEMORY_CONFIG:-$api_dir/memory.json}" "$@"
     ;;
   start|restart)
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
@@ -111,6 +114,7 @@ case "$action" in
     if [[ -n "${JETAIME_MODEL_CONFIG:-}" || -f "$api_dir/models.json" ]]; then
       model_args+=(-model-config "${JETAIME_MODEL_CONFIG:-$api_dir/models.json}")
     fi
+    model_args+=(-memory-config "${JETAIME_MEMORY_CONFIG:-$api_dir/memory.json}")
     nohup "$binary" -addr "${API_ADDR:-0.0.0.0:8081}" "${model_args[@]}" "$@" >> "$log_file" 2>&1 < /dev/null &
     pid=$!
     echo "$pid" > "$pid_file"
@@ -134,5 +138,5 @@ case "$action" in
   status)
     if running; then echo "API 运行中，PID：$pid"; else echo "API 未运行"; exit 1; fi
     ;;
-  *) echo "用法：bash start.sh {restart [API 参数...]|start [API 参数...]|migrate|stop|status}（默认 restart）" >&2; exit 2 ;;
+  *) echo "用法：bash start.sh {restart [API 参数...]|start [API 参数...]|migrate|memory-backfill|stop|status}（默认 restart）" >&2; exit 2 ;;
 esac

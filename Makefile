@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: db-migrate db-test
+.PHONY: db-migrate db-test memory-backfill
 .PHONY: web web-build web-check deploy
 
 DEPLOY_DEST ?= jetaime-server:~/
@@ -38,6 +38,7 @@ help:
 	@echo "make web-check  Run Web unit/browser tests and build"
 	@echo "make db-migrate Apply PostgreSQL migrations using JETAIME_DATABASE_URL"
 	@echo "make db-test    Run database integration tests using JETAIME_TEST_DATABASE_URL"
+	@echo "make memory-backfill Resume pending historical memory processing and exit (API also processes automatically)"
 	@echo "make dev        Start HTTP API with authentication (API_ARGS; PostgreSQL required)"
 	@echo "make api-build  Package unified HTTP API into outputs/api"
 	@echo "make feishu     Start Feishu with local environment"
@@ -69,7 +70,10 @@ db-migrate:
 
 db-test:
 	@test -n "$$JETAIME_TEST_DATABASE_URL" || { echo "Set JETAIME_TEST_DATABASE_URL to a test database" >&2; exit 1; }
-	cd $(GO_DIR) && go test -race -count=1 ./internal/database
+	cd $(GO_DIR) && go test -race -count=1 ./internal/database ./internal/memory
+
+memory-backfill:
+	python3 scripts/dev.py api -memory-backfill -memory-config ../../local/memory.json $(API_ARGS)
 
 assistant:
 	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)

@@ -54,7 +54,22 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 使用 Go 标准库 `net/http` 与 `ServeMux`。所有 HTTP 方法、路径和处理器绑定集中在 [internal/httpapi/router.go](services/api/internal/httpapi/router.go) 的 `NewRouter(Handlers)`，打开此文件即可查看完整路由表。启动流程在 [internal/app/server.go](services/api/internal/app/server.go)，模块装配在 [internal/app/modules.go](services/api/internal/app/modules.go)，按配置注入启用的端点组；未注入的组不注册路由。业务模块仅通过 `Endpoints()` 导出处理器并封装认证、参数和本机访问检查，不再自行创建路由或注册路径。
 
+HTTP 接口以实际客户端调用为边界；记忆检索、Worker 调度、模型调用和 Agent 编排通过进程内方法协作。当前路由用途如下：
+
+| 路由组 | 实际调用方 |
+| --- | --- |
+| `/api/auth/register`、`login`、`logout`、`password` | 登录、注册、退出与修改密码页面；用户信息随登录结果返回 |
+| `/api/contacts/*`、`/api/groups` | 好友管理与群聊列表 |
+| `/api/chat/*` | 聊天、阅读进度、来源定位、AI 任务状态/重试与 WebSocket 同步 |
+| `/api/push/*` | 通知设置页面，包括用户主动测试通知的按钮 |
+| `/api/assistant/*`、`/page/assistant/*` | 显式启动的本地调试台与检查脚本，受回环地址和同源限制 |
+| `/test/healthz` | 部署连通性检查 |
+
+原 `GET /api/auth/me` 没有当前调用方，已移除；共享的 `RequireUser` 会话校验继续服务各业务接口。
+
 PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，默认认证模块开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口默认开启，见 [认证接口说明](docs/v2/认证接口.md)；双人群聊、实时同步、阅读进度和共享 AI 接口已实现，见 [双人群聊接口](docs/v2/双人群聊接口.md)。
+
+历史向量化与增量记忆已实现独立 Worker、持久游标/检查点、pgvector 和受群成员权限保护的内部检索方法，尚未接入主 Agent。正式 API 启动时自动运行记忆 Worker，无需 enabled 开关，需有效的记忆模型配置与密钥；首次部署需安装 pgvector 并执行迁移，重启复用已完成数据。配置、恢复保证和接口见 [历史向量化与增量记忆](docs/v2/历史向量化与增量记忆.md)。
 
 - `POST /api/auth/register`、`/api/auth/login`、`/api/auth/logout`：账号认证模块，`make dev` 默认启用。
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。

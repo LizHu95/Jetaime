@@ -1,5 +1,5 @@
 {
-  "default_profile": "local-qwen",
+  "default_profile": "cloud-qwen",
   "models": {
     "local-qwen": {
       "provider": "ollama",
@@ -10,7 +10,7 @@
     "cloud-qwen": {
       "provider": "openai-compatible",
       "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
-      "model": "YOUR_MODEL_OR_DEPLOYMENT_ID",
+      "model": "qwen3.7-plus",
       "api_key_env": "DASHSCOPE_API_KEY",
       "output_mode": "json_object",
       "enable_thinking": false,

@@ -21,7 +21,6 @@ func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 func (h *Handler) Endpoints() *httpapi.AuthHandlers {
 	return &httpapi.AuthHandlers{
 		Register: http.HandlerFunc(h.register), Login: http.HandlerFunc(h.login), Logout: http.HandlerFunc(h.logout),
-		Me:             h.RequireUser(func(w http.ResponseWriter, r *http.Request, user User) { writeJSON(w, 200, user) }),
 		ChangePassword: h.RequireUser(h.changePassword),
 	}
 }

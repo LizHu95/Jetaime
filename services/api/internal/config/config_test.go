@@ -3,11 +3,13 @@ package config
 import (
 	"errors"
 	"flag"
+	"os"
 	"path/filepath"
 	"testing"
 )
 
 func TestModesResolveOnlyRequiredDependencies(t *testing.T) {
+	t.Setenv("JETAIME_MEMORY_CONFIG", writeMemoryConfig(t))
 	for _, tc := range []struct {
 		name                               string
 		args                               []string
@@ -58,4 +60,45 @@ func TestInvalidModeAndConsoleBoundary(t *testing.T) {
 	if _, err := Parse([]string{"-help"}); !errors.Is(err, flag.ErrHelp) {
 		t.Fatal("help exit lost", err)
 	}
+}
+
+func TestMemoryPlaceholderAndBackfillModes(t *testing.T) {
+	if _, err := Parse([]string{"-chat-ai=false", "-memory-config", "../../config/memory.example.json", "-model-config", "missing.json"}); err == nil {
+		t.Fatal("API accepted placeholder memory config")
+	}
+	if _, err := Parse([]string{"-chat-ai=false", "-memory-config", "missing-memory.json"}); err == nil {
+		t.Fatal("API silently skipped memory when config missing")
+	}
+	if _, err := Parse([]string{"-memory-backfill", "-memory-config", "../../config/memory.example.json"}); err == nil {
+		t.Fatal("backfill accepted unconfigured models")
+	}
+	if _, err := Parse([]string{"-migrate", "-memory-backfill"}); err == nil {
+		t.Fatal("migration and backfill mixed")
+	}
+	// Health/debug modes do not require an unused memory configuration.
+	if _, err := Parse([]string{"-auth=false", "-memory-config", "missing.json"}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestMemoryBackfillDoesNotResolveMainAgentModel(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "memory.json")
+	data := `{"embedding":{"base_url":"http://unused","model":"embed-test","revision":"v1","api_key_env":"TEST_KEY","dimension":3,"max_input_bytes":24576},"extraction":{"provider":"ollama","base_url":"http://unused","model":"extract-test","context_tokens":32768}}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Parse([]string{"-memory-backfill", "-memory-config", path, "-model-config", "missing-main-model.json"})
+	if err != nil || !cfg.MemoryBackfill || cfg.Model.Model != "" {
+		t.Fatal("backfill resolved unused main Agent dependencies", err)
+	}
+}
+
+func writeMemoryConfig(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "memory.json")
+	data := `{"embedding":{"base_url":"http://unused","model":"embed-test","revision":"v1","api_key_env":"TEST_KEY","dimension":3,"max_input_bytes":24576},"extraction":{"provider":"ollama","base_url":"http://unused","model":"extract-test","context_tokens":32768}}`
+	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

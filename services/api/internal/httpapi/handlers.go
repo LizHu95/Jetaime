@@ -15,7 +15,6 @@ type AuthHandlers struct {
 	Register       http.Handler
 	Login          http.Handler
 	Logout         http.Handler
-	Me             http.Handler
 	ChangePassword http.Handler
 }
 

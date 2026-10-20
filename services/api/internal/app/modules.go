@@ -16,6 +16,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
+	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/webpush"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -87,6 +88,17 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 	m.handlers.Collaboration = collaboration.NewHandler(collaboration.NewService(collaboration.NewPostgresStore(m.database)), authentication).Endpoints()
 	m.handlers.Chat = chat.NewHandler(chatService, authentication, events).Endpoints()
 	m.handlers.Push = webpush.NewHandler(m.database, authentication, pushConfig).Endpoints()
+	memoryStore := memory.NewStore(m.database, cfg.Memory)
+	memoryService, err := cfg.Memory.Build()
+	if err != nil {
+		return err
+	}
+	memoryService.Store = memoryStore
+	if err = memoryStore.Initialize(ctx); err != nil {
+		return err
+	}
+	m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
+	fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
 
 	m.background = append(m.background, events.Listen)
 	if pushConfig.Enabled {

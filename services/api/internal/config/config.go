@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 )
 
 // Config is fully parsed before the application starts. No flag pointers escape here.
@@ -23,6 +24,8 @@ type Config struct {
 	DebugConsole     DebugConsole
 	Model            llm.Config
 	ModelTimeout     time.Duration
+	Memory           memory.Config
+	MemoryBackfill   bool
 }
 
 // DebugConsole is the local simulation UI, separate from the production main Agent.
@@ -35,11 +38,14 @@ type DebugConsole struct {
 
 func Parse(args []string) (Config, error) {
 	var cfg Config
+	var memoryConfig string
 	commandLine := flag.NewFlagSet("api", flag.ContinueOnError)
 	commandLine.StringVar(&cfg.Address, "addr", "127.0.0.1:8081", "HTTP listen IP and port")
 	commandLine.BoolVar(&cfg.EnableDatabase, "database", false, "check PostgreSQL even when account APIs are disabled")
 	commandLine.BoolVar(&cfg.EnableAccountAPI, "auth", true, "enable account, collaboration, chat and notification APIs")
 	commandLine.BoolVar(&cfg.MigrateOnly, "migrate", false, "apply PostgreSQL migrations and exit")
+	commandLine.StringVar(&memoryConfig, "memory-config", os.Getenv("JETAIME_MEMORY_CONFIG"), "memory JSON configuration; defaults to memory.json or ../../local/memory.json")
+	commandLine.BoolVar(&cfg.MemoryBackfill, "memory-backfill", false, "resume historical memory backfill and exit; never reset progress")
 	commandLine.BoolVar(&cfg.EnableChatAI, "chat-ai", true, "enable the main Agent for authenticated group chat")
 	commandLine.BoolVar(&cfg.DebugConsole.Enabled, "debug-console", false, "enable the local simulation UI at /page/assistant/; loopback only")
 	commandLine.BoolVar(&cfg.DebugConsole.Enabled, "assistant", false, "legacy alias for -debug-console")
@@ -75,7 +81,17 @@ func Parse(args []string) (Config, error) {
 			return cfg, err
 		}
 	}
-	if (cfg.EnableChatAI || cfg.DebugConsole.Enabled) && !cfg.MigrateOnly {
+	if cfg.MigrateOnly && cfg.MemoryBackfill {
+		return cfg, fmt.Errorf("migrate and memory-backfill must run separately")
+	}
+	if !cfg.MigrateOnly && (cfg.EnableAccountAPI || cfg.MemoryBackfill) {
+		var err error
+		cfg.Memory, err = memory.LoadConfig(memoryConfig)
+		if err != nil {
+			return cfg, err
+		}
+	}
+	if (cfg.EnableChatAI || cfg.DebugConsole.Enabled) && !cfg.MigrateOnly && !cfg.MemoryBackfill {
 		var err error
 		cfg.Model, err = modelOptions.Resolve(*contextTokens)
 		if err != nil {

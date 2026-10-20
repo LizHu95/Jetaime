@@ -91,3 +91,11 @@ tail -f runtime/api.log
 ## Trace 上报
 
 通过 OpenTelemetry 直接向 Langfuse Cloud 上报 AI 入队、Worker、Workflow 和模型调用。普通聊天和其他 HTTP 请求不上报。配置见 [Langfuse 接入说明](../langfuse/README.md)，无需部署 Trace 服务或数据库。保留业务迁移 `000005_agent_trace_context.up.sql` 以关联持久化 AI 队列；更新二进制后先执行 `bash start.sh migrate`，再重启服务。
+
+## 历史向量化与增量记忆（可选）
+
+配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 和主 Agent 对话均使用 `qwen3.7-plus`；模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
+
+新增 `000008_memory.up.sql` 需要数据库主机提供 pgvector，并在 `public` schema 安装扩展（迁移账号无权限时由 DBA 预先安装）。更新后先执行 `bash start.sh migrate`。模型配置和密钥有效时，启动自动继续历史回填与增量处理；缺失配置或密钥则启动失败，不静默跳过。仅健康检查、本地 JSON 调试台与迁移模式不运行记忆 Worker。
+
+可前台执行 `bash start.sh memory-backfill` 继续处理尚未完成的消息；重复运行不清空数据库、不重置水位，不重复计算已完成向量。普通部署和重启同样复用持久化结果。模型调用成功但保存前崩溃的步骤可能重试，不承诺外部调用严格一次。完整配置、内部检索方法、权限、恢复机制见 `docs/v2/历史向量化与增量记忆.md`。

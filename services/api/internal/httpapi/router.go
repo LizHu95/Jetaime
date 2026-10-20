@@ -19,7 +19,6 @@ func NewRouter(handlers Handlers) http.Handler {
 		mux.Handle("POST /api/auth/register", h.Register)
 		mux.Handle("POST /api/auth/login", h.Login)
 		mux.Handle("POST /api/auth/logout", h.Logout)
-		mux.Handle("GET /api/auth/me", h.Me)
 		mux.Handle("POST /api/auth/password", h.ChangePassword)
 	}
 	if h := handlers.Collaboration; h != nil {
