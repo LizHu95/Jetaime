@@ -165,3 +165,19 @@ func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
 	message, err := h.service.GetMessage(r.Context(), r.PathValue("group"), u.ID, r.PathValue("message"))
 	respond(w, message, err)
 }
+
+func (h *Handler) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		ProactiveEnabled *bool `json:"proactiveEnabled"`
+	}
+	if !decode(w, r, &input) {
+		return
+	}
+	if input.ProactiveEnabled == nil {
+		fail(w, 400, "invalid_input")
+		return
+	}
+	u := auth.UserFromContext(r.Context())
+	state, err := h.service.UpdateSettings(r.Context(), r.PathValue("group"), u.ID, *input.ProactiveEnabled)
+	respond(w, state, err)
+}

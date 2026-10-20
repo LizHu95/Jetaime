@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { NavBar } from '@/components/nav-bar'
 import { useAuth } from '@/features/auth/auth-provider'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
+import type { ChatState } from './types'
 
 type Reminder = {
   id: string; userId: string; userName: string; title: string
@@ -20,12 +21,26 @@ export function ReminderSettings() {
   const [filter, setFilter] = useState<Reminder['status']>('pending')
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
+  const [savingSettings, setSavingSettings] = useState(false)
+  const stateKey = ['chat', session?.user.id, groupId, 'state']
+  const state = useQuery({ queryKey: stateKey, enabled: !!groupId && !!session, queryFn: ({ signal }) => apiRequest<ChatState>(`/chat/groups/${groupId}`, { method: 'GET', token: session?.token, signal }), refetchOnWindowFocus: true, refetchInterval: 5000 })
   const key = ['chat', session?.user.id, groupId, 'reminders']
   const base = `/chat/groups/${groupId}/reminders`
   const reminders = useQuery({ queryKey: key, enabled: !!groupId && !!session, queryFn: ({ signal }) => apiRequest<Reminder[]>(base, { method: 'GET', token: session?.token, signal }) })
   useEffect(() => {
-    if (reminders.error instanceof ApiError && reminders.error.code === 'unauthorized') setSession(null)
-  }, [reminders.error, setSession])
+    if ((state.error instanceof ApiError && state.error.code === 'unauthorized') || (reminders.error instanceof ApiError && reminders.error.code === 'unauthorized')) setSession(null)
+  }, [state.error, reminders.error, setSession])
+  async function toggleProactive() {
+    if (!state.data || savingSettings) return
+    setSavingSettings(true); setError('')
+    try {
+      const updated = await apiRequest<ChatState>(`/chat/groups/${groupId}/settings`, { token: session?.token, body: { proactiveEnabled: !state.data.proactiveEnabled } })
+      client.setQueryData(stateKey, updated)
+    } catch (reason) {
+      if (reason instanceof ApiError && reason.code === 'unauthorized') setSession(null)
+      else setError(errorMessage(reason))
+    } finally { setSavingSettings(false) }
+  }
   async function cancel(id: string) {
     setBusy(id); setError('')
     try {
@@ -38,7 +53,12 @@ export function ReminderSettings() {
   }
   if (!session) return <Navigate to="/auth/login/" replace state={{ returnTo: `/chat/${groupId}/settings/` }} />
   return <section className="reminder-settings" aria-labelledby="settings-title">
-        <NavBar title="群聊配置" titleId="settings-title" subtitle="在这里查看本群的一次性提醒。" backTo={`/chat/${groupId}/`} backLabel="返回聊天" />
+        <NavBar title="群聊配置" titleId="settings-title" subtitle="管理 AI 主动参与和本群的一次性提醒。" backTo={`/chat/${groupId}/`} backLabel="返回聊天" />
+        <div className="reminder-card proactive-setting">
+          <div className="reminder-card-heading"><h3>AI 主动参与</h3><Button variant="outline" type="button" role="switch" aria-label="AI 主动参与" aria-checked={state.data?.proactiveEnabled ?? false} disabled={!state.data || savingSettings || !state.data.aiEnabled} onClick={() => { void toggleProactive() }}>{savingSettings ? '保存中…' : state.data?.proactiveEnabled ? '已开启' : '已关闭'}</Button></div>
+          <p>开启后，大家停止发言 5 秒，AI 会结合最近 30 条对话，在需要帮助时参与。@AI 始终可用。</p>
+          {state.isError && <p role="alert">{errorMessage(state.error)} <button onClick={() => { void state.refetch() }}>重试</button></p>}
+        </div>
         <div className="reminder-intro"><span className="reminder-icon"><Bell size={22} /></span><div><h3>提醒列表</h3><p>到点后，AI 会在群里提醒一次。时间均为北京时间。</p></div></div>
         <div className="reminder-filters" role="group" aria-label="提醒状态">{(Object.keys(statuses) as Reminder['status'][]).map(status => <button key={status} aria-pressed={filter === status} onClick={() => setFilter(status)}>{statuses[status]}{reminders.data && <small>{reminders.data.filter(item => item.status === status).length}</small>}</button>)}</div>
         {error && <p role="alert" className="account-error">{error}</p>}

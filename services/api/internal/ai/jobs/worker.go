@@ -81,9 +81,10 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 			// Drain/retry previously persisted jobs through the current main entry.
 			mode = "auto"
 		}
-		output, e := s.executor.Execute(call, ai.Invocation{AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
+		output, e := s.executor.Execute(call, ai.Invocation{TriggerMode: run.TriggerMode, AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
 			return s.store.ExtractionContext(ctx, run, s.tokens)
 		}})
+		run.Recognition = output.Recognition
 		if e != nil {
 			log.Printf("chat agent run=%s kind=%s failed: %v", run.ID, run.Kind, e)
 			code = "agent_failed"
@@ -104,6 +105,8 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 			if errors.Is(e, ai.ErrContext) {
 				code = "context_too_large"
 			}
+		} else if output.Silent && run.TriggerMode == "proactive" {
+			// Successful silence is persisted without creating a chat message.
 		} else {
 			value, text, e := ai.ResultFromRun(output)
 			if e != nil {

@@ -70,3 +70,33 @@ test('reminder settings has a useful empty state', async ({ page }) => {
   await page.getByRole('link', { name: '回到聊天' }).click()
   await expect(page).toHaveURL(/\/chat\/g1\/$/)
 })
+
+test('proactive switch persists across reloads and preserves state on failure', async ({ page }) => {
+  const me = { id: 'alice', username: 'Alice', nickname: '小林' }
+  await page.addInitScript(session => localStorage.setItem('jetaime.auth.session', JSON.stringify(session)), { user: me, token: 'x'.repeat(43), tokenType: 'Bearer', expiresAt: new Date(Date.now() + 3600_000).toISOString() })
+  await page.routeWebSocket('**/api/chat/events', socket => { socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' }))) })
+  let enabled = false
+  let failSave = false
+  const state = () => ({ id: 'g1', members: [me], assistantName: 'AI', aiEnabled: true, proactiveEnabled: enabled, lastSeq: 0, readSeq: 0 })
+  await page.route('**/api/**', route => {
+    const path = new URL(route.request().url()).pathname
+    if (path.endsWith('/settings')) {
+      if (failSave) return route.fulfill({ status: 500, json: { error: { code: 'internal_error' } } })
+      enabled = route.request().postDataJSON().proactiveEnabled
+      return route.fulfill({ json: state() })
+    }
+    if (path === '/api/groups' || path.endsWith('/reminders')) return route.fulfill({ json: [] })
+    return route.fulfill({ json: state() })
+  })
+  await page.goto('/page/chat/g1/settings/')
+  const toggle = page.getByRole('switch', { name: 'AI 主动参与' })
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await page.reload()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  failSave = true
+  await toggle.click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+})

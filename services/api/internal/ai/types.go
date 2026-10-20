@@ -12,11 +12,14 @@ type User struct {
 	Nickname string `json:"nickname"`
 }
 type Message struct {
-	ID       string    `json:"id"`
-	GroupID  string    `json:"groupId"`
-	SenderID string    `json:"senderId"`
-	SentAt   time.Time `json:"sentAt"`
-	Text     string    `json:"text"`
+	SenderType string    `json:"senderType,omitempty"`
+	SenderName string    `json:"senderName,omitempty"`
+	ReplyToID  *string   `json:"replyToId,omitempty"`
+	ID         string    `json:"id"`
+	GroupID    string    `json:"groupId"`
+	SenderID   string    `json:"senderId"`
+	SentAt     time.Time `json:"sentAt"`
+	Text       string    `json:"text"`
 }
 type Task struct {
 	ID               string     `json:"id"`
@@ -49,6 +52,8 @@ type Context struct {
 
 // RequestContext is execution metadata, separate from untrusted chat content.
 type RequestContext struct {
+	TriggerMode       string    `json:"triggerMode,omitempty"`
+	AllowWrites       bool      `json:"-"`
 	JobID             string    `json:"-"`
 	JobAttempt        int       `json:"-"`
 	MessageID         string    `json:"messageId"`
@@ -94,6 +99,8 @@ type Step struct {
 	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
+	Silent        bool           `json:"silent,omitempty"`
+	Recognition   *Recognition   `json:"recognition,omitempty"`
 	AgentID       string         `json:"agentId,omitempty"`
 	InvocationID  string         `json:"invocationId,omitempty"`
 	Basis         string         `json:"basis,omitempty"`

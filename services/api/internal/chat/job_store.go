@@ -19,7 +19,8 @@ func (s *Store) Claim(ctx context.Context, lease time.Duration) (Run, error) {
 	defer rollback(tx)
 	var group string
 	err = tx.QueryRow(ctx, `SELECT g.id::text FROM chat_groups g WHERE g.status='active'
- AND EXISTS(SELECT 1 FROM agent_runs r WHERE r.group_id=g.id AND (r.status='queued' OR (r.status='running' AND r.lease_expires_at<=now())))
+ AND (EXISTS(SELECT 1 FROM agent_runs r WHERE r.group_id=g.id AND (r.status='queued' OR (r.status='running' AND r.lease_expires_at<=now())))
+ OR (g.proactive_enabled AND g.proactive_due_at<=clock_timestamp()))
  AND NOT EXISTS(SELECT 1 FROM agent_runs r WHERE r.group_id=g.id AND r.status='running' AND r.lease_expires_at>now())
  ORDER BY (SELECT min(context_end_seq) FROM agent_runs r WHERE r.group_id=g.id AND r.status IN ('queued','running'))
  FOR UPDATE OF g SKIP LOCKED LIMIT 1`).Scan(&group)
@@ -27,6 +28,9 @@ func (s *Store) Claim(ctx context.Context, lease time.Duration) (Run, error) {
 		return Run{}, err
 	}
 	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status='queued',lease_expires_at=NULL WHERE group_id=$1 AND status='running' AND lease_expires_at<=now()`, group); err != nil {
+		return Run{}, err
+	}
+	if err = enqueueProactive(ctx, tx, group); err != nil {
 		return Run{}, err
 	}
 	var id string
@@ -65,10 +69,24 @@ func (s *Store) Complete(ctx context.Context, run Run, answer, code string, resu
 	if !valid {
 		return ErrConflict
 	}
+	if run.TriggerMode == "proactive" {
+		var current bool
+		if err = tx.QueryRow(ctx, `SELECT proactive_enabled AND NOT EXISTS(SELECT 1 FROM messages WHERE group_id=$1 AND sender_type='user' AND seq>$2) FROM chat_groups WHERE id=$1`, run.GroupID, run.ContextEnd).Scan(&current); err != nil {
+			return err
+		}
+		if !current {
+			if err = cancelProactive(ctx, tx, run.GroupID, "superseded"); err != nil {
+				return err
+			}
+			return tx.Commit(ctx)
+		}
+	}
 	var responseID *string
 	status := "failed"
 	if code == "" {
 		status = "succeeded"
+	}
+	if code == "" && !(run.TriggerMode == "proactive" && answer == "") {
 		id := uuid.NewString()
 		responseID = &id
 		var seq int64
@@ -89,7 +107,7 @@ func (s *Store) Complete(ctx context.Context, run Run, answer, code string, resu
 	}
 	// Use the actual execution context, including recovered jobs with no enqueue context.
 	traceID := recordedTraceID(ctx)
-	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,trace_id=$5,finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode, traceID); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,trace_id=$5,recognition=$6,finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode, traceID, run.Recognition); err != nil {
 		return err
 	}
 	eventType := "ai"

@@ -28,6 +28,9 @@ func NewAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) {
 func (a *Agent) ID() string { return "main" }
 
 func (a *Agent) Invoke(ctx context.Context, input ai.Invocation) (ai.Run, error) {
+	if input.TriggerMode == "proactive" {
+		return a.invokeProactive(ctx, input)
+	}
 	if input.Mode == "" || input.Mode == "auto" || input.Mode == "main" {
 		return a.ExecuteMain(ctx, input.Context, input.Question, input.LoadExtraction, input.ContextEndSeq)
 	}

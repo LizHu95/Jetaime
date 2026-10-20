@@ -50,7 +50,7 @@ AuthSession 每次认证均检查 expires_at 与 revoked_at；过期不依赖清
 2. 锁定 chat_groups 行（FOR UPDATE），校验 active 和本人为成员。
 3. 按 sender_user_id + client_message_id 查重：相同会话、内容、回复目标和 mentions_ai 返回已有结果；相同 ID 不同请求返回冲突，不产生新消息或调用。
 4. 更新 last_message_seq = last_message_seq + 1，RETURNING 得到 seq；插入真人消息并更新 last_message_at。
-5. mentions_ai 为 true 时，在同一事务创建 queued AgentRun，并把 context_end_seq 固定为该消息 seq。
+5. mentions_ai 为 true 时，在同一事务创建 queued AgentRun，并把 context_end_seq 固定为该消息 seq。主动参与另由群配置与数据库 5 秒等待时间触发，详见[群级主动 Agent](双人群聊接口.md#群级主动-agent)。
 6. 提交后再通知客户端/唤醒工作进程。轮询或游标补拉负责恢复通知丢失，消息以数据库提交结果为准。
 
 客户端通过 @AI 按钮写入结构化 mentions_ai 字段；不只通过字符串匹配识别。模型调用不占用上述事务或数据库锁。

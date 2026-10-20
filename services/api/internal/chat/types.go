@@ -40,13 +40,14 @@ type SendInput struct {
 	MentionsAI bool   `json:"mentionsAI"`
 }
 type State struct {
-	ID            string      `json:"id"`
-	Members       []auth.User `json:"members"`
-	LastSeq       int64       `json:"lastSeq"`
-	ReadSeq       int64       `json:"readSeq"`
-	Unread        int64       `json:"unreadCount"`
-	AssistantName string      `json:"assistantName"`
-	AIEnabled     bool        `json:"aiEnabled"`
+	ProactiveEnabled bool        `json:"proactiveEnabled"`
+	ID               string      `json:"id"`
+	Members          []auth.User `json:"members"`
+	LastSeq          int64       `json:"lastSeq"`
+	ReadSeq          int64       `json:"readSeq"`
+	Unread           int64       `json:"unreadCount"`
+	AssistantName    string      `json:"assistantName"`
+	AIEnabled        bool        `json:"aiEnabled"`
 }
 type Page struct {
 	Messages []Message `json:"messages"`

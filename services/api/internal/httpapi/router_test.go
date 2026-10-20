@@ -40,6 +40,7 @@ func TestCentralRouteBindingsAndPathValues(t *testing.T) {
 		{"GET", "/api/chat/groups/group-id/runs", "runs"},
 		{"POST", "/api/chat/groups/group-id/runs/run-id/retry", "retry"},
 		{"POST", "/api/chat/groups/group-id/close", "close"},
+		{"POST", "/api/chat/groups/group-id/settings", "settings"},
 	} {
 		out := httptest.NewRecorder()
 		router.ServeHTTP(out, httptest.NewRequest(tc.method, tc.path, nil))
@@ -70,6 +71,10 @@ func TestCentralRouteBindingsAndPathValues(t *testing.T) {
 
 // routeChat exercises route dispatch and middleware without database dependencies.
 type routeChat struct{}
+
+func (*routeChat) UpdateSettings(w http.ResponseWriter, r *http.Request) {
+	routeEndpoint(w, r, "settings")
+}
 
 func (*routeChat) Authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

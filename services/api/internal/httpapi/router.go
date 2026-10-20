@@ -29,6 +29,7 @@ func NewRouter(handlers Handlers) http.Handler {
 		mux.HandleFunc("GET /api/groups", h.Authenticate(h.ListGroups))
 	}
 	if h := handlers.Chat; h != nil {
+		mux.HandleFunc("POST /api/chat/groups/{group}/settings", h.Authenticate(h.UpdateSettings))
 		mux.HandleFunc("GET /api/chat/groups/{group}", h.Authenticate(h.GetState))
 		mux.HandleFunc("GET /api/chat/groups/{group}/messages", h.Authenticate(h.ListMessages))
 		mux.HandleFunc("GET /api/chat/groups/{group}/messages/{message}", h.Authenticate(h.GetMessage))

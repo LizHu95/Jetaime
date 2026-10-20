@@ -32,6 +32,9 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 	}
 	input.Users = append(input.Users, ai.User{ID: r.AssistantID, Nickname: "AI · " + state.AssistantName})
 	recentLimit := aicontext.DefaultRecentMessages + 1 // Trigger plus bounded background for every question.
+	if r.TriggerMode == "proactive" {
+		recentLimit = 30
+	}
 
 	order := ` ORDER BY x.seq`
 	if windowed {
@@ -66,7 +69,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 		if m.SenderID != nil {
 			sender = *m.SenderID
 		}
-		input.Messages = append(input.Messages, ai.Message{ID: m.ID, GroupID: m.GroupID, SenderID: sender, SentAt: m.CreatedAt.In(time.FixedZone("Asia/Shanghai", 8*3600)), Text: m.Content})
+		input.Messages = append(input.Messages, ai.Message{SenderType: m.SenderType, SenderName: m.SenderName, ReplyToID: m.ReplyToID, ID: m.ID, GroupID: m.GroupID, SenderID: sender, SentAt: m.CreatedAt.In(time.FixedZone("Asia/Shanghai", 8*3600)), Text: m.Content})
 		if m.ID == r.TriggerID {
 			question = questionText(m.Content)
 			trigger = input.Messages[len(input.Messages)-1]
@@ -91,6 +94,16 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 			input.Messages[i], input.Messages[j] = input.Messages[j], input.Messages[i]
 		}
 		input.HistoryScope = &ai.HistoryScope{Policy: "default-context-v1", EarlierMessagesOmitted: earlierOmitted}
+		if r.TriggerMode == "proactive" {
+			input.HistoryScope.Policy = "proactive-recent-30-v1"
+			input.Request.JobID = r.ID
+			input.Request.JobAttempt = r.Attempt
+			input.Request.TriggerMode = "proactive"
+			// Recognition receives the exact window, without the default 12-message injector.
+			// Oversized windows fail closed at the model budget check, rather than silently dropping evidence.
+			return input, question, ai.ValidateContext(input)
+		}
+
 		request := aicontext.ContextRequest{Snapshot: input, TriggerID: r.TriggerID, Question: question, Tokens: budget, Now: input.Request.CurrentTime, MaxSeq: r.ContextEnd}
 		if replyTo != nil {
 			reference, e := scanMessage(s.pool.QueryRow(ctx, messageSelect+`JOIN chat_groups g ON g.id=x.group_id WHERE x.group_id=$1 AND x.id=$2 AND x.seq<=$3 AND g.status='active'`, r.GroupID, *replyTo, r.ContextEnd))

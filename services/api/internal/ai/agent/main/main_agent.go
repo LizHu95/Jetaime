@@ -148,6 +148,26 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			return run, e
 		}
 		if result.Terminal {
+			// Proactive read results are evidence, not permission to speak. Give
+			// the main model a final chance to abstain after checking them.
+			if input.Request.TriggerMode == "proactive" && call.Name != "respond" && call.Name != "remain_silent" && readOnlyTool(a.Tools, call.Name) {
+				known := map[string]bool{}
+				for _, message := range input.Messages {
+					known[message.ID] = true
+				}
+				for _, source := range result.Completion.Sources {
+					if !known[source.ID] {
+						input.Messages = append(input.Messages, source)
+						known[source.ID] = true
+					}
+				}
+				if result.Completion.HistoryScope != nil {
+					input.HistoryScope = result.Completion.HistoryScope
+				}
+				scope.Context = input
+				observations = append(observations, map[string]any{"name": call.Name, "result": result.Data})
+				continue
+			}
 			applyToolResult(&run, result)
 			run.Route = &ai.RouteDecision{Kind: run.Kind, Version: PromptVersion}
 			return run, nil
@@ -157,9 +177,19 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	return run, fmt.Errorf("%w: main Agent exceeded %d tool steps", ai.ErrInvalidDecision, MaxToolSteps)
 }
 
+func readOnlyTool(registry *tools.Registry, name string) bool {
+	for _, definition := range registry.Definitions() {
+		if definition.Name == name {
+			return definition.Annotations.ReadOnly
+		}
+	}
+	return false
+}
+
 // The Agent owns its execution record; tools supply validated business data and
 // an optional presentation. Internal model diagnostics are appended separately.
 func applyToolResult(run *ai.Run, result tools.Result) {
+	run.Silent = result.Completion.Silent
 	record := result.Execution
 	if record.Kind != "" {
 		run.Kind = record.Kind

@@ -37,6 +37,7 @@ type CollaborationHandler interface {
 }
 
 type ChatHandler interface {
+	UpdateSettings(http.ResponseWriter, *http.Request)
 	Authenticated
 	GetState(http.ResponseWriter, *http.Request)
 	ListMessages(http.ResponseWriter, *http.Request)

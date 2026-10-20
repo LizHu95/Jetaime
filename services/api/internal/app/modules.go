@@ -17,6 +17,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
@@ -89,6 +90,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		// Complete production chat capability list, including its domain dependencies.
 		registry, e := tools.New(
 			respond.New(),
+			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
 			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
 			remindertool.New(m.reminderService, chat.ReminderOperation),
@@ -110,6 +112,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		// The local console has no production write capabilities or database history.
 		registry, e := tools.New(
 			respond.New(),
+			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, nil),
 		)
 		if e != nil {

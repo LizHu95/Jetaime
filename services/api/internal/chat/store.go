@@ -46,10 +46,10 @@ func lockGroup(ctx context.Context, tx pgx.Tx, group, actor string) error {
 }
 func (s *Store) State(ctx context.Context, group, actor string) (State, error) {
 	var state State
-	err := s.pool.QueryRow(ctx, `SELECT g.id::text,g.last_message_seq,m.last_read_seq,a.name,
+	err := s.pool.QueryRow(ctx, `SELECT g.id::text,g.last_message_seq,m.last_read_seq,a.name,g.proactive_enabled,
  (SELECT count(*) FROM messages x WHERE x.group_id=g.id AND x.seq>m.last_read_seq AND x.sender_user_id IS DISTINCT FROM $2::uuid)
  FROM chat_groups g JOIN group_members m ON m.group_id=g.id AND m.user_id=$2
- JOIN group_assistants a ON a.group_id=g.id WHERE g.id=$1 AND g.status='active'`, group, actor).Scan(&state.ID, &state.LastSeq, &state.ReadSeq, &state.AssistantName, &state.Unread)
+ JOIN group_assistants a ON a.group_id=g.id WHERE g.id=$1 AND g.status='active'`, group, actor).Scan(&state.ID, &state.LastSeq, &state.ReadSeq, &state.AssistantName, &state.ProactiveEnabled, &state.Unread)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return state, ErrNotFound
 	}
@@ -185,6 +185,14 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 			return Message{}, err
 		}
 	}
+	// Human activity invalidates in-flight proactive work under the same group lock.
+	if err = cancelProactive(ctx, tx, group, "superseded"); err != nil {
+		return Message{}, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE chat_groups SET proactive_message_id=$2,
+ proactive_due_at=CASE WHEN proactive_enabled AND $3 AND NOT $4 THEN clock_timestamp()+interval '5 seconds' ELSE NULL END WHERE id=$1`, group, id, aiEnabled, input.MentionsAI || followup); err != nil {
+		return Message{}, err
+	}
 	message, err := scanMessage(tx.QueryRow(ctx, messageSelect+`WHERE x.id=$1`, id))
 	if err != nil {
 		return Message{}, err
@@ -223,11 +231,11 @@ func (s *Store) Close(ctx context.Context, group, actor string) error {
 	return err
 }
 
-const runSelect = `SELECT id::text,group_id::text,assistant_id::text,trigger_message_id::text,requested_by::text,context_end_seq,status,attempt_count,error_code,response_message_id::text,agent_kind,trace_parent,trace_state,queued_at,trace_id FROM agent_runs `
+const runSelect = `SELECT id::text,group_id::text,assistant_id::text,trigger_message_id::text,requested_by::text,context_end_seq,status,attempt_count,error_code,response_message_id::text,agent_kind,trace_parent,trace_state,queued_at,trace_id,trigger_mode,recognition FROM agent_runs `
 
 func scanRun(row pgx.Row) (Run, error) {
 	var r Run
-	err := row.Scan(&r.ID, &r.GroupID, &r.AssistantID, &r.TriggerID, &r.RequestedBy, &r.ContextEnd, &r.Status, &r.Attempt, &r.ErrorCode, &r.ResponseID, &r.Kind, &r.TraceParent, &r.TraceState, &r.QueuedAt, &r.TraceID)
+	err := row.Scan(&r.ID, &r.GroupID, &r.AssistantID, &r.TriggerID, &r.RequestedBy, &r.ContextEnd, &r.Status, &r.Attempt, &r.ErrorCode, &r.ResponseID, &r.Kind, &r.TraceParent, &r.TraceState, &r.QueuedAt, &r.TraceID, &r.TriggerMode, &r.Recognition)
 	return r, err
 }
 func (s *Store) Runs(ctx context.Context, group, actor string) ([]Run, error) {

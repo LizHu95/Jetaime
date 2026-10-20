@@ -48,6 +48,7 @@ type Scope struct {
 // Completion is an optional presentation of a successful business result.
 // Tools never construct the Agent's execution Run.
 type Completion struct {
+	Silent       bool
 	Answer       *ai.Answer
 	Suggestions  []ai.Suggestion
 	Sources      []ai.Message
@@ -109,6 +110,9 @@ func (r *Registry) Execute(ctx context.Context, s Scope, call Call) (Result, err
 	t, ok := r.entries[call.Name]
 	if !ok {
 		return Result{}, InvalidArguments("unknown_tool", "选择已注册的工具名称。")
+	}
+	if request := s.Context.Request; request != nil && request.TriggerMode == "proactive" && !request.AllowWrites && !t.Definition().Annotations.ReadOnly {
+		return Result{}, InvalidArguments("explicit_request_required", "主动介入不能自行执行写操作；需要当前用户明确向 AI 提出操作请求。")
 	}
 	return t.Invoke(ctx, s, call.Arguments)
 }
