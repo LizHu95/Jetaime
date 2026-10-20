@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -86,7 +86,7 @@ func testModelAgentPush(t *testing.T, config llm.Config, outputEnv string) {
 	rt := realtime.New(ctx, f.store, f.auth)
 	go rt.Listen(ctx)
 	go f.worker(t).Work(ctx)
-	router := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt).Endpoints()})
+	router := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt)})
 	server := httptest.NewServer(router)
 	defer server.Close()
 	connect := func(token string) *websocket.Conn {
@@ -199,7 +199,7 @@ func testModelAgentPush(t *testing.T, config llm.Config, outputEnv string) {
 	for _, conn := range []*websocket.Conn{a, b} {
 		awaitMessage(conn)
 	}
-	extraction := send(0, "@AI /extract 请提取待办")
+	extraction := send(0, "@AI 请提取待办")
 	for _, conn := range []*websocket.Conn{a, b} {
 		awaitMessage(conn)
 	}

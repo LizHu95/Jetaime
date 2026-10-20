@@ -9,7 +9,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 )
 
 // Explicit opt-in: ordinary tests never consume real inference quota.
@@ -40,34 +40,31 @@ func TestRealModelRouterIntents(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent, err := NewAgent(model, config.Model, config.ContextTokens)
+	agent, err := newTestAgent(model, config.Model, config.ContextTokens)
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, _, _ := setup(t, `{}`)
-	input, _ := store.Context("daily", "lin")
+	snapshot := testContext()
 	for _, tc := range []struct{ question, kind string }{
 		{"邻居鞋子放在门口很臭，有什么除味方法？", "main"},
 		{"帮我想想周末怎么玩", "main"},
 		{"我们之前说周末几点出发？", "main"},
 		{"刚才是谁说预算200元？", "main"},
-		{"从群聊里整理一下还没完成的待办", "extract"},
+		{"从群聊里整理一下还没完成的待办", "main"},
 		{"帮我设置明天八点的提醒", "main"},
 	} {
 		t.Run(tc.kind+"/"+tc.question, func(t *testing.T) {
-			decision, err := agent.ExecuteMain(context.Background(), input, tc.question, func(context.Context) (ai.Context, error) { return input, nil })
+			input, err := aicontext.ForQuestion(context.Background(), snapshot, tc.question, config.ContextTokens)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, err := agent.Invoke(context.Background(), ai.Invocation{Context: input, Question: tc.question, LoadExtraction: func(context.Context) (ai.Context, error) { return snapshot, nil }})
 			if err != nil || decision.Kind != tc.kind {
 				t.Fatalf("route=%s expected=%s error=%v", decision.Kind, tc.kind, err)
 			}
+			if tc.question == "邻居鞋子放在门口很臭，有什么除味方法？" && (decision.Answer == nil || decision.Answer.Status != "answered") {
+				t.Fatal("general advice did not produce a validated answer")
+			}
 		})
 	}
-	t.Run("help-answer", func(t *testing.T) {
-		question := "邻居鞋子放在门口很臭，有什么除味方法？"
-		run, err := agent.ExecuteMain(context.Background(), input, question, func(context.Context) (ai.Context, error) {
-			return aicontext.RecentHelpContext(input, question, config.ContextTokens, false)
-		})
-		if err != nil || run.Kind != "main" || run.Answer == nil || run.Answer.Status != "answered" {
-			t.Fatal("general advice did not produce a validated answer", err)
-		}
-	})
 }

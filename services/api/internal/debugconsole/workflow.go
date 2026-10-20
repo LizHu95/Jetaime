@@ -9,12 +9,14 @@ import (
 	"sync"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 )
 
 type Workflow struct {
 	Store        *Store
 	Executor     ai.Executor
 	DefaultModel string
+	Tokens       int
 	LogPath      string
 	opMu         sync.Mutex
 	mu           sync.RWMutex
@@ -22,11 +24,15 @@ type Workflow struct {
 	dismissed    map[string]bool
 }
 
-func NewWorkflow(store *Store, executor ai.Executor, name, logPath string) (*Workflow, error) {
+func NewWorkflow(store *Store, executor ai.Executor, name, logPath string, budgets ...int) (*Workflow, error) {
 	if store == nil || executor == nil {
 		return nil, fmt.Errorf("console requires store and executor")
 	}
-	return &Workflow{Store: store, Executor: executor, DefaultModel: name, LogPath: logPath, runs: []ai.Run{}, dismissed: map[string]bool{}}, nil
+	tokens := 8192
+	if len(budgets) > 0 {
+		tokens = budgets[0]
+	}
+	return &Workflow{Tokens: tokens, Store: store, Executor: executor, DefaultModel: name, LogPath: logPath, runs: []ai.Run{}, dismissed: map[string]bool{}}, nil
 }
 func (w *Workflow) Runs(group, actor string) ([]ai.Run, error) {
 	if _, err := w.Store.Context(group, actor); err != nil {
@@ -83,7 +89,14 @@ func (w *Workflow) Execute(ctx context.Context, group, actor, kind, question, mo
 	if model != "" && model != w.DefaultModel {
 		return run, fmt.Errorf("model is fixed at startup; restart to switch")
 	}
-	run, err = w.Executor.Execute(ctx, ai.Invocation{AgentID: "main", Context: input, Mode: kind, Question: question, LoadExtraction: func(context.Context) (ai.Context, error) { return input, nil }})
+	snapshot := input
+	if kind == "" || kind == "main" || kind == "auto" {
+		input, err = aicontext.ForQuestion(ctx, input, question, w.Tokens)
+		if err != nil {
+			return run, err
+		}
+	}
+	run, err = w.Executor.Execute(ctx, ai.Invocation{AgentID: "main", Context: input, Mode: kind, Question: question, LoadExtraction: func(context.Context) (ai.Context, error) { return snapshot, nil }})
 	if run.ID != "" {
 		w.record(&run)
 	}

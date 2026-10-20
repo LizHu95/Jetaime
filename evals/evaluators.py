@@ -1,8 +1,7 @@
-"""Phoenix-compatible evaluators. Protocol success is separate from semantics."""
+"""Local workflow evaluators. Protocol success is separate from semantics."""
 import json
 
 import httpx
-from opentelemetry.trace import Status, StatusCode
 
 JUDGE_VERSION = "collaboration-semantic-v1"
 REFERENCE_RULES_VERSION = "reference-rules-v2-actions"
@@ -52,23 +51,24 @@ def source_integrity(input, output):
     members = {m["userId"] for m in input["fixture"]["members"] if m["groupId"] == group}
     if input["actorId"] not in members:
         return verdict(False, "非成员获得有效输出")
-    if input["kind"] == "qa":
+    is_qa = input["kind"] in ("qa", "help") or isinstance(run.get("answer"), dict)
+    if is_qa:
         a = run.get("answer")
         if not isinstance(a, dict):
             return verdict(False, "缺少 answer")
         items = [a]
     else:
-        items = run.get("suggestions", [])
+        items = run.get("suggestions")
         if not isinstance(items, list):
             return verdict(False, "suggestions 非数组")
     for item in items:
         ids = item.get("sourceMessageIds")
-        required = input["kind"] == "extract" or item.get("status") != "insufficient_evidence"
+        required = not is_qa or (item.get("status") != "insufficient_evidence" and run.get("basis") != "general")
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
             return verdict(False, "来源格式非法")
         if len(ids) != len(set(ids)) or not set(ids) <= allowed or (required and not ids):
             return verdict(False, "来源缺失、重复或不属于授权群组")
-        if input["kind"] == "extract" and item.get("assigneeId") is not None and item["assigneeId"] not in members:
+        if not is_qa and item.get("assigneeId") is not None and item["assigneeId"] not in members:
             return verdict(False, "负责人不属于群组")
     return verdict(True, "来源 ID / 成员检查通过；不代表引用支持内容")
 
@@ -136,8 +136,8 @@ def reference_rules(input, output, expected):
 
 
 class OllamaJudge:
-    def __init__(self, base, model, tracer, timeout=180):
-        self.base, self.model, self.tracer, self.timeout = base.rstrip("/"), model, tracer, timeout
+    def __init__(self, base, model, timeout=180):
+        self.base, self.model, self.timeout = base.rstrip("/"), model, timeout
 
     def evaluate(self, input, output, expected):
         if not expected or not expected.get("reviewed") or not expected.get("reference"):
@@ -145,7 +145,8 @@ class OllamaJudge:
         run = output.get("run", {})
         if run.get("status") != "succeeded":
             return skipped("执行失败；由 execution_success 记录")
-        context = next((s.get("output") for s in run.get("steps", []) if s.get("name") == "build_context"), None)
+        contexts = [s.get("output") for s in run.get("steps", []) if s.get("name") == "build_context"]
+        context = contexts[-1] if contexts else None
         if not context:
             raise ValueError("缺少被测 Workflow 的授权上下文")
         # Never give the judge the full, potentially multi-group fixture.
@@ -158,30 +159,15 @@ class OllamaJudge:
                    "options": {"temperature": 0, "num_ctx": 16384, "num_predict": 2048}}
         if sum(len(m["content"].encode()) for m in request["messages"]) + 2560 > 16384:
             raise ValueError("评估器上下文超出保守容量，不截断证据")
-        with self.tracer.start_as_current_span("ollama.judge", attributes={
-                "openinference.span.kind": "LLM", "llm.model_name": self.model,
-                "eval.rubric_version": JUDGE_VERSION,
-                "input.value": json.dumps(request, ensure_ascii=False), "input.mime_type": "application/json"}) as span:
-            for i, m in enumerate(request["messages"]):
-                span.set_attribute(f"llm.input_messages.{i}.message.role", m["role"])
-                span.set_attribute(f"llm.input_messages.{i}.message.content", m["content"])
-            response = httpx.post(self.base + "/api/chat", json=request, timeout=self.timeout)
-            span.set_attribute("output.value", response.text)
-            span.set_attribute("output.mime_type", "application/json")
-            response.raise_for_status()
-            envelope = response.json()
-            if not envelope.get("done") or envelope.get("done_reason") == "length" or envelope.get("error"):
-                raise ValueError("评估模型输出失败或截断")
-            content = envelope.get("message", {}).get("content", "")
-            span.set_attribute("llm.output_messages.0.message.role", "assistant")
-            span.set_attribute("llm.output_messages.0.message.content", content)
-            for key, attr in [("prompt_eval_count", "llm.token_count.prompt"), ("eval_count", "llm.token_count.completion")]:
-                if isinstance(envelope.get(key), int):
-                    span.set_attribute(attr, envelope[key])
-            result = json.loads(content)
-            if set(result) != {"label", "explanation"} or result["label"] not in ["pass", "fail", "insufficient_evidence"] or not isinstance(result["explanation"], str) or not result["explanation"].strip():
-                span.set_status(Status(StatusCode.ERROR, "invalid judge output"))
-                raise ValueError("评估模型返回非法评分")
+        response = httpx.post(self.base + "/api/chat", json=request, timeout=self.timeout)
+        response.raise_for_status()
+        envelope = response.json()
+        if not envelope.get("done") or envelope.get("done_reason") == "length" or envelope.get("error"):
+            raise ValueError("评估模型输出失败或截断")
+        content = envelope.get("message", {}).get("content", "")
+        result = json.loads(content)
+        if set(result) != {"label", "explanation"} or result["label"] not in ["pass", "fail", "insufficient_evidence"] or not isinstance(result["explanation"], str) or not result["explanation"].strip():
+            raise ValueError("评估模型返回非法评分")
         score = {"pass": 1.0, "fail": 0.0, "insufficient_evidence": None}[result["label"]]
         if score is not None:
             result["score"] = score

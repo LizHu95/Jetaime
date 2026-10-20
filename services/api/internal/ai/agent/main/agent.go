@@ -6,13 +6,15 @@ import (
 	"strings"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 
 type Agent struct {
 	ChatModel    llm.ChatModel
 	DefaultModel string
 	Tokens       int
+	Tools        *tools.Registry
 }
 
 func NewAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) {
@@ -22,18 +24,17 @@ func NewAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) {
 	return &Agent{ChatModel: model, DefaultModel: name, Tokens: tokens}, nil
 }
 func (a *Agent) ID() string { return "main" }
+
 func (a *Agent) Invoke(ctx context.Context, input ai.Invocation) (ai.Run, error) {
 	if input.Mode == "" || input.Mode == "auto" || input.Mode == "main" {
-		return a.ExecuteMain(ctx, input.Context, input.Question, input.LoadExtraction)
+		return a.ExecuteMain(ctx, input.Context, input.Question, input.LoadExtraction, input.ContextEndSeq)
 	}
-	return a.Execute(ctx, input.Context, input.Mode, input.Question)
-}
-func (a *Agent) Execute(ctx context.Context, input ai.Context, kind, question string) (ai.Run, error) {
-	if kind == "" || kind == "auto" || kind == "main" {
-		return a.ExecuteMain(ctx, input, question, func(context.Context) (ai.Context, error) { return input, nil })
-	}
-	if err := ai.ValidateContext(input); err != nil {
+	if err := ai.ValidateContext(input.Context); err != nil {
 		return ai.Run{}, err
 	}
-	return a.execute(ctx, input, kind, question, a.DefaultModel)
+	if a.Tools == nil {
+		return ai.Run{}, fmt.Errorf("tool registry is unavailable")
+	}
+	result, err := a.Tools.ExecuteLegacy(ctx, tools.Scope{Context: input.Context, ContextEndSeq: input.ContextEndSeq, Question: input.Question, LegacyMode: input.Mode})
+	return result.Run, err
 }

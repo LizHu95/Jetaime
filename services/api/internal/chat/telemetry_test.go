@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"

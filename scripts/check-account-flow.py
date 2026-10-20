@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run browser acceptance against a real API in a disposable PostgreSQL schema."""
 import os
+import sys
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +12,7 @@ import time
 import urllib.parse
 import urllib.request
 import uuid
+from datetime import datetime, timedelta
 
 from dev import ROOT, load_env
 
@@ -55,6 +57,13 @@ def main():
 
         def do_POST(self):
             body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
+            if self.path.rstrip('/').endswith('/embeddings'):
+                self.send_json({'data': [{'index': 0, 'embedding': [1, 0, 0]}], 'usage': {'total_tokens': 1}})
+                return
+            system = body['messages'][0]['content']
+            if '提取有来源的共享空间记忆' in system:
+                self.send_completion({'candidates': []}, body['model'])
+                return
             payload = json.loads(body['messages'][-1]['content'])
             prompt = payload.get('question') or payload['context']['messages'][-1]['text']
             source = payload['context']['messages'][-1]['id']
@@ -67,9 +76,16 @@ def main():
                 self.end_headers()
                 self.wfile.write(b'{"error":{"message":"fixture failure"}}')
                 return
-            system = body['messages'][0]['content']
             if '主Agent' in system:
-                output = {'action': 'extract', 'basis': 'none', 'answer': None} if '提取待办' in prompt else {'action': 'answer', 'basis': 'general', 'answer': {'status': 'answered', 'answer': '测试 AI 回答：' + prompt, 'sourceMessageIds': [source]}}
+                output = {'name': 'extract_todos', 'arguments': {'question': prompt}} if '提取待办' in prompt else {'name': 'answer_question', 'arguments': {'question': prompt, 'context': 'general'}}
+                draft = payload['context'].get('reminderDraft')
+                if prompt == '提醒我吃饭' or (draft and prompt in ('明天', '中午12点')):
+                    day = (datetime.fromisoformat(payload['context']['request']['sentAt']) + timedelta(days=1)).strftime('%Y-%m-%d')
+                    output = {'name': 'set_reminder', 'arguments': {'action': 'save', 'title': '吃饭', 'date': draft.get('date', '') if draft else '', 'time': ''}}
+                    if prompt == '明天':
+                        output['arguments']['date'] = day
+                    if prompt == '中午12点':
+                        output['arguments']['time'] = '12:00'
             elif '独立核对候选行动' in system:
                 output = {'reviews': [{'candidateIndex': i, 'status': 'active', 'evidenceMessageIds': candidate['sourceMessageIds'], 'reason': '直接本人安排，没有后续完成'} for i, candidate in enumerate(payload['candidates'])]}
             elif '提取明确' in system:
@@ -77,10 +93,16 @@ def main():
                 output = {'suggestions': [] if evidence is None else [{'title': '准备食材', 'assigneeId': evidence['senderId'], 'timeExpression': '明天', 'sourceMessageIds': [evidence['id']]}]}
             else:
                 output = {'status': 'answered', 'answer': '测试 AI 回答：' + prompt, 'sourceMessageIds': [source]}
+            self.send_completion(output, body['model'])
+
+        def send_completion(self, output, model):
             answer = json.dumps(output, ensure_ascii=False)
-            data = json.dumps({'id': 'fixture', 'object': 'chat.completion', 'model': 'test-shared-ai',
+            self.send_json({'id': 'fixture', 'object': 'chat.completion', 'model': model,
                                'choices': [{'index': 0, 'message': {'role': 'assistant', 'content': answer}, 'finish_reason': 'stop'}],
-                               'usage': {'prompt_tokens': 10, 'completion_tokens': 10, 'total_tokens': 20}}).encode()
+                               'usage': {'prompt_tokens': 10, 'completion_tokens': 10, 'total_tokens': 20}})
+
+        def send_json(self, output):
+            data = json.dumps(output).encode()
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.send_header('Content-Length', str(len(data)))
@@ -93,10 +115,19 @@ def main():
     try:
         with tempfile.TemporaryDirectory(prefix='jetaime-account-check-') as folder:
             binary = str(Path(folder) / 'api')
+            memory_config = Path(folder) / 'memory.json'
+            memory_config.write_text(json.dumps({
+                'embedding': {'base_url': 'http://127.0.0.1:18082/v1', 'model': 'test-embedding',
+                              'revision': 'v1', 'api_key_env': 'JETAIME_TEST_MODEL_KEY',
+                              'dimension': 3, 'max_input_bytes': 24576},
+                'extraction': {'provider': 'openai-compatible', 'base_url': 'http://127.0.0.1:18082/v1',
+                               'model': 'test-memory', 'api_key_env': 'JETAIME_TEST_MODEL_KEY',
+                               'output_mode': 'json_object', 'context_tokens': 32768}
+            }))
             subprocess.run(['go', 'build', '-o', binary, './cmd/api'], cwd=ROOT / 'services/api', env=env, check=True)
             subprocess.run([binary, '-migrate'], env=env, check=True)
             with open(Path(folder) / 'api.log', 'w') as log:
-                api = subprocess.Popen([binary, '-auth', '-chat-ai', '-addr', '127.0.0.1:18081', '-provider', 'openai-compatible', '-model', 'test-shared-ai', '-model-url', 'http://127.0.0.1:18082/v1', '-api-key-env', 'JETAIME_TEST_MODEL_KEY', '-context-tokens', '16384'], env=env, stdout=log, stderr=log)
+                api = subprocess.Popen([binary, '-auth', '-chat-ai', '-addr', '127.0.0.1:18081', '-provider', 'openai-compatible', '-model', 'test-shared-ai', '-model-url', 'http://127.0.0.1:18082/v1', '-api-key-env', 'JETAIME_TEST_MODEL_KEY', '-context-tokens', '16384', '-memory-config', str(memory_config)], env=env, stdout=log, stderr=log)
                 try:
                     for _ in range(100):
                         if api.poll() is not None:
@@ -108,7 +139,7 @@ def main():
                             time.sleep(0.1)
                     else:
                         raise RuntimeError('Isolated API startup timed out')
-                    subprocess.run(['npm', 'run', 'test:e2e', '--', '--workers=2'], cwd=ROOT / 'apps/web', env=env, check=True)
+                    subprocess.run(['npm', 'run', 'test:e2e', '--', '--workers=2', *sys.argv[1:]], cwd=ROOT / 'apps/web', env=env, check=True)
                 finally:
                     api.terminate()
                     try:

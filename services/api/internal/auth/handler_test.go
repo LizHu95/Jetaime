@@ -13,7 +13,7 @@ func TestRejectedRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mux := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service).Endpoints()})
+	mux := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service)})
 	for _, tc := range []struct {
 		name, path, contentType, body, authorization string
 		status                                       int

@@ -4,7 +4,7 @@ package ai
 import (
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 )
 
 type User struct {
@@ -28,18 +28,29 @@ type Task struct {
 	SourceMessageIDs []string   `json:"sourceMessageIds"`
 	ConfirmationKey  string     `json:"confirmationKey"`
 }
+type ReminderDraft struct {
+	ID      string `json:"id"`
+	Version int64  `json:"version"`
+	Title   string `json:"title"`
+	Date    string `json:"date"`
+	Time    string `json:"time"`
+}
+
 type Context struct {
-	Request      *RequestContext `json:"request,omitempty"`
-	ActorID      string          `json:"actorId"`
-	GroupID      string          `json:"groupId"`
-	Users        []User          `json:"users"`
-	Messages     []Message       `json:"messages"`
-	Tasks        []Task          `json:"tasks"`
-	HistoryScope *HistoryScope   `json:"historyScope,omitempty"`
+	ReminderDraft *ReminderDraft  `json:"reminderDraft,omitempty"`
+	Request       *RequestContext `json:"request,omitempty"`
+	ActorID       string          `json:"actorId"`
+	GroupID       string          `json:"groupId"`
+	Users         []User          `json:"users"`
+	Messages      []Message       `json:"messages"`
+	Tasks         []Task          `json:"tasks"`
+	HistoryScope  *HistoryScope   `json:"historyScope,omitempty"`
 }
 
 // RequestContext is execution metadata, separate from untrusted chat content.
 type RequestContext struct {
+	JobID             string    `json:"-"`
+	JobAttempt        int       `json:"-"`
 	MessageID         string    `json:"messageId"`
 	SenderID          string    `json:"senderId"`
 	SentAt            time.Time `json:"sentAt"`
@@ -50,6 +61,7 @@ type RequestContext struct {
 
 // HistoryScope describes selection of original messages, not a summary of them.
 type HistoryScope struct {
+	HistoricalSearch       bool   `json:"historicalSearch,omitempty"`
 	Policy                 string `json:"policy"`
 	EarlierMessagesOmitted bool   `json:"earlierMessagesOmitted"`
 }

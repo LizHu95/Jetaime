@@ -10,8 +10,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 //go:embed web/*
@@ -22,18 +20,11 @@ type Server struct {
 }
 
 func NewServer(w *Workflow) *Server { return &Server{workflow: w} }
-func (s *Server) Endpoints() *httpapi.AssistantHandlers {
+func (s *Server) Page(w http.ResponseWriter, r *http.Request) {
 	assets, _ := fs.Sub(web, "web")
-	page := http.StripPrefix("/page/assistant", http.FileServer(http.FS(assets)))
-	return &httpapi.AssistantHandlers{
-		Catalog: s.localOnly(http.HandlerFunc(s.handleCatalog)), State: s.localOnly(http.HandlerFunc(s.handleState)),
-		Run: s.localOnly(s.withRequest(s.handleRun)), Messages: s.localOnly(s.withRequest(s.handleMessages)),
-		Reload: s.localOnly(s.withRequest(s.handleReload)), Dismiss: s.localOnly(s.withRequest(s.handleDismiss)),
-		Confirm: s.localOnly(s.withRequest(s.handleConfirm)), Complete: s.localOnly(s.withRequest(s.handleComplete)),
-		Page: s.localOnly(page),
-	}
+	http.StripPrefix("/page/assistant", http.FileServer(http.FS(assets))).ServeHTTP(w, r)
 }
-func (s *Server) localOnly(next http.Handler) http.Handler {
+func (s *Server) LocalOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		host := r.Host
 		if h, _, err := net.SplitHostPort(host); err == nil {
@@ -77,41 +68,39 @@ type apiRequest struct {
 	AllowDuplicate bool   `json:"allowDuplicate"`
 }
 
-func (s *Server) withRequest(next func(http.ResponseWriter, *http.Request, apiRequest)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-			reply(w, 415, map[string]string{"error": "JSON required"})
-			return
-		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-		defer func() { _ = r.Body.Close() }()
-		var req apiRequest
-		decoder := json.NewDecoder(r.Body)
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&req); err != nil {
-			fail(w, 400, err)
-			return
-		}
-		var extra any
-		if err := decoder.Decode(&extra); err != io.EOF {
-			reply(w, 400, map[string]string{"error": "single JSON object required"})
-			return
-		}
-		if _, err := s.workflow.Store.Context(req.GroupID, req.ActorID); err != nil {
-			fail(w, 403, err)
-			return
-		}
-		next(w, r, req)
+func (s *Server) readRequest(w http.ResponseWriter, r *http.Request) (apiRequest, bool) {
+	var req apiRequest
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		reply(w, 415, map[string]string{"error": "JSON required"})
+		return req, false
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	defer func() { _ = r.Body.Close() }()
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		fail(w, 400, err)
+		return req, false
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		reply(w, 400, map[string]string{"error": "single JSON object required"})
+		return req, false
+	}
+	if _, err := s.workflow.Store.Context(req.GroupID, req.ActorID); err != nil {
+		fail(w, 403, err)
+		return req, false
+	}
+	return req, true
 }
 
-func (s *Server) handleCatalog(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetCatalog(w http.ResponseWriter, r *http.Request) {
 	store := s.workflow.Store
 	reply(w, 200, map[string]any{"catalog": store.Catalog(), "modelDefault": s.workflow.DefaultModel})
 	return
 }
 
-func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetState(w http.ResponseWriter, r *http.Request) {
 	store := s.workflow.Store
 	g, a := r.URL.Query().Get("groupId"), r.URL.Query().Get("actorId")
 	c, err := store.Context(g, a)
@@ -128,7 +117,11 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func (s *Server) handleRun(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) Run(w http.ResponseWriter, r *http.Request) {
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	run, err := s.workflow.Execute(r.Context(), req.GroupID, req.ActorID, req.Kind, req.Question, req.Model)
 	if err != nil {
 		reply(w, 422, map[string]any{"error": err.Error(), "run": run})
@@ -137,7 +130,11 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request, req apiReques
 	reply(w, 200, map[string]any{"run": run})
 }
 
-func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	store := s.workflow.Store
 	m, err := store.AppendMessage(req.GroupID, req.ActorID, req.Text)
 	if err != nil {
@@ -147,7 +144,11 @@ func (s *Server) handleMessages(w http.ResponseWriter, r *http.Request, req apiR
 	reply(w, 200, m)
 }
 
-func (s *Server) handleReload(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) Reload(w http.ResponseWriter, r *http.Request) {
+	_, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	store := s.workflow.Store
 	if err := store.Reload(); err != nil {
 		fail(w, 400, err)
@@ -156,7 +157,11 @@ func (s *Server) handleReload(w http.ResponseWriter, r *http.Request, req apiReq
 	reply(w, 200, map[string]bool{"ok": true})
 }
 
-func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) Dismiss(w http.ResponseWriter, r *http.Request) {
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	if err := s.workflow.Dismiss(req.GroupID, req.ActorID, req.Key); err != nil {
 		fail(w, 400, err)
 		return
@@ -164,7 +169,11 @@ func (s *Server) handleDismiss(w http.ResponseWriter, r *http.Request, req apiRe
 	reply(w, 200, map[string]bool{"ok": true})
 }
 
-func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) Confirm(w http.ResponseWriter, r *http.Request) {
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	store := s.workflow.Store
 	existing, err := store.FindConfirmation(req.GroupID, req.ActorID, req.Key)
 	if err != nil {
@@ -213,7 +222,11 @@ func (s *Server) handleConfirm(w http.ResponseWriter, r *http.Request, req apiRe
 	reply(w, 200, task)
 }
 
-func (s *Server) handleComplete(w http.ResponseWriter, r *http.Request, req apiRequest) {
+func (s *Server) Complete(w http.ResponseWriter, r *http.Request) {
+	req, ok := s.readRequest(w, r)
+	if !ok {
+		return
+	}
 	store := s.workflow.Store
 	task, err := store.Complete(req.GroupID, req.ActorID, req.TaskID, req.Done)
 	if err != nil {

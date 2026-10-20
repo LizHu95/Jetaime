@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	ErrInvalid  = errors.New("invalid input")
-	ErrNotFound = ai.ErrNotFound
-	ErrConflict = ai.ErrConflict
-	ErrContext  = ai.ErrContext
+	ErrAIUnavailable = errors.New("AI unavailable")
+	ErrInvalid       = errors.New("invalid input")
+	ErrNotFound      = ai.ErrNotFound
+	ErrConflict      = ai.ErrConflict
+	ErrContext       = ai.ErrContext
 )
 
 type Message struct {

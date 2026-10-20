@@ -54,8 +54,17 @@ func (s *Service) ChangePassword(ctx context.Context, user User, oldPassword, ne
 	return s.store.UpdatePassword(ctx, user.ID, oldHash, hash)
 }
 
-// RequireUser resolves the actor from a live database session on every request.
-func (h *Handler) RequireUser(next func(http.ResponseWriter, *http.Request, User)) http.HandlerFunc {
+type userContextKey struct{}
+
+// UserFromContext returns the identity set by Authenticate. An unauthenticated
+// context returns the zero user; request bodies and headers cannot set this key.
+func UserFromContext(ctx context.Context) User {
+	user, _ := ctx.Value(userContextKey{}).(User)
+	return user
+}
+
+// Authenticate resolves the actor from a live database session on every request.
+func (h *Handler) Authenticate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		values := r.Header.Values("Authorization")
 		if len(values) != 1 {
@@ -74,11 +83,12 @@ func (h *Handler) RequireUser(next func(http.ResponseWriter, *http.Request, User
 			respondError(w, err)
 			return
 		}
-		next(w, r.WithContext(ctx), user)
+		next(w, r.WithContext(context.WithValue(ctx, userContextKey{}, user)))
 	}
 }
 
-func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request, user User) {
+func (h *Handler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	user := UserFromContext(r.Context())
 	var input struct {
 		OldPassword string `json:"oldPassword"`
 		NewPassword string `json:"newPassword"`

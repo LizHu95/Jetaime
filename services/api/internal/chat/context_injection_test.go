@@ -10,7 +10,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/google/uuid"
 )
 
@@ -61,7 +61,10 @@ func TestPostgresDefaultContextFunctionAndDirectReference(t *testing.T) {
 		if strings.Contains(request.Messages[1].Content, future.Content) {
 			t.Fatal("future history leaked")
 		}
-		return llm.Result{Content: `{"action":"answer","basis":"mixed","answer":{"status":"answered","answer":"建议","sourceMessageIds":["` + reference.ID + `"]}}`}, nil
+		if strings.Contains(request.Messages[0].Content, "主Agent") {
+			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"给个建议","context":"mixed"}}`}, nil
+		}
+		return llm.Result{Content: `{"status":"answered","answer":"建议","sourceMessageIds":["` + reference.ID + `"]}`}, nil
 	}}
 	f.configureAI(model, "test", 16384, time.Second, inject)
 	run, err := f.store.Claim(ctx, time.Minute)
@@ -70,7 +73,7 @@ func TestPostgresDefaultContextFunctionAndDirectReference(t *testing.T) {
 	}
 	f.worker(t).Execute(ctx, run)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
-	if err != nil || len(runs) != 1 || runs[0].Status != "succeeded" || injections != 1 || calls != 1 {
+	if err != nil || len(runs) != 1 || runs[0].Status != "succeeded" || injections != 1 || calls != 2 {
 		t.Fatal("function injection was not used end to end", runs, injections, calls, err)
 	}
 	// A future provider may load more history, but cannot cross the trigger fence.

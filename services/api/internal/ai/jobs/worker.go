@@ -15,6 +15,7 @@ import (
 type Store interface {
 	Claim(context.Context, time.Duration) (ai.Job, error)
 	AgentContext(context.Context, ai.Job, int, ...aicontext.ContextInjector) (ai.Context, string, error)
+	ExtractionContext(context.Context, ai.Job, int) (ai.Context, error)
 	Complete(context.Context, ai.Job, string, string, ...*ai.Result) error
 }
 type Worker struct {
@@ -74,11 +75,13 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 	} else if err != nil {
 		code = "context_unavailable"
 	} else {
-		output, e := s.executor.Execute(call, ai.Invocation{AgentID: "main", Context: input, Mode: run.Kind, Question: question, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
-			expanded := run
-			expanded.Kind = "extract"
-			snapshot, _, err := s.store.AgentContext(ctx, expanded, s.tokens)
-			return snapshot, err
+		mode := run.Kind
+		if mode == "extract" {
+			// Drain/retry previously persisted jobs through the current main entry.
+			mode = "auto"
+		}
+		output, e := s.executor.Execute(call, ai.Invocation{AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
+			return s.store.ExtractionContext(ctx, run, s.tokens)
 		}})
 		if e != nil {
 			log.Printf("chat agent run=%s kind=%s failed: %v", run.ID, run.Kind, e)

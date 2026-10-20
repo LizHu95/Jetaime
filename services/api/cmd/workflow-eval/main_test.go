@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 )
 
 func TestIsolatedWorkflowUsesRealImplementation(t *testing.T) {
@@ -57,7 +58,15 @@ func TestMainEvaluationUsesRegisteredAgent(t *testing.T) {
 	calls := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
-		_ = json.NewEncoder(w).Encode(map[string]any{"done": true, "message": map[string]string{"content": `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"你好！","sourceMessageIds":[]}}`}})
+		var req llm.Request
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+		}
+		content := `{"status":"answered","answer":"你好！","sourceMessageIds":[]}`
+		if strings.Contains(req.Messages[0].Content, "主Agent") {
+			content = `{"name":"answer_question","arguments":{"question":"你好","context":"general"}}`
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"done": true, "message": map[string]string{"content": content}})
 	}))
 	defer server.Close()
 	var previous string
@@ -69,7 +78,7 @@ func TestMainEvaluationUsesRegisteredAgent(t *testing.T) {
 		}
 		previous = out.Run.InvocationID
 	}
-	if calls != 2 {
+	if calls != 4 {
 		t.Fatalf("ordinary answers made %d model calls", calls)
 	}
 }
@@ -102,42 +111,32 @@ func TestCloudWorkflowSharesStartupConfiguration(t *testing.T) {
 	}
 }
 
-func TestCloudExtractionAndReviewUseSameModel(t *testing.T) {
+func TestCloudRejectsDisabledExtractionTool(t *testing.T) {
 	t.Setenv("TEST_EVAL_KEY", "test-key")
 	var input request
 	if err := json.Unmarshal([]byte(`{"users":[{"id":"u","nickname":"测试用户"}],"groups":[{"id":"g","name":"测试群"}],"members":[{"groupId":"g","userId":"u"}],"messages":[{"id":"m","groupId":"g","senderId":"u","sentAt":"2026-10-14T10:00:00+08:00","text":"我明天整理资料"}]}`), &input.Fixture); err != nil {
 		t.Fatal(err)
 	}
-	input.GroupID, input.ActorID, input.Kind = "g", "u", "extract"
+	input.GroupID, input.ActorID, input.Kind, input.Question = "g", "u", "main", "提取当前对话的待办"
 	calls := 0
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		var body struct {
-			Model          string `json:"model"`
-			ResponseFormat struct {
-				JSONSchema struct {
-					Schema struct {
-						Properties map[string]any `json:"properties"`
-					} `json:"schema"`
-				} `json:"json_schema"`
-			} `json:"response_format"`
+			Model string `json:"model"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Error(err)
 		}
 		if body.Model != "cloud-test" {
-			t.Error("model changed between workflow stages")
+			t.Error("configured model changed")
 		}
-		content := `{"suggestions":[{"title":"整理资料","assigneeId":"u","timeExpression":"明天","sourceMessageIds":["m"]}]}`
-		if body.ResponseFormat.JSONSchema.Schema.Properties["reviews"] != nil {
-			content = `{"reviews":[{"candidateIndex":0,"evidenceMessageIds":["m"],"reason":"本人明确安排，没有后续完成证据","status":"active"}]}`
-		}
+		content := `{"name":"extract_todos","arguments":{"question":"提取当前对话的待办"}}`
 		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"role": "assistant", "content": content}, "finish_reason": "stop"}}})
 	}))
 	defer s.Close()
 	c := llm.Config{Provider: "openai-compatible", BaseURL: s.URL + "/v1", Model: "cloud-test", APIKeyEnv: "TEST_EVAL_KEY", OutputMode: "json_schema", ContextTokens: 32768}
 	out, err := executeConfigured(context.Background(), input, c, time.Second)
-	if err != nil || out.Error != "" || out.Run.Status != "succeeded" || len(out.Run.Suggestions) != 1 || calls != 2 {
-		t.Fatalf("extraction/review failed: %+v %v, calls=%d", out, err, calls)
+	if err != nil || out.Error == "" || out.Run.Status != "failed" || len(out.Run.Suggestions) != 0 || calls != 1 {
+		t.Fatalf("disabled extraction accepted: %+v %v, calls=%d", out, err, calls)
 	}
 }

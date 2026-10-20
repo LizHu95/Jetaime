@@ -20,7 +20,6 @@ func TestModesResolveOnlyRequiredDependencies(t *testing.T) {
 		{"health only", []string{"-auth=false", "-model-config", "missing.json"}, false, false, false, false},
 		{"migration", []string{"-migrate", "-model-config", "missing.json"}, true, true, false, true},
 		{"local debug console", []string{"-auth=false", "-debug-console", "-provider", "ollama", "-model", "test"}, false, false, true, false},
-		{"legacy console alias", []string{"-auth=false", "-assistant", "-provider", "ollama", "-model", "test"}, false, false, true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := Parse(tc.args)
@@ -48,7 +47,6 @@ func TestInvalidModeAndConsoleBoundary(t *testing.T) {
 	for _, args := range [][]string{
 		{"-auth=false", "-chat-ai=true"},
 		{"-auth=false", "-debug-console", "-addr", "0.0.0.0:8081"},
-		{"-auth=false", "-assistant", "-addr", "0.0.0.0:8081"},
 		{"-auth=false", "-debug-console", "-fixture", "same.json", "-state", "same.json"},
 		{"-auth=false", "-addr", "localhost:8081"},
 		{"-auth=false", "unexpected"},

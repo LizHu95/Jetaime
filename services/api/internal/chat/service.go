@@ -23,8 +23,6 @@ func NewService(store *Store, aiEnabled bool) *Service {
 
 var aiMention = regexp.MustCompile(`(?i)(^|[\s，。！？,:：!?])@AI(\s|$|[，。！？,:：!?]|\p{Han})`)
 
-var extractCommand = regexp.MustCompile(`(?i)^\s*@AI\s+/extract(\s|$)`)
-
 func questionText(content string) string {
 	indices := aiMention.FindStringSubmatchIndex(content)
 	if len(indices) >= 4 {
@@ -48,16 +46,13 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 			input.AgentKind = "auto"
 		}
 	}
-	if input.AgentKind != "auto" && input.AgentKind != "help" && input.AgentKind != "qa" && input.AgentKind != "extract" {
+	if input.AgentKind != "auto" && input.AgentKind != "help" && input.AgentKind != "qa" {
 		return Message{}, ErrInvalid
-	}
-	if input.MentionsAI && extractCommand.MatchString(input.Content) {
-		input.AgentKind = "extract"
 	}
 	if !input.MentionsAI && input.AgentKind != "qa" {
 		return Message{}, ErrInvalid
 	}
-	if input.MentionsAI && input.AgentKind != "extract" && len(input.Content) > 3000 {
+	if input.MentionsAI && len(input.Content) > 3000 {
 		return Message{}, ErrInvalid
 	}
 	if !input.MentionsAI {

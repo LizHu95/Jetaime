@@ -14,8 +14,9 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 type request struct {
@@ -44,7 +45,14 @@ func executeConfigured(ctx context.Context, input request, config llm.Config, ti
 	if err != nil {
 		return result{Error: err.Error()}, nil
 	}
-	run, err := executor.Execute(ctx, ai.Invocation{AgentID: "main", Context: snapshot, Mode: input.Kind, Question: input.Question, LoadExtraction: func(context.Context) (ai.Context, error) { return snapshot, nil }})
+	inputContext := snapshot
+	if input.Kind == "" || input.Kind == "main" || input.Kind == "auto" {
+		inputContext, err = aicontext.ForQuestion(ctx, snapshot, input.Question, config.ContextTokens)
+		if err != nil {
+			return result{Error: err.Error()}, nil
+		}
+	}
+	run, err := executor.Execute(ctx, ai.Invocation{AgentID: "main", Context: inputContext, Mode: input.Kind, Question: input.Question, LoadExtraction: func(context.Context) (ai.Context, error) { return snapshot, nil }})
 
 	output := result{Run: run}
 	if err != nil {

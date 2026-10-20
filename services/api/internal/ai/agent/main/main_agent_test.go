@@ -9,96 +9,80 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 
 type mainTestModel struct {
-	decision string
-	requests []llm.Request
+	decision, answer string
+	requests         []llm.Request
 }
 
-func (m *mainTestModel) Call(_ context.Context, request llm.Request) (llm.Result, error) {
-	m.requests = append(m.requests, request)
-	if strings.HasPrefix(request.Messages[0].Content, prompts.Main) {
+func (m *mainTestModel) Call(_ context.Context, r llm.Request) (llm.Result, error) {
+	m.requests = append(m.requests, r)
+	if strings.HasPrefix(r.Messages[0].Content, prompts.Main) {
 		return llm.Result{Content: m.decision}, nil
+	}
+	if m.answer != "" {
+		return llm.Result{Content: m.answer}, nil
 	}
 	return llm.Result{Content: `{"suggestions":[]}`}, nil
 }
 
-func TestMainAnswersDirectlyWithoutLoadingChild(t *testing.T) {
-	for _, basis := range []string{"general", "history", "mixed"} {
-		t.Run(basis, func(t *testing.T) {
-			store, _, _ := setup(t, `{}`)
-			input, _ := store.Context("daily", "lin")
-			sources := `[]`
-			if basis != "general" {
-				sources = `["m1"]`
+func TestMainDelegatesAllAnswersToQuestionTool(t *testing.T) {
+	for _, mode := range []string{"general", "history", "mixed"} {
+		t.Run(mode, func(t *testing.T) {
+			input := testContext()
+			ids := `[]`
+			if mode != "general" {
+				ids = `["m1"]`
 			}
-			model := &mainTestModel{decision: `{"action":"answer","basis":"` + basis + `","answer":{"status":"answered","answer":"回答","sourceMessageIds":` + sources + `}}`}
-			agent, _ := NewAgent(model, "test", 16384)
-			run, err := agent.ExecuteMain(context.Background(), input, "请帮忙", func(context.Context) (ai.Context, error) {
-				t.Fatal("ordinary answer loaded child context")
-				return input, nil
-			})
-			if err != nil || run.Kind != "main" || run.PromptVersion != "main-v2-single-agent" || run.Answer == nil || len(model.requests) != 1 {
-				t.Fatal("main did not answer directly", run, err)
+			model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"请帮忙","context":"` + mode + `"}}`, answer: `{"status":"answered","answer":"工具回答","sourceMessageIds":` + ids + `}`}
+			agent, _ := newTestAgent(model, "test", 16384)
+			run, err := agent.ExecuteMain(context.Background(), input, "请帮忙", func(context.Context) (ai.Context, error) { t.Fatal("QA loaded extraction snapshot"); return input, nil })
+			if err != nil || run.Answer == nil || run.Answer.Answer != "工具回答" || len(model.requests) != 2 || run.Route.Version != PromptVersion || run.Basis != mode {
+				t.Fatalf("QA not delegated: %v calls=%d", err, len(model.requests))
 			}
-			result, _, err := ai.ResultFromRun(run)
-			if err != nil || result.Basis != basis || result.Route == nil || result.Route.Kind != "main" {
-				t.Fatal("main result metadata lost", err)
+			if !strings.Contains(model.requests[0].Messages[1].Content, "answer_question") || strings.Contains(model.requests[0].Messages[0].Content, "sourceMessageIds") {
+				t.Fatal("main still owns QA schema")
 			}
 		})
 	}
 }
-
-func TestMainDelegatesOnlyToExtraction(t *testing.T) {
-	store, _, _ := setup(t, `{}`)
-	input, _ := store.Context("daily", "lin")
-	model := &mainTestModel{decision: `{"action":"extract","basis":"none","answer":null}`}
-	agent, _ := NewAgent(model, "test", 16384)
-	loads := 0
-	run, err := agent.ExecuteMain(context.Background(), input, "整理今天的待办", func(context.Context) (ai.Context, error) { loads++; return input, nil })
-	if err != nil || loads != 1 || len(model.requests) != 2 || run.Kind != "extract" || run.Route == nil || run.Route.Version != "main-v2-single-agent" {
-		t.Fatal("extraction delegation failed", run, err)
-	}
-	if !strings.Contains(model.requests[1].Messages[1].Content, "整理今天的待办") || !strings.Contains(model.requests[1].Messages[0].Content, "不扩大范围") {
-		t.Fatal("child extraction scope lost")
+func TestMainRejectsDisabledExtractionTool(t *testing.T) {
+	input := testContext()
+	model := &mainTestModel{decision: `{"name":"extract_todos","arguments":{"question":"整理今天的待办"}}`}
+	agent, _ := newTestAgent(model, "test", 16384)
+	_, err := agent.ExecuteMain(context.Background(), input, "整理今天的待办", func(context.Context) (ai.Context, error) {
+		t.Fatal("disabled tool loaded an extraction snapshot")
+		return input, nil
+	})
+	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 1 {
+		t.Fatal("disabled extraction tool executed", err)
 	}
 }
-
-func TestMainRejectsInvalidDecisionsBeforeLoadingChild(t *testing.T) {
-	for _, decision := range []string{
-		`not json`,
-		`{"action":"delete","basis":"none","answer":null}`,
-		`{"action":"extract","basis":"none","answer":null,"extra":true}`,
-		`{"action":"extract","basis":"none"}`,
-		`{"action":"answer","basis":"general","answer":null}`,
-		`{"action":"answer","basis":"history","answer":{"status":"answered","answer":"无依据","sourceMessageIds":[]}}`,
-		`{"action":"answer","basis":"general","answer":{"status":"answered","answer":"伪造引用","sourceMessageIds":["foreign"]}}`,
-	} {
-		store, _, _ := setup(t, `{}`)
-		input, _ := store.Context("daily", "lin")
+func TestMainRejectsUnregisteredCallsAndFormerDirectAnswerProtocol(t *testing.T) {
+	for _, decision := range []string{`not json`, `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"bypass","sourceMessageIds":[]}}`, `{"name":"delete","arguments":{}}`, `{"name":"answer_question","arguments":null}`, `{"name":"answer_question","arguments":{"question":"test","context":"general","groupId":"foreign"}}`, `{"name":"answer_question","arguments":{"question":"test","context":"general"},"extra":true}`} {
+		input := testContext()
 		model := &mainTestModel{decision: decision}
-		agent, _ := NewAgent(model, "test", 16384)
-		_, err := agent.ExecuteMain(context.Background(), input, "帮忙", func(context.Context) (ai.Context, error) { t.Fatal("invalid decision loaded child"); return input, nil })
-		if !errors.Is(err, ErrMainDecision) || len(model.requests) != 1 {
-			t.Fatal("invalid decision accepted", err)
+		agent, _ := newTestAgent(model, "test", 16384)
+		_, err := agent.ExecuteMain(context.Background(), input, "test", nil)
+		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 1 {
+			t.Fatal("invalid tool call accepted", err)
 		}
 	}
 }
-
-func TestMainContextAndExtensionsCannotBypassBudget(t *testing.T) {
-	store, _, _ := setup(t, `{}`)
-	input, _ := store.Context("daily", "lin")
+func TestMainContextAndToolCatalogCannotBypassBudget(t *testing.T) {
+	input := testContext()
 	seed := input.Messages[0]
 	for i := 0; i < 30; i++ {
-		message := seed
-		message.ID = string(rune('A' + i))
-		input.Messages = append(input.Messages, message)
+		m := seed
+		m.ID = string(rune('A' + i))
+		input.Messages = append(input.Messages, m)
 	}
-	model := &mainTestModel{decision: `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"回答","sourceMessageIds":[]}}`}
-	agent, _ := NewAgent(model, "test", 16384)
+	model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"怎么除味？","context":"general"}}`, answer: `{"status":"answered","answer":"回答","sourceMessageIds":[]}`}
+	agent, _ := newTestAgent(model, "test", 8192)
 	if _, err := agent.ExecuteMain(context.Background(), input, "怎么除味？", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -109,22 +93,33 @@ func TestMainContextAndExtensionsCannotBypassBudget(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(payload.Context.Messages) > aicontext.DefaultRecentMessages+1 || payload.Context.Request == nil {
-		t.Fatal("initial context missing or unbounded")
+		t.Fatal("unbounded initial context")
 	}
 	model.requests = nil
 	input.Messages[len(input.Messages)-1].Text = strings.Repeat("超限", 10000)
-	if _, err := agent.ExecuteMain(context.Background(), input, "帮忙", nil); !errors.Is(err, ErrBudget) || len(model.requests) != 0 {
-		t.Fatal("oversized request called model", err)
+	if _, err := agent.ExecuteMain(context.Background(), input, "帮忙", nil); !errors.Is(err, ai.ErrContext) || len(model.requests) != 0 {
+		t.Fatal("oversized request reached model", err)
+	}
+}
+func TestMainToolLoopHasAHardLimit(t *testing.T) {
+	input := testContext()
+	m := &mainTestModel{decision: `{"name":"continue","arguments":{}}`}
+	a, _ := NewAgent(m, "test", 16384)
+	calls := 0
+	a.Tools, _ = tools.New(tools.Func{Spec: tools.Definition{Name: "continue", Description: "test", Parameters: json.RawMessage(`{"type":"object"}`)}, Execute: func(context.Context, tools.Scope, json.RawMessage) (tools.Result, error) {
+		calls++
+		return tools.Result{Data: "continue"}, nil
+	}})
+	if _, err := a.ExecuteMain(context.Background(), input, "test", nil); err == nil || calls != MaxToolSteps {
+		t.Fatal("unbounded tool loop", err, calls)
 	}
 }
 
-func TestMainRejectsForeignChildContext(t *testing.T) {
-	store, _, _ := setup(t, `{}`)
-	input, _ := store.Context("daily", "lin")
-	model := &mainTestModel{decision: `{"action":"extract","basis":"none","answer":null}`}
-	agent, _ := NewAgent(model, "test", 16384)
-	_, err := agent.ExecuteMain(context.Background(), input, "整理待办", func(context.Context) (ai.Context, error) { child := input; child.GroupID = "other"; return child, nil })
-	if err == nil || len(model.requests) != 1 {
-		t.Fatal("cross-group delegation accepted")
+func TestRetiredExtractModeDoesNotInvokeAnyModel(t *testing.T) {
+	input := testContext()
+	model := &mainTestModel{}
+	agent, _ := newTestAgent(model, "test", 8192)
+	if _, err := agent.Invoke(context.Background(), ai.Invocation{Context: input, Mode: "extract", Question: "提取待办"}); err == nil || len(model.requests) != 0 {
+		t.Fatal("retired extract mode executed", err)
 	}
 }

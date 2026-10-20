@@ -6,7 +6,7 @@
 
 `local/data/evals/cases.json` 是工作稿。正式对比使用 `local/data/evals/versions/<suiteVersion>/cases.json` 的冻结快照；不要覆盖、重新生成或直接修改冻结目录。原始输入文件和调试台状态不因评测而变化。
 
-2026-10-12将聊天数据、报告、实验输出和Phoenix数据库统一迁至local/data。历史实验中的旧路径保留原值以维持快照哈希，路径映射见local/data/migration-20261012.json；旧重复实验结果可由报告脚本自动解析。包含真实参考内容的初稿生成器位于local/data/evals/prepare-chat-evals.py。
+2026-10-12将聊天数据、报告、实验输出和Phoenix数据库统一迁至local/data。历史实验中的旧路径保留原值以维持快照哈希，路径映射见local/data/migration-20261012.json；旧结果可按迁移清单定位，不再保留固定实验的一次性报告与路径兼容脚本。包含真实参考内容的初稿生成器位于local/data/evals/prepare-chat-evals.py。
 
 ## 分开记录的版本
 
@@ -89,7 +89,7 @@ python3 scripts/report-chat-eval.py outputs/evals/experiment-340d01bb.jsonl \
 
 ## 缓存探索暂不接入
 
-2026-10-19 服务端收敛为一个 `main` Agent。生产、调试与评测共用 `ai.Service` 和运行时；`main/auto` 案例覆盖正式主入口，`qa/help/extract` 保留为能力级回归。每次结果记录实际 Agent 与独立 invocation ID。评测在内存中适配输入，源码快照递归包含服务端内部依赖，历史案例和结果不改写。
+2026-10-19 服务端收敛为一个 `main` Agent。生产、调试与评测共用 `ai.Service` 和运行时；`main/auto` 案例覆盖正式主入口，`qa/help` 保留兼容入口；2026-10-20 起，冻结案例的 extract 标签只用于评分，runner 转换为 main 加自然语言提取问题后执行。每次结果记录实际 Agent 与独立 invocation ID。评测在内存中适配输入，源码快照递归包含服务端内部依赖，历史案例和结果不改写。
 
 早期状态核对缓存实验已退出当前代码，专用开关、验证脚本与模型指纹接口一并移除；原实验报告和冻结源码保留供追溯。正常提取仍执行证据校验和状态核对。
 
@@ -127,4 +127,4 @@ make eval EVAL_ARGS='--model-config local/other-models.json --model-profile clou
 
 `--check-services` 验证配置、密钥存在性及所需本地模型，云端不发送推理请求，因此不代表云调用成功。云配置不会要求安装同名 Ollama 模型。默认不启用语义裁判，也不自动切换模型。目标模型不支持原生 Schema 时，显式选择 `json_object`；模型效果需用 reviewed 案例另外评测。
 
-`main/auto` 案例的 fixture 最后一条消息应为本次请求，发送者与 `actorId` 一致；完整提取范围由同一份授权 fixture 提供。旧 `qa/extract` 案例仍保留独立问题输入的历史协议。
+`main/auto` 的独立 question 通过本地适配器形成临时请求消息，基于 fixture 的最后时间，且不写回原始数据；完整提取范围由同一份授权 fixture 提供。旧 qa 案例保留独立问题输入；旧 extract 案例的冻结标签不改写，执行时转 main，空 question 使用自然语言提取请求。直接向 Go 执行器传 kind=extract 会被拒绝。

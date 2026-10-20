@@ -21,23 +21,25 @@ type Handler struct {
 func NewHandler(service *Service, authentication *auth.Handler, realtime http.Handler) *Handler {
 	return &Handler{service, authentication, realtime}
 }
-func (h *Handler) Endpoints() *httpapi.ChatHandlers {
-	wrap := func(next func(http.ResponseWriter, *http.Request, auth.User)) http.HandlerFunc {
-		return h.authentication.RequireUser(func(w http.ResponseWriter, r *http.Request, u auth.User) {
-			if group := r.PathValue("group"); group != "" && !validID(group) {
-				fail(w, 400, "invalid_input")
-				return
-			}
-			next(w, r, u)
-		})
-	}
-	return &httpapi.ChatHandlers{State: wrap(h.state), Messages: wrap(h.messages), Message: wrap(h.message), Send: wrap(h.send), Read: wrap(h.read), Runs: wrap(h.runs), Retry: wrap(h.retry), Close: wrap(h.close), Events: h.realtime}
+
+// Authenticate checks the session before validating the group path parameter.
+func (h *Handler) Authenticate(next http.HandlerFunc) http.HandlerFunc {
+	return h.authentication.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+		if group := r.PathValue("group"); group != "" && !validID(group) {
+			fail(w, 400, "invalid_input")
+			return
+		}
+		next(w, r)
+	})
 }
+
+// Events uses the realtime transport's own WebSocket authentication flow.
+func (h *Handler) Events(w http.ResponseWriter, r *http.Request) {
+	h.realtime.ServeHTTP(w, r)
+}
+
 func write(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpapi.WriteJSON(w, status, value)
 }
 func fail(w http.ResponseWriter, status int, code string) {
 	write(w, status, map[string]any{"error": map[string]string{"code": code, "message": code}})
@@ -50,6 +52,8 @@ func respond(w http.ResponseWriter, value any, err error) {
 		fail(w, 400, "invalid_input")
 	case errors.Is(err, ErrNotFound):
 		fail(w, 404, "group_not_found")
+	case errors.Is(err, ErrAIUnavailable):
+		fail(w, 503, "ai_unavailable")
 	case errors.Is(err, ErrConflict):
 		fail(w, 409, "message_conflict")
 	default:
@@ -81,12 +85,13 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 	}
 	return false
 }
-func (h *Handler) state(w http.ResponseWriter, r *http.Request, u auth.User) {
-	state, err := h.service.store.State(r.Context(), r.PathValue("group"), u.ID)
-	state.AIEnabled = h.service.aiEnabled
+func (h *Handler) GetState(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	state, err := h.service.GetState(r.Context(), r.PathValue("group"), u.ID)
 	respond(w, state, err)
 }
-func (h *Handler) messages(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) ListMessages(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	values := r.URL.Query()
 	parse := func(key string) (int64, error) {
 		if values.Get(key) == "" {
@@ -104,10 +109,11 @@ func (h *Handler) messages(w http.ResponseWriter, r *http.Request, u auth.User) 
 		fail(w, 400, "invalid_input")
 		return
 	}
-	page, err := h.service.store.Messages(r.Context(), r.PathValue("group"), u.ID, after, before, int(limit))
+	page, err := h.service.ListMessages(r.Context(), r.PathValue("group"), u.ID, after, before, int(limit))
 	respond(w, page, err)
 }
-func (h *Handler) send(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) SendMessage(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	var input SendInput
 	if !decode(w, r, &input) {
 		return
@@ -115,7 +121,8 @@ func (h *Handler) send(w http.ResponseWriter, r *http.Request, u auth.User) {
 	m, err := h.service.Send(r.Context(), r.PathValue("group"), u.ID, input)
 	respond(w, m, err)
 }
-func (h *Handler) read(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) MarkRead(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	var input struct {
 		Seq int64 `json:"seq"`
 	}
@@ -126,35 +133,35 @@ func (h *Handler) read(w http.ResponseWriter, r *http.Request, u auth.User) {
 		fail(w, 400, "invalid_input")
 		return
 	}
-	seq, err := h.service.store.Read(r.Context(), r.PathValue("group"), u.ID, input.Seq)
+	seq, err := h.service.MarkRead(r.Context(), r.PathValue("group"), u.ID, input.Seq)
 	respond(w, map[string]int64{"readSeq": seq}, err)
 }
-func (h *Handler) runs(w http.ResponseWriter, r *http.Request, u auth.User) {
-	runs, err := h.service.store.Runs(r.Context(), r.PathValue("group"), u.ID)
+func (h *Handler) ListRuns(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	runs, err := h.service.ListRuns(r.Context(), r.PathValue("group"), u.ID)
 	respond(w, runs, err)
 }
-func (h *Handler) retry(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) RetryRun(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	if !validID(r.PathValue("run")) {
 		fail(w, 400, "invalid_input")
 		return
 	}
-	if !h.service.aiEnabled {
-		fail(w, 503, "ai_unavailable")
-		return
-	}
-	err := h.service.store.Retry(r.Context(), r.PathValue("group"), u.ID, r.PathValue("run"))
+	err := h.service.RetryRun(r.Context(), r.PathValue("group"), u.ID, r.PathValue("run"))
 	respond(w, map[string]bool{"ok": true}, err)
 }
-func (h *Handler) close(w http.ResponseWriter, r *http.Request, u auth.User) {
-	err := h.service.store.Close(r.Context(), r.PathValue("group"), u.ID)
+func (h *Handler) CloseGroup(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	err := h.service.CloseGroup(r.Context(), r.PathValue("group"), u.ID)
 	respond(w, map[string]bool{"ok": true}, err)
 }
 
-func (h *Handler) message(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) GetMessage(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	if !validID(r.PathValue("message")) {
 		fail(w, 400, "invalid_input")
 		return
 	}
-	message, err := h.service.store.Message(r.Context(), r.PathValue("group"), u.ID, r.PathValue("message"))
+	message, err := h.service.GetMessage(r.Context(), r.PathValue("group"), u.ID, r.PathValue("message"))
 	respond(w, message, err)
 }

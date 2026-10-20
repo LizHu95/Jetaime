@@ -17,14 +17,6 @@ type Handler struct{ service *Service }
 
 func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 
-// Endpoints exports handlers; URL and HTTP method bindings live in httpapi/router.go.
-func (h *Handler) Endpoints() *httpapi.AuthHandlers {
-	return &httpapi.AuthHandlers{
-		Register: http.HandlerFunc(h.register), Login: http.HandlerFunc(h.login), Logout: http.HandlerFunc(h.logout),
-		ChangePassword: h.RequireUser(h.changePassword),
-	}
-}
-
 type registerRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
@@ -62,7 +54,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 	return false
 }
 
-func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var request registerRequest
 	if !readJSON(w, r, &request) {
 		return
@@ -77,7 +69,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, user)
 }
 
-func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var request loginRequest
 	if !readJSON(w, r, &request) {
 		return
@@ -92,7 +84,7 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Logout(w http.ResponseWriter, r *http.Request) {
 	values := r.Header.Values("Authorization")
 	if len(values) != 1 {
 		respondError(w, ErrUnauthorized)
@@ -137,8 +129,5 @@ func writeError(w http.ResponseWriter, status int, code, message string) {
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpapi.WriteJSON(w, status, value)
 }

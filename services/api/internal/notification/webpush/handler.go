@@ -26,24 +26,15 @@ type Handler struct {
 func NewHandler(pool *pgxpool.Pool, authentication *auth.Handler, c Config) *Handler {
 	return &Handler{pool, authentication, c}
 }
+func (h *Handler) Authenticate(next http.HandlerFunc) http.HandlerFunc {
+	return h.auth.Authenticate(next)
+}
+
 func respond(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	if status != 204 {
-		_ = json.NewEncoder(w).Encode(v)
-	}
+	httpapi.WriteJSON(w, status, v)
 }
 func fail(w http.ResponseWriter, status int, code string) {
 	respond(w, status, map[string]any{"error": map[string]string{"code": code, "message": code}})
-}
-func (h *Handler) Endpoints() *httpapi.PushHandlers {
-	return &httpapi.PushHandlers{
-		PublicKey: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			respond(w, 200, map[string]any{"enabled": h.config.Enabled, "publicKey": h.config.PublicKey})
-		}),
-		Subscribe: h.auth.RequireUser(h.subscribe), Remove: h.auth.RequireUser(h.remove), Test: h.auth.RequireUser(h.test),
-	}
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	kind, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -68,7 +59,8 @@ func sessionHash(r *http.Request) []byte {
 	sum := sha256.Sum256([]byte(parts[1]))
 	return sum[:]
 }
-func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request, user auth.User) {
+func (h *Handler) Subscribe(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
 	if !h.config.Enabled {
 		fail(w, 503, "push_disabled")
 		return
@@ -128,7 +120,8 @@ func (h *Handler) subscribe(w http.ResponseWriter, r *http.Request, user auth.Us
 	}
 	respond(w, 204, nil)
 }
-func (h *Handler) remove(w http.ResponseWriter, r *http.Request, user auth.User) {
+func (h *Handler) Unsubscribe(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
 	var in struct {
 		Endpoint string `json:"endpoint"`
 	}
@@ -142,7 +135,8 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request, user auth.User)
 	}
 	respond(w, 204, nil)
 }
-func (h *Handler) test(w http.ResponseWriter, r *http.Request, user auth.User) {
+func (h *Handler) SendTest(w http.ResponseWriter, r *http.Request) {
+	user := auth.UserFromContext(r.Context())
 	if !h.config.Enabled {
 		fail(w, 503, "push_disabled")
 		return
@@ -169,4 +163,8 @@ func (h *Handler) test(w http.ResponseWriter, r *http.Request, user auth.User) {
 		return
 	}
 	respond(w, 202, map[string]bool{"queued": true})
+}
+
+func (h *Handler) GetPublicKey(w http.ResponseWriter, r *http.Request) {
+	respond(w, 200, map[string]any{"enabled": h.config.Enabled, "publicKey": h.config.PublicKey})
 }

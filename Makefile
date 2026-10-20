@@ -70,7 +70,7 @@ db-migrate:
 
 db-test:
 	@test -n "$$JETAIME_TEST_DATABASE_URL" || { echo "Set JETAIME_TEST_DATABASE_URL to a test database" >&2; exit 1; }
-	cd $(GO_DIR) && go test -race -count=1 ./internal/database ./internal/memory
+	cd $(GO_DIR) && go test -race -count=1 ./internal/database ./internal/ai/memory
 
 memory-backfill:
 	python3 scripts/dev.py api -memory-backfill -memory-config ../../local/memory.json $(API_ARGS)

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, Send, Sparkles, UserPlus } from 'lucide-react'
 import { useAuth } from '@/features/auth/auth-provider'
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { createMessageId } from '@/lib/message-id'
 import { useRealtime } from './realtime-provider'
+import { ReminderSettings } from './reminder-settings'
 import { mergeMessages, type ChatState, type Group, type Message, type MessagePage, type Run } from './types'
 
 export function ChatPage() {
@@ -32,7 +33,6 @@ export function ChatPage() {
 function Conversation({ groupId }: { groupId: string }) {
   const { session, setSession } = useAuth()
   const client = useQueryClient()
-  const navigate = useNavigate()
   const token = session!.token, actor = session!.user.id
   const key = ['chat', actor, groupId] as const
   const base = `/chat/groups/${groupId}`
@@ -53,7 +53,6 @@ function Conversation({ groupId }: { groupId: string }) {
   const [older, setOlder] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [hasNew, setHasNew] = useState(false)
-  const [closing, setClosing] = useState(false)
   const state = useQuery({ queryKey: [...key, 'state'], queryFn: ({ signal }) => apiRequest<ChatState>(base, { method: 'GET', token, signal }) })
   const runs = useQuery({ queryKey: [...key, 'runs'], queryFn: ({ signal }) => apiRequest<Run[]>(`${base}/runs`, { method: 'GET', token, signal }) })
   const messages = useQuery({
@@ -182,17 +181,12 @@ function Conversation({ groupId }: { groupId: string }) {
     try { await apiRequest(`${base}/runs/${run.id}/retry`, { token }); await client.invalidateQueries({ queryKey: [...key, 'runs'] }) }
     catch (reason) { setError(errorMessage(reason)) }
   }
-  async function close() {
-    try { await apiRequest(`${base}/close`, { token }); await client.invalidateQueries({ queryKey: ['groups'] }); navigate('/chat/', { replace: true }) }
-    catch (reason) { setError(errorMessage(reason)); setClosing(false) }
-  }
   if (state.isPending) return <section className="chat-empty" role="status">正在打开群聊…</section>
   if (state.isError) return <section className="chat-empty"><p role="alert">{errorMessage(state.error)}</p><Link to="/chat/">返回群列表</Link></section>
   const peer = state.data.members.find(user => user.id !== actor)
   const activeRuns = runs.data?.filter(run => run.status === 'queued' || run.status === 'running') || []
   return <section className="conversation">
-    <header className="conversation-header"><Link to="/chat/" aria-label="返回群列表"><ArrowLeft size={20} /></Link><div><h2>与 {peer?.nickname} 的群</h2><small>两位成员 + {state.data.assistantName}</small></div><Button variant="outline" onClick={() => setClosing(true)}>关闭群聊</Button></header>
-    {closing && <div className="chat-close-confirm" role="alert"><p>关闭后，双方都无法再访问这个群的聊天记录。</p><Button variant="outline" onClick={() => setClosing(false)}>保留群聊</Button><Button onClick={() => { void close() }}>确认关闭</Button></div>}
+    <header className="conversation-header"><Link to="/chat/" aria-label="返回群列表"><ArrowLeft size={20} /></Link><div><h2>与 {peer?.nickname} 的群</h2><small>两位成员 + {state.data.assistantName}</small></div><ReminderSettings groupId={groupId} /></header>
     <div className="message-viewport" ref={viewport} onScroll={() => { const view = viewport.current!; pinned.current = view.scrollHeight - view.scrollTop - view.clientHeight < 80; if (pinned.current) setHasNew(false); void markVisible() }}>
       {older && <button className="history-button" disabled={historyBusy} onClick={() => { void loadOlder() }}>{historyBusy ? '加载中…' : '加载更早的消息'}</button>}
       {messages.isError && <p role="alert">{errorMessage(messages.error)} <button onClick={() => { void messages.refetch() }}>重试</button></p>}

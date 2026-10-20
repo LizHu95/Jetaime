@@ -19,14 +19,12 @@ type Handler struct {
 func NewHandler(service *Service, authentication *auth.Handler) *Handler {
 	return &Handler{service: service, auth: authentication}
 }
-func (h *Handler) Endpoints() *httpapi.CollaborationHandlers {
-	return &httpapi.CollaborationHandlers{FindUser: h.auth.RequireUser(h.findUser), Requests: h.auth.RequireUser(h.requests), Send: h.auth.RequireUser(h.send), Resolve: h.auth.RequireUser(h.resolve), Groups: h.auth.RequireUser(h.groups)}
+func (h *Handler) Authenticate(next http.HandlerFunc) http.HandlerFunc {
+	return h.auth.Authenticate(next)
 }
+
 func write(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	httpapi.WriteJSON(w, status, value)
 }
 func fail(w http.ResponseWriter, status int, code string) {
 	write(w, status, map[string]any{"error": map[string]string{"code": code, "message": code}})
@@ -49,23 +47,27 @@ func respond(w http.ResponseWriter, value any, err error) {
 		fail(w, 500, "internal_error")
 	}
 }
-func (h *Handler) findUser(w http.ResponseWriter, r *http.Request, _ auth.User) {
+func (h *Handler) FindUser(w http.ResponseWriter, r *http.Request) {
 	u, err := h.service.FindUser(r.Context(), r.URL.Query().Get("username"))
 	respond(w, u, err)
 }
-func (h *Handler) requests(w http.ResponseWriter, r *http.Request, u auth.User) {
-	result, err := h.service.store.Requests(r.Context(), u.ID)
+func (h *Handler) ListRequests(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	result, err := h.service.ListRequests(r.Context(), u.ID)
 	respond(w, result, err)
 }
-func (h *Handler) groups(w http.ResponseWriter, r *http.Request, u auth.User) {
-	result, err := h.service.store.Groups(r.Context(), u.ID)
+func (h *Handler) ListGroups(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
+	result, err := h.service.ListGroups(r.Context(), u.ID)
 	respond(w, result, err)
 }
-func (h *Handler) resolve(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) ResolveRequest(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	result, err := h.service.Resolve(r.Context(), u.ID, r.PathValue("id"), r.PathValue("action"))
 	respond(w, result, err)
 }
-func (h *Handler) send(w http.ResponseWriter, r *http.Request, u auth.User) {
+func (h *Handler) SendRequest(w http.ResponseWriter, r *http.Request) {
+	u := auth.UserFromContext(r.Context())
 	media, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || media != "application/json" {
 		fail(w, 415, "unsupported_media_type")

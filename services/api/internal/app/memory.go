@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
-	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 )
 
 func backfillMemory(ctx context.Context, cfg config.Config) error {

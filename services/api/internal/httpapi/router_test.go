@@ -29,26 +29,25 @@ func TestConnectivityOnly(t *testing.T) {
 }
 
 func TestCentralRouteBindingsAndPathValues(t *testing.T) {
-	endpoint := func(name string) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Endpoint", name)
-			w.Header().Set("Group", r.PathValue("group"))
-			w.Header().Set("Message", r.PathValue("message"))
-			w.WriteHeader(http.StatusNoContent)
-		})
-	}
-	routes := &ChatHandlers{State: endpoint("state"), Messages: endpoint("messages"), Message: endpoint("message"), Send: endpoint("send"), Read: endpoint("read"), Runs: endpoint("runs"), Retry: endpoint("retry"), Close: endpoint("close"), Events: endpoint("events")}
-	router := NewRouter(Handlers{Chat: routes})
+	router := NewRouter(Handlers{Chat: &routeChat{}})
 	for _, tc := range []struct{ method, path, endpoint string }{
 		{"GET", "/api/chat/groups/group-id/messages/message-id", "message"},
 		{"GET", "/api/chat/groups/group-id/messages", "messages"},
 		{"POST", "/api/chat/groups/group-id/messages", "send"},
 		{"GET", "/api/chat/events", "events"},
+		{"GET", "/api/chat/groups/group-id", "state"},
+		{"POST", "/api/chat/groups/group-id/read", "read"},
+		{"GET", "/api/chat/groups/group-id/runs", "runs"},
+		{"POST", "/api/chat/groups/group-id/runs/run-id/retry", "retry"},
+		{"POST", "/api/chat/groups/group-id/close", "close"},
 	} {
 		out := httptest.NewRecorder()
 		router.ServeHTTP(out, httptest.NewRequest(tc.method, tc.path, nil))
 		if out.Code != 204 || out.Header().Get("Endpoint") != tc.endpoint {
 			t.Fatalf("wrong binding for %s %s: %d %s", tc.method, tc.path, out.Code, out.Header().Get("Endpoint"))
+		}
+		if got := out.Header().Get("Authenticated"); (got == "true") != (tc.endpoint != "events") {
+			t.Fatalf("authentication wrapper for %s: %q", tc.path, got)
 		}
 		if strings.Contains(tc.path, "group-id") && out.Header().Get("Group") != "group-id" {
 			t.Fatal("group path value missing")
@@ -66,5 +65,68 @@ func TestCentralRouteBindingsAndPathValues(t *testing.T) {
 	router.ServeHTTP(out, httptest.NewRequest("POST", "/api/auth/login", nil))
 	if out.Code != 404 {
 		t.Fatal("disabled endpoint group was mounted", out.Code)
+	}
+}
+
+// routeChat exercises route dispatch and middleware without database dependencies.
+type routeChat struct{}
+
+func (*routeChat) Authenticate(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Reject-Authentication") != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Authenticated", "true")
+		next(w, r)
+	}
+}
+
+func routeEndpoint(w http.ResponseWriter, r *http.Request, name string) {
+	w.Header().Set("Endpoint", name)
+	w.Header().Set("Group", r.PathValue("group"))
+	w.Header().Set("Message", r.PathValue("message"))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (*routeChat) GetState(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "state") }
+
+func (*routeChat) ListMessages(w http.ResponseWriter, r *http.Request) {
+	routeEndpoint(w, r, "messages")
+}
+
+func (*routeChat) GetMessage(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "message") }
+
+func (*routeChat) SendMessage(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "send") }
+
+func (*routeChat) MarkRead(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "read") }
+
+func (*routeChat) ListRuns(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "runs") }
+
+func (*routeChat) RetryRun(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "retry") }
+
+func (*routeChat) CloseGroup(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "close") }
+
+func (*routeChat) Events(w http.ResponseWriter, r *http.Request) { routeEndpoint(w, r, "events") }
+
+func TestAuthenticationStopsDispatch(t *testing.T) {
+	router := NewRouter(Handlers{Chat: &routeChat{}})
+	for _, tc := range []struct{ method, path string }{
+		{"GET", "/api/chat/groups/group-id"},
+		{"GET", "/api/chat/groups/group-id/messages"},
+		{"GET", "/api/chat/groups/group-id/messages/message-id"},
+		{"POST", "/api/chat/groups/group-id/messages"},
+		{"POST", "/api/chat/groups/group-id/read"},
+		{"GET", "/api/chat/groups/group-id/runs"},
+		{"POST", "/api/chat/groups/group-id/runs/run-id/retry"},
+		{"POST", "/api/chat/groups/group-id/close"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Reject-Authentication", "true")
+		out := httptest.NewRecorder()
+		router.ServeHTTP(out, req)
+		if out.Code != http.StatusUnauthorized || out.Header().Get("Endpoint") != "" {
+			t.Fatalf("unauthenticated handler reached for %s %s: %d", tc.method, tc.path, out.Code)
+		}
 	}
 }

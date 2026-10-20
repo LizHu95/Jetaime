@@ -154,7 +154,19 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 		}
 		return Message{}, err
 	}
-	if input.MentionsAI {
+	// A live clarification belongs only to its requesting member. Preserve the
+	// original mention flag so HTTP retries still match the saved user message.
+	followup := false
+	if aiEnabled && !input.MentionsAI {
+		if err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM reminders WHERE group_id=$1 AND user_id=$2 AND status='draft' AND updated_at>now()-interval '24 hours')`, group, actor).Scan(&followup); err != nil {
+			return Message{}, err
+		}
+	}
+	if input.MentionsAI || followup {
+		runKind := input.AgentKind
+		if followup {
+			runKind = "auto"
+		}
 		carrier := telemetry.Carrier(ctx)
 		status := "queued"
 		var code *string
@@ -166,8 +178,8 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 			t := time.Now()
 			finished = &t
 		}
-		if _, err = tx.Exec(ctx, `INSERT INTO agent_runs(id,group_id,assistant_id,trigger_message_id,requested_by,context_end_seq,status,error_code,finished_at,agent_kind,trace_parent,trace_state)
- SELECT $1,$2,a.id,$3,$4,$5,$6,$7,$8,$9,$10,$11 FROM group_assistants a WHERE a.group_id=$2 AND a.enabled`, uuid.NewString(), group, id, actor, seq, status, code, finished, input.AgentKind, carrier["traceparent"], carrier["tracestate"]); err != nil {
+		if _, err = tx.Exec(ctx, `INSERT INTO agent_runs(id,group_id,assistant_id,trigger_message_id,requested_by,context_end_seq,status,error_code,finished_at,agent_kind,trace_parent,trace_state,trigger_mentions_ai)
+ SELECT $1,$2,a.id,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12 FROM group_assistants a WHERE a.group_id=$2 AND a.enabled`, uuid.NewString(), group, id, actor, seq, status, code, finished, runKind, carrier["traceparent"], carrier["tracestate"], input.MentionsAI); err != nil {
 			return Message{}, err
 		}
 	}

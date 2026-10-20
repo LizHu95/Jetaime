@@ -81,7 +81,7 @@ func TestPostgresContactsLifecycle(t *testing.T) {
 		tokens = append(tokens, login.Token)
 	}
 	authentication := auth.NewHandler(accounts)
-	router := httpapi.NewRouter(httpapi.Handlers{Auth: authentication.Endpoints(), Collaboration: NewHandler(NewService(NewPostgresStore(pool)), authentication).Endpoints()})
+	router := httpapi.NewRouter(httpapi.Handlers{Auth: authentication, Collaboration: NewHandler(NewService(NewPostgresStore(pool)), authentication)})
 	call := func(method, path, body, token string) *httptest.ResponseRecorder {
 		r := httptest.NewRequest(method, path, strings.NewReader(body))
 		r.Header.Set("Content-Type", "application/json")

@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 )
 
 // Config is fully parsed before the application starts. No flag pointers escape here.
@@ -48,7 +48,6 @@ func Parse(args []string) (Config, error) {
 	commandLine.BoolVar(&cfg.MemoryBackfill, "memory-backfill", false, "resume historical memory backfill and exit; never reset progress")
 	commandLine.BoolVar(&cfg.EnableChatAI, "chat-ai", true, "enable the main Agent for authenticated group chat")
 	commandLine.BoolVar(&cfg.DebugConsole.Enabled, "debug-console", false, "enable the local simulation UI at /page/assistant/; loopback only")
-	commandLine.BoolVar(&cfg.DebugConsole.Enabled, "assistant", false, "legacy alias for -debug-console")
 	commandLine.StringVar(&cfg.DebugConsole.HistoryFile, "fixture", "../../local/data/chat-history/history.fixture.json", "debug console history JSON")
 	commandLine.StringVar(&cfg.DebugConsole.StateFile, "state", "../../local/data/assistant/state.json", "debug console persisted messages and tasks")
 	commandLine.StringVar(&cfg.DebugConsole.RunLogFile, "log", "../../local/data/assistant/runs.jsonl", "debug console execution log")

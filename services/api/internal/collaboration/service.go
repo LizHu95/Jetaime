@@ -77,3 +77,11 @@ func (s *Service) Resolve(ctx context.Context, actor, id, action string) (Reques
 	}
 	return s.store.Resolve(ctx, actor, id, action)
 }
+
+func (s *Service) ListRequests(ctx context.Context, actor string) ([]Request, error) {
+	return s.store.Requests(ctx, actor)
+}
+
+func (s *Service) ListGroups(ctx context.Context, actor string) ([]Group, error) {
+	return s.store.Groups(ctx, actor)
+}

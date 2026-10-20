@@ -17,6 +17,8 @@ make eval EVAL_ARGS='--cases local/data/evals/versions/YOUR_SUITE/cases.json --s
 
 案例契约在 `evals/cases.schema.json`。每例包含 `id`、`input`（fixture、groupId、actorId、kind、question）及可选 `expected`、`metadata`。只有审核通过的 `expected.reviewed=true` 参与参考和语义评分；未审核或缺少参考时保留 pending，不计为通过。正式输入和历史冻结版本保存在 Git 忽略的 `local/data/evals/`，新克隆需要自行提供。空案例拒绝执行正式评测。
 
+直接 extract 执行模式已移除。runner 将冻结案例的 extract 标签转换为 main 和自然语言提取请求，原案例、评分类型与哈希保持不变；模型调用统计包含主 Agent 的工具选择。
+
 ## 评分和输出
 
 每次调用在临时目录使用独立状态，不修改调试台数据。程序评估器检查执行成功、来源隔离、参考规则，以及 requiredSuggestions / forbiddenSuggestions 的逐项行动、负责人、时间和来源。来源 ID 有效不代表语义正确。

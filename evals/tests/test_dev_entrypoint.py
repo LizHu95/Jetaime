@@ -39,7 +39,7 @@ class StartupTests(unittest.TestCase):
     def test_command_forwarding(self):
         cwd, argv = command("assistant", ["-model-profile","local-qwen"], {})
         self.assertEqual(cwd.name, "api")
-        self.assertEqual(argv, ["go","run","./cmd/assistant","-model-profile","local-qwen"])
+        self.assertEqual(argv, ["go","run","./cmd/api","-auth=false","-debug-console","-model-profile","local-qwen"])
         _, argv = command("model-check", [], {})
         self.assertIn("-print-model-config", argv)
         _, argv = command("eval-check", [], {"JETAIME_UV":"custom-uv"})

@@ -21,7 +21,6 @@ JETAIME_TRACE_CAPTURE_CONTENT=true
 
 ```sh
 cd ~/api
-bash start.sh migrate
 bash start.sh restart
 ```
 

@@ -1,6 +1,11 @@
 package chat
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"github.com/google/uuid"
+	"testing"
+)
 
 func TestMentionAndQuestionParsing(t *testing.T) {
 	for _, tc := range []struct {
@@ -18,7 +23,12 @@ func TestMentionAndQuestionParsing(t *testing.T) {
 			t.Fatalf("mention parsing %q -> %q", tc.text, questionText(tc.text))
 		}
 	}
-	if extractCommand.MatchString("@AI 什么是 /extract 命令") {
-		t.Fatal("mentioning a command invoked extraction")
+}
+
+func TestRetiredExtractModeRejectedBeforeStore(t *testing.T) {
+	service := NewService(nil, true)
+	_, err := service.Send(context.Background(), uuid.NewString(), uuid.NewString(), SendInput{Content: "@AI 提取待办", ClientID: uuid.NewString(), AgentKind: "extract"})
+	if !errors.Is(err, ErrInvalid) {
+		t.Fatal("retired mode accepted", err)
 	}
 }

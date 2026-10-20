@@ -122,7 +122,7 @@ func setup(t *testing.T) fixture {
 		t.Fatal(err)
 	}
 	f.group = *request.GroupID
-	f.mux = httpapi.NewRouter(httpapi.Handlers{Push: NewHandler(pool, auth.NewHandler(accounts), f.config).Endpoints()})
+	f.mux = httpapi.NewRouter(httpapi.Handlers{Push: NewHandler(pool, auth.NewHandler(accounts), f.config)})
 	return f
 }
 func (f fixture) request(t *testing.T, method, path, token string, body any) int {

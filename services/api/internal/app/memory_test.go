@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )

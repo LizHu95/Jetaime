@@ -50,9 +50,9 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 `cmd/api/main.go` 读取命令行参数并监听退出信号 → `config.Parse` 生成配置 → `app.Run` 初始化模块并运行服务。`-auth` 控制账号、好友、群聊和通知 API；`-chat-ai` 控制正式群聊中的主 Agent；`-debug-console` 只控制本地 JSON 模拟页面，三个开关的职责不同。
 
-`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-debug-console` 或 `make assistant` 显式启用本地调试台（旧参数 `-assistant` 兼容）；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
+`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-debug-console` 或 `make assistant` 显式启用本地调试台；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
 
-使用 Go 标准库 `net/http` 与 `ServeMux`。所有 HTTP 方法、路径和处理器绑定集中在 [internal/httpapi/router.go](services/api/internal/httpapi/router.go) 的 `NewRouter(Handlers)`，打开此文件即可查看完整路由表。启动流程在 [internal/app/server.go](services/api/internal/app/server.go)，模块装配在 [internal/app/modules.go](services/api/internal/app/modules.go)，按配置注入启用的端点组；未注入的组不注册路由。业务模块仅通过 `Endpoints()` 导出处理器并封装认证、参数和本机访问检查，不再自行创建路由或注册路径。
+使用 Go 标准库 `net/http` 与 `ServeMux`。所有 HTTP 方法、路径和处理器绑定集中在 [internal/httpapi/router.go](services/api/internal/httpapi/router.go) 的 `NewRouter(Handlers)`，打开此文件即可查看完整路由表。启动流程在 [internal/app/server.go](services/api/internal/app/server.go)，模块装配在 [internal/app/modules.go](services/api/internal/app/modules.go)，按配置注入启用的端点组；未注入的组不注册路由。路由直接绑定业务 Handler 的具名方法（如 `ListMessages`、`SendMessage`），并显式包装 `Authenticate` 或 `LocalOnly` 中间件。模块装配注入 Handler 实例，不再通过 `Endpoints()` 转接字段。认证身份由私有 Context key 传递，参数解析留在 Handler，业务入口统一经过 Service；账号和业务 API 共用 `httpapi.WriteJSON` 输出响应。
 
 HTTP 接口以实际客户端调用为边界；记忆检索、Worker 调度、模型调用和 Agent 编排通过进程内方法协作。当前路由用途如下：
 
@@ -65,11 +65,11 @@ HTTP 接口以实际客户端调用为边界；记忆检索、Worker 调度、�
 | `/api/assistant/*`、`/page/assistant/*` | 显式启动的本地调试台与检查脚本，受回环地址和同源限制 |
 | `/test/healthz` | 部署连通性检查 |
 
-原 `GET /api/auth/me` 没有当前调用方，已移除；共享的 `RequireUser` 会话校验继续服务各业务接口。
+原 `GET /api/auth/me` 没有当前调用方，已移除；共享的 `Authenticate` 会话校验继续服务各业务接口。
 
 PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，默认认证模块开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口默认开启，见 [认证接口说明](docs/v2/认证接口.md)；双人群聊、实时同步、阅读进度和共享 AI 接口已实现，见 [双人群聊接口](docs/v2/双人群聊接口.md)。
 
-历史向量化与增量记忆已实现独立 Worker、持久游标/检查点、pgvector 和受群成员权限保护的内部检索方法，尚未接入主 Agent。正式 API 启动时自动运行记忆 Worker，无需 enabled 开关，需有效的记忆模型配置与密钥；首次部署需安装 pgvector 并执行迁移，重启复用已完成数据。配置、恢复保证和接口见 [历史向量化与增量记忆](docs/v2/历史向量化与增量记忆.md)。
+历史向量化与增量记忆已实现独立 Worker、持久游标/检查点、pgvector 和受群成员权限保护的内部检索方法。主 Agent 通过 `answer_question` 工具按需检索历史、回查原文并校验引用，所有取数遵守原提问截止序号。正式 API 启动时自动运行记忆 Worker，无需 enabled 开关，需有效的记忆模型配置与密钥；首次部署需安装 pgvector 并执行迁移，重启复用已完成数据。配置、恢复保证和接口见 [历史向量化与增量记忆](docs/v2/历史向量化与增量记忆.md)。
 
 - `POST /api/auth/register`、`/api/auth/login`、`/api/auth/logout`：账号认证模块，`make dev` 默认启用。
 - `/api/assistant/...`：catalog、state、run、messages、reload、dismiss、confirm、complete；页面在 `/page/assistant/`，仅允许本机访问，保留模拟身份与群组校验。
@@ -94,7 +94,7 @@ make deploy
 make deploy DEPLOY_DEST='user@host:/srv/jetaime/' DEPLOY_WEB_DIR='/var/www/jetaime'
 ```
 
-API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。服务器执行 `bash start.sh migrate` 进行迁移，执行 `bash start.sh start` 启动，两者自动加载同目录 `.env`。
+API 打包会将 `local/.env` 复制为 `outputs/api/.env` 并收入压缩包，上传会同步覆盖服务器的配置。服务器执行 `bash start.sh restart` 即可自动应用待执行的数据库迁移并重启 API；已应用的迁移会跳过。迁移失败时退出并保留旧 API 进程。脚本自动加载同目录 `.env`。
 
 脚本在两项构建都成功后，将 API 压缩包上传到远端临时目录，解压并校验 SHA-256 后通过文件重命名更新 `~/api/`（避免直接覆盖运行中的二进制导致 Text file busy，保留服务器 runtime 数据），将 `outputs/web/` 的内容直接上传到 `/var/www/jetaime/`，例如 `/var/www/jetaime/index.html` 和 `/var/www/jetaime/assets/`，不再生成 `~/web/`，无需手动复制。Web 目录自动创建并设置读取权限，SSH 账号需有该目录的写入和权限修改权限。任何构建或上传失败都会立即退出；上传覆盖同名文件，保留远端其他文件。脚本不重启 API；上传后自动应用并重新加载 Nginx。
 
@@ -102,40 +102,44 @@ Nginx 配置源为 `deploy/nginx/default.conf`。部署时自动匹配 `DEPLOY_W
 
 ## 代码结构
 
+`internal` 按领域拆分。业务规则、事务与定时任务属于对应业务域；AI 工具只在 `ai/tools/<能力>` 适配模型参数并调用业务 Service。AI 专属模型和记忆能力归入 `ai/llm`、`ai/memory`。具体约束见 [internal/AGENTS.md](services/api/internal/AGENTS.md)。
+
 ```text
 services/api/
 ├── cmd/api/                   正式服务入口
-├── cmd/assistant/             本地调试入口
 ├── cmd/workflow-eval/         离线评测入口
 ├── internal/config/          命令行参数解析为明确的配置值
 ├── internal/app/             启动流程、模块装配与后台任务生命周期
 ├── internal/auth/            账号与会话
 ├── internal/collaboration/   好友申请、群组、成员与关闭事务
 ├── internal/chat/            消息、阅读进度与 PostgreSQL 适配
+├── internal/reminder/        提醒领域的 Service、持久化、调度与 HTTP 接口
 ├── internal/ai/
 │   ├── service.go            共用执行入口与协议
 │   ├── bootstrap/            注册当前唯一的 main Agent
 │   ├── runtime/              按 Agent ID 调度与执行身份、Trace
-│   ├── agent/main/           主 Agent，内部包含问答与行动提取流程
+│   ├── agent/main/           主 Agent 工具选择与执行循环
 │   ├── context/              上下文选择、引用保留与预算
-│   ├── prompts/              提示词与 Schema
+│   ├── tools/                工具注册表及 qa、extract、reminder 等 AI 适配
+│   ├── llm/                  模型配置与 Eino 供应商适配
+│   ├── memory/               AI 记忆提取、检索、向量与索引存储
+│   ├── prompts/              主 Agent 与提取提示词、调用 Schema
 │   └── jobs/                 持久队列执行、超时与结果提交
 ├── internal/debugconsole/    JSON 模拟状态、调试 HTTP 与内嵌页面
 ├── internal/notification/    实时通知与 Web Push
-├── internal/llm/             模型配置与 Eino 供应商适配
 ├── internal/database/        PostgreSQL 连接与嵌入式迁移
 └── internal/telemetry/       调用链
 ```
 
-当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通请求由主 Agent 直接回答，明确的提取请求执行 main 内部的固定提取与核对流程，不额外注册提取 Agent。`qa/help/extract` 保留为旧请求和能力评测的执行模式，模式与 Agent 身份分别建模。主提示词版本为 `main-v2-single-agent`。
+当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。主 Agent 只选择并执行已注册工具：`answer_question` 统一日常、近期、历史与混合问答，正式群聊额外注册 `set_reminder` 调用提醒领域 Service；`extract_todos` 已移除默认注册，提取实现暂留。普通自动问答为一次工具选择加一次 QA 生成，QA 校验后的答案直接保存。`qa/help` 旧模式复用同一个 QA 工具，已移除直接 `extract` 模式和 `/extract` 命令特判，行动事项的文字总结统一交给 QA，不生成结构化待办建议；旧排队任务执行时转入 main。主提示词版本为 `main-v4-tools`，QA 为 `answer-question-v1`。
 
-生产群聊、调试台和离线评测均调用 `ai.Service → runtime → agent/main`。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天、数据库或调试台；未来新增 Agent 在注册点装配，不向聊天 worker 添加分支。尚未实现跨 Agent 委派、调用树恢复或共享记忆。
+生产群聊、调试台和离线评测均调用 `ai.Service → runtime → agent/main`。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天、数据库或调试台；未来新增 Agent 在注册点装配，不向聊天 worker 添加分支。群共享记忆通过 QA 的函数式上下文提供器接入；调试台与离线评测默认只使用传入快照。尚未实现跨 Agent 委派与调用树恢复。
 
 `ai.Job` 表示数据库排队与租约状态，`ai.Run` 表示一次执行记录，`ai.Result` 是允许保存并展示的回答或建议。每次运行带独立的 `agentId/invocationId`，原始模型响应和内部步骤不会进入消息 API 的结果对象。`chat` 的上下文适配器执行群权限与触发序号检查，`ai/context` 负责原文选择与预算。
 
 消息与 AI 入队、AI 回复与完成状态分别保持单事务提交；群关闭事务仍会禁用助手并取消未完成任务，过期 worker 的 attempt/租约保护保留。数据库结构与已有 HTTP 路径不变。WebSocket 和 Web Push 位于通知模块，通知丢失后仍以数据库补拉为准。
 
-调试台独立管理模拟身份、JSON 消息与任务、候选忽略和运行日志。评测在内存中适配 fixture，不再为了调用执行内核创建临时 JSON 文件；案例支持 `main/auto` 完整入口与 `qa/help/extract` 能力模式。模型、提示词、执行器、案例与评估器均纳入新实验快照，历史冻结文件不改写。
+调试台独立管理模拟身份、JSON 消息与任务、候选忽略和运行日志。评测在内存中适配 fixture，不再为了调用执行内核创建临时 JSON 文件；案例支持 `main/auto` 完整入口与 `qa/help` 兼容模式；冻结案例的 extract 标签由评测适配器转换成 main 请求。模型、提示词、执行器、案例与评估器均纳入新实验快照，历史冻结文件不改写。
 
 已移除默认关闭的核对缓存实验、模型指纹查询和预留指令提供器；提取中的证据边界与行动状态核对继续保留。私有输入在 `local/`，生成产物在 `outputs/`，部署定义在 `deploy/`。
 

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 )
 
 var (
@@ -19,8 +19,9 @@ var (
 type ExtractContextLoader func(context.Context) (Context, error)
 
 // Invocation separates the registered agent from its requested capability.
-// Mode retains compatibility with explicit qa/help/extract requests.
+// Mode retains compatibility with explicit qa/help requests.
 type Invocation struct {
+	ContextEndSeq  int64
 	AgentID        string
 	Context        Context
 	Mode           string

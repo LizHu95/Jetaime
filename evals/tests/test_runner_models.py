@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from runner import model_arguments, preflight
+from runner import model_arguments, preflight, run_workflow
 
 
 class ModelConfigurationTests(unittest.TestCase):
@@ -51,3 +51,14 @@ class ModelConfigurationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             preflight(self.args())
         client.assert_not_called()
+
+    @patch("runner.subprocess.run")
+    def test_frozen_extraction_case_uses_main_without_rewriting_case(self, run):
+        run.return_value = SimpleNamespace(returncode=0, stdout='{"run":{}}', stderr="")
+        case = {"kind": "extract", "question": "", "fixture": {"messages": []}}
+        run_workflow(Path("/tmp/eval"), case, self.args())
+        payload = json.loads(run.call_args.kwargs["input"])
+        self.assertEqual(payload["kind"], "main")
+        self.assertTrue(payload["question"])
+        self.assertEqual(case["kind"], "extract")
+        self.assertEqual(case["question"], "")

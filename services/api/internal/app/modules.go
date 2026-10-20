@@ -10,23 +10,29 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
-	"github.com/LizHu95/Jetaime/services/api/internal/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/webpush"
+	"github.com/LizHu95/Jetaime/services/api/internal/reminder"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type modules struct {
-	handlers   httpapi.Handlers
-	database   *pgxpool.Pool
-	background []func(context.Context)
-	workers    sync.WaitGroup
+	handlers        httpapi.Handlers
+	database        *pgxpool.Pool
+	memoryService   *memory.Service
+	reminderService *reminder.Service
+	background      []func(context.Context)
+	workers         sync.WaitGroup
 }
 
 // Build every dependency before starting background work. On failure, release
@@ -44,13 +50,38 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			return nil, err
 		}
 	}
+	if cfg.EnableAccountAPI {
+		m.reminderService = reminder.NewService(reminder.NewStore(m.database))
+		memoryStore := memory.NewStore(m.database, cfg.Memory)
+		memoryService, err := cfg.Memory.Build()
+		if err != nil {
+			return nil, err
+		}
+		memoryService.Store = memoryStore
+		if err = memoryStore.Initialize(ctx); err != nil {
+			return nil, err
+		}
+		m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
+		m.memoryService = memoryService
+		fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
+	}
+	var model llm.ChatModel
 	var executor *ai.Service
 	if cfg.EnableChatAI || cfg.DebugConsole.Enabled {
-		model, modelErr := cfg.Model.New(cfg.ModelTimeout)
+		var modelErr error
+		model, modelErr = cfg.Model.New(cfg.ModelTimeout)
 		if modelErr != nil {
 			return nil, modelErr
 		}
-		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens)
+		var provider qa.ContextProvider
+		if m.memoryService != nil {
+			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
+		}
+		if m.database != nil && cfg.EnableAccountAPI {
+			executor, err = bootstrap.NewWithTools(model, cfg.Model.Model, cfg.Model.ContextTokens, provider, remindertool.New(m.reminderService, chat.ReminderOperation))
+		} else {
+			executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -62,7 +93,11 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		}
 	}
 	if cfg.DebugConsole.Enabled {
-		m.handlers.Assistant, err = buildDebugConsole(cfg, executor)
+		debugExecutor, e := bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens)
+		if e != nil {
+			return nil, e
+		}
+		m.handlers.Assistant, err = buildDebugConsole(cfg, debugExecutor)
 		if err != nil {
 			return nil, err
 		}
@@ -84,44 +119,36 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 	chatStore := chat.NewStore(m.database)
 	chatService := chat.NewService(chatStore, cfg.EnableChatAI)
 	events := realtime.New(ctx, chatStore, accounts)
-	m.handlers.Auth = authentication.Endpoints()
-	m.handlers.Collaboration = collaboration.NewHandler(collaboration.NewService(collaboration.NewPostgresStore(m.database)), authentication).Endpoints()
-	m.handlers.Chat = chat.NewHandler(chatService, authentication, events).Endpoints()
-	m.handlers.Push = webpush.NewHandler(m.database, authentication, pushConfig).Endpoints()
-	memoryStore := memory.NewStore(m.database, cfg.Memory)
-	memoryService, err := cfg.Memory.Build()
-	if err != nil {
-		return err
-	}
-	memoryService.Store = memoryStore
-	if err = memoryStore.Initialize(ctx); err != nil {
-		return err
-	}
-	m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
-	fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
+	m.handlers.Auth = authentication
+	m.handlers.Collaboration = collaboration.NewHandler(collaboration.NewService(collaboration.NewPostgresStore(m.database)), authentication)
+	m.handlers.Chat = chat.NewHandler(chatService, authentication, events)
+	reminders := m.reminderService
+	m.handlers.Reminders = reminder.NewHandler(reminders, authentication)
+	m.background = append(m.background, reminder.NewWorker(reminders).Work)
+	m.handlers.Push = webpush.NewHandler(m.database, authentication, pushConfig)
 
 	m.background = append(m.background, events.Listen)
 	if pushConfig.Enabled {
 		m.background = append(m.background, webpush.NewWorker(m.database, pushConfig).Work)
 	}
 	if cfg.EnableChatAI {
-		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout)
+		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, remindertool.New(reminders, chat.ReminderOperation).Inject)
 		m.background = append(m.background, worker.Work, worker.Work)
 	}
 	return nil
 }
 
-func buildDebugConsole(cfg config.Config, executor ai.Executor) (*httpapi.AssistantHandlers, error) {
+func buildDebugConsole(cfg config.Config, executor ai.Executor) (*debugconsole.Server, error) {
 	console := cfg.DebugConsole
 	store, err := debugconsole.OpenStore(console.HistoryFile, console.StateFile)
 	if err != nil {
 		return nil, err
 	}
-	workflow, err := debugconsole.NewWorkflow(store, executor, cfg.Model.Model, console.RunLogFile)
+	workflow, err := debugconsole.NewWorkflow(store, executor, cfg.Model.Model, console.RunLogFile, cfg.Model.ContextTokens)
 	if err != nil {
 		return nil, err
 	}
-	return debugconsole.NewServer(workflow).Endpoints(), nil
+	return debugconsole.NewServer(workflow), nil
 }
 
 func (m *modules) startWorkers(ctx context.Context) {

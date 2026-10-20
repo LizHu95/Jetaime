@@ -8,17 +8,10 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
+	"github.com/google/uuid"
 )
-
-// RecentQAContext keeps a contiguous suffix of complete, chronological messages.
-// The newest message is the trigger and must fit; it is never skipped or cut.
-// Count the serialized payload, including scope, system prompt and question,
-// using the same conservative byte bound as the workflow's final guard.
-func RecentQAContext(input ai.Context, question string, tokens int, earlierOmitted bool) (ai.Context, error) {
-	return recentContext(input, question, tokens, earlierOmitted, "qa")
-}
 
 func RecentRouteContext(input ai.Context, question string, tokens int, earlierOmitted bool) (ai.Context, error) {
 	if len(input.Messages) == 0 {
@@ -26,55 +19,6 @@ func RecentRouteContext(input ai.Context, question string, tokens int, earlierOm
 	}
 	input.HistoryScope = &ai.HistoryScope{Policy: "default-context-v1", EarlierMessagesOmitted: earlierOmitted}
 	return InjectDefaultContext(context.Background(), ContextRequest{Snapshot: input, TriggerID: input.Messages[len(input.Messages)-1].ID, Question: question, Now: time.Now(), Tokens: tokens})
-}
-
-func RecentHelpContext(input ai.Context, question string, tokens int, earlierOmitted bool) (ai.Context, error) {
-	return recentContext(input, question, tokens, earlierOmitted, "help")
-}
-
-func recentContext(input ai.Context, question string, tokens int, earlierOmitted bool, kind string) (ai.Context, error) {
-	if len(input.Messages) == 0 {
-		return input, fmt.Errorf("recent context requires the trigger message")
-	}
-	input.HistoryScope = &ai.HistoryScope{Policy: "recent-messages-v1", EarlierMessagesOmitted: earlierOmitted}
-	messages := input.Messages
-	// Evaluate both scope values: JSON false is one byte longer than true.
-	input.Messages = []ai.Message{}
-	input.HistoryScope.EarlierMessagesOmitted = false
-	base, err := json.Marshal(struct {
-		Context  ai.Context `json:"context"`
-		Question string     `json:"question,omitempty"`
-	}{input, question})
-	if err != nil {
-		return input, err
-	}
-	prompt, schema, reserve := prompts.QASystem(input), prompts.QASchema, prompts.OutputReserve
-	if kind == "help" {
-		prompt = prompts.Scoped(input, prompts.Help, prompts.QASchema)
-	}
-	bound := llm.InputTokenUpperBound(llm.Request{Messages: []llm.Message{{Role: "system", Content: prompt}, {Role: "user", Content: string(base)}}, Format: schema}) + reserve
-	start := len(messages)
-	for start > 0 {
-		encoded, err := json.Marshal(messages[start-1])
-		if err != nil {
-			return input, err
-		}
-		cost := len(encoded)
-		if start < len(messages) {
-			cost++ // Array separator.
-		}
-		if bound+cost > tokens {
-			break
-		}
-		bound += cost
-		start--
-	}
-	if start == len(messages) {
-		return input, fmt.Errorf("%w: current question and required context do not fit", ErrBudget)
-	}
-	input.Messages = messages[start:]
-	input.HistoryScope.EarlierMessagesOmitted = earlierOmitted || start > 0
-	return input, nil
 }
 
 const DefaultRecentMessages = 12
@@ -238,4 +182,20 @@ func checkInitialBudget(input ai.Context, question string, tokens int) error {
 		return err
 	}
 	return llm.CheckContextBudget(request, tokens)
+}
+
+// ForQuestion adapts local console/evaluation snapshots with a separate question.
+// Production chat already has a persisted trigger and does not use this helper.
+func ForQuestion(ctx context.Context, input ai.Context, question string, tokens int) (ai.Context, error) {
+	at := time.Now()
+	if len(input.Messages) > 0 {
+		last := input.Messages[len(input.Messages)-1]
+		if last.SenderID == input.ActorID && last.Text == question {
+			return InjectDefaultContext(ctx, ContextRequest{Snapshot: input, TriggerID: last.ID, Question: question, Tokens: tokens, Now: time.Now()})
+		}
+		at = last.SentAt.Add(time.Nanosecond)
+	}
+	id := "request-" + uuid.NewString()
+	input.Messages = append(append([]ai.Message{}, input.Messages...), ai.Message{ID: id, GroupID: input.GroupID, SenderID: input.ActorID, SentAt: at, Text: question})
+	return InjectDefaultContext(ctx, ContextRequest{Snapshot: input, TriggerID: id, Question: question, Tokens: tokens, Now: time.Now()})
 }

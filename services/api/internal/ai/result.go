@@ -16,7 +16,7 @@ func ResultFromRun(run Run) (Result, string, error) {
 	text := ""
 	if run.Answer != nil {
 		text = run.Answer.Answer
-		if run.HistoryScope != nil && run.HistoryScope.EarlierMessagesOmitted {
+		if run.HistoryScope != nil && run.HistoryScope.EarlierMessagesOmitted && !run.HistoryScope.HistoricalSearch {
 			text += "\n\n本次仅参考近期聊天，未检索更早记录。"
 		}
 	} else if run.Kind == "extract" {

@@ -12,7 +12,6 @@ import uuid
 
 import httpx
 from jsonschema import Draft202012Validator, FormatChecker
-from opentelemetry.trace import NoOpTracer
 
 from evaluators import OllamaJudge, execution_success, reference_rules, source_integrity, skipped, JUDGE_VERSION, REFERENCE_RULES_VERSION
 
@@ -65,13 +64,18 @@ def model_arguments(args):
 
 
 def run_workflow(binary, input, args):
-    # Each invocation creates temporary fixture/state inside Go. No HTTP debug mutation.
+    # Keep frozen cases unchanged; retired extraction cases exercise main routing.
+    payload = dict(input)
+    if payload.get("kind") == "extract":
+        payload["kind"] = "main"
+        payload["question"] = payload.get("question") or "请从当前群聊整理尚未完成的待办"
+    # Each invocation uses isolated fixture/state. No HTTP debug mutation.
     with tempfile.TemporaryDirectory(prefix="jetaime-eval-input-") as workspace:
         environment = os.environ.copy()
         for name in ["TMPDIR", "TMP", "TEMP"]:
             environment[name] = workspace
         process = subprocess.run([str(binary), *model_arguments(args)],
-                                 input=dumps(input), text=True, capture_output=True, timeout=args.timeout + 15,
+                                 input=dumps(payload), text=True, capture_output=True, timeout=args.timeout + 15,
                                  env=environment)
     if process.returncode:
         raise RuntimeError(process.stderr.strip() or "workflow-eval failed")
@@ -158,7 +162,7 @@ def run_experiment(args, cases, digest):
     experiment_id = uuid.uuid4().hex
     run_metadata["experimentName"] = args.name or "v2-" + utcnow().strftime("%Y%m%dT%H%M%SZ")
     (snapshot / "manifest.json").write_text(json.dumps(run_metadata, ensure_ascii=False, indent=2) + "\n")
-    judge = OllamaJudge(args.ollama_url, args.judge_model, NoOpTracer(), args.timeout) if args.judge_model else None
+    judge = OllamaJudge(args.ollama_url, args.judge_model, args.timeout) if args.judge_model else None
     logfile = args.output / ("experiment-" + suffix + ".jsonl")
     totals, errors = {}, 0
     with tempfile.TemporaryDirectory(prefix="jetaime-eval-build-") as directory:

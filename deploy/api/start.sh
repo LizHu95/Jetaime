@@ -101,7 +101,15 @@ case "$action" in
     ;;
   start|restart)
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
-    if [[ "$action" == restart ]]; then restart_api "$@"; fi
+    chmod +x "$binary"
+    if [[ "$action" == restart ]]; then
+      echo '执行数据库增量迁移...'
+      if ! (cd "$api_dir" && "$binary" -migrate "$@"); then
+        echo '数据库迁移失败，未重启 API' >&2
+        exit 1
+      fi
+      restart_api "$@"
+    fi
     mkdir -p "$runtime_dir"
     if running; then
       echo "API 已运行，PID：$pid"

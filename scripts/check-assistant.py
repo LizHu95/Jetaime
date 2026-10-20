@@ -42,7 +42,7 @@ def main():
         directory = Path(directory)
         binary = directory / "assistant"
         subprocess.run(["go", "build", "-o", str(binary), "./cmd/api"], cwd=ROOT / "services/api", check=True)
-        command = [str(binary), "-auth=false", "-assistant", "-addr", "127.0.0.1:0", "-fixture", str(fixture), "-state", str(directory / "state.json"), "-log", str(directory / "runs.jsonl"), "-context-tokens", "98304", "-model-timeout", "5m", "-model", args.model, "-ollama-url", args.ollama_url]
+        command = [str(binary), "-auth=false", "-debug-console", "-addr", "127.0.0.1:0", "-fixture", str(fixture), "-state", str(directory / "state.json"), "-log", str(directory / "runs.jsonl"), "-context-tokens", "98304", "-model-timeout", "5m", "-model", args.model, "-ollama-url", args.ollama_url]
 
         def start():
             server = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -68,16 +68,16 @@ def main():
             assert len(state["messages"]) == len(history["messages"]) and len(state["users"]) == 2
             report["checks"].append("imported_history_and_account_merge")
             print("Loaded imported history: 2 people, %d messages" % len(state["messages"]), flush=True)
-            for kind, question in [("qa", "群里约定健身和理发分别是几点？请给出明确安排的原文来源。"), ("extract", "")]:
+            for kind, question in [("qa", "群里约定健身和理发分别是几点？请给出明确安排的原文来源。"), ("extract", "请从当前群聊整理尚未完成的待办")]:
                 started = time.time()
                 run = previous.get(kind)
                 if run is not None:
-                    original = next(step["output"] for step in run["steps"] if step["name"] == "build_context")
+                    original = [step["output"] for step in run["steps"] if step["name"] == "build_context"][-1]
                     assert run["model"] == args.model and run.get("question", "") == question
-                    assert original["messages"] == history["messages"] and not original["tasks"]
+                    assert [m for m in original["messages"] if not m["id"].startswith("request-")] == history["messages"] and not original["tasks"]
                     print("Reusing verified real-model %s result" % kind, flush=True)
                 else:
-                    run = request(base, "/api/assistant/run", {**scope, "kind": kind, "question": question})["run"]
+                    run = request(base, "/api/assistant/run", {**scope, "kind": "main" if kind == "extract" else kind, "question": question})["run"]
                 report[kind] = run
                 args.output.parent.mkdir(parents=True, exist_ok=True)
                 args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n")
@@ -102,7 +102,7 @@ def main():
             process = None
             command[command.index("-fixture") + 1] = str(replay_path)
             process, base = start()
-            replay = request(base, "/api/assistant/run", {**scope, "kind": "extract", "question": ""})["run"]
+            replay = request(base, "/api/assistant/run", {**scope, "kind": "main", "question": "请从当前群聊整理尚未完成的待办"})["run"]
             report["historicalReplayExtraction"] = replay
             assert replay["status"] == "succeeded"
             suggestions = replay.get("suggestions", [])

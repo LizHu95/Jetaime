@@ -8,24 +8,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
 type stubModel struct {
-	content       string
-	request       llm.Request
-	reviewContent string
+	content string
+	request llm.Request
 }
 
 func (m *stubModel) Call(_ context.Context, r llm.Request) (llm.Result, error) {
-	if strings.Contains(string(r.Format), `"reviews"`) {
-		if m.reviewContent != "" {
-			return llm.Result{Content: m.reviewContent}, nil
-		}
-		return llm.Result{Content: `{"reviews":[{"candidateIndex":0,"status":"active","evidenceMessageIds":["m6"],"reason":"明确安排且未完成"}]}`}, nil
-	}
 	m.request = r
 	return llm.Result{Content: m.content, Raw: map[string]string{"content": m.content}}, nil
 }
@@ -43,11 +37,11 @@ func setup(t *testing.T, content string) (*Store, *Workflow, *stubModel) {
 		t.Fatal(err)
 	}
 	m := &stubModel{content: content}
-	executor, err := bootstrap.New(m, "test", 8192)
+	executor, err := bootstrap.New(m, "test", 16384)
 	if err != nil {
 		t.Fatal(err)
 	}
-	w, err := NewWorkflow(s, executor, "test", "")
+	w, err := NewWorkflow(s, executor, "test", "", 16384)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,16 +61,9 @@ func TestGroupIsolationAndSourceValidation(t *testing.T) {
 	}
 }
 func TestConfirmPersistenceIdempotenceAndOwnership(t *testing.T) {
-	s, w, _ := setup(t, `{"suggestions":[{"title":"测试任务","assigneeId":"lin","timeExpression":"明天","sourceMessageIds":["m6"]}]}`)
-	r, err := w.Execute(context.Background(), "daily", "lin", "extract", "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	c, _ := s.Context("daily", "lin")
-	if len(c.Tasks) != 0 {
-		t.Fatal("extraction wrote tasks")
-	}
-	sug := r.Suggestions[0]
+	s, _, _ := setup(t, "")
+	sug := ai.Suggestion{ID: "retained-suggestion", Title: "测试任务", TimeExpression: "明天", SourceMessageIDs: []string{"m6"}}
+
 	task, err := s.Confirm("daily", "lin", sug.ID, sug, sug.Title, "lin", sug.DueAt)
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +101,7 @@ func TestFailedPersistenceDoesNotChangeMemory(t *testing.T) {
 }
 func TestLocalHTTPBoundary(t *testing.T) {
 	_, w, _ := setup(t, "")
-	s := httpapi.NewRouter(httpapi.Handlers{Assistant: NewServer(w).Endpoints()})
+	s := httpapi.NewRouter(httpapi.Handlers{Assistant: NewServer(w)})
 	for _, tc := range []struct {
 		host, origin, path string
 		status             int

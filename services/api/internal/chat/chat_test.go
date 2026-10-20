@@ -16,11 +16,12 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
-	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -83,6 +84,7 @@ type fixture struct {
 	modelName string
 	timeout   time.Duration
 	injector  aicontext.ContextInjector
+	qaContext qa.ContextProvider
 
 	store   *Store
 	service *Service
@@ -136,7 +138,7 @@ func setup(t *testing.T) fixture {
 		}
 		data, err := json.Marshal(map[string]any{"status": "answered", "answer": "共享 AI 回答", "sourceMessageIds": []string{payload.Context.Messages[0].ID}})
 		if strings.Contains(r.Messages[0].Content, "主Agent") {
-			data, err = json.Marshal(map[string]any{"action": "answer", "basis": "history", "answer": json.RawMessage(data)})
+			data, err = json.Marshal(map[string]any{"name": "answer_question", "arguments": map[string]any{"question": "测试问题", "context": "history"}})
 		}
 		return llm.Result{Content: string(data)}, err
 	}}
@@ -325,7 +327,7 @@ func TestPostgresRealtimeIsolationAndRevocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt := realtime.New(ctx, f.store, f.auth)
-	mux := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt).Endpoints()})
+	mux := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt)})
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	dial := func(token string) *websocket.Conn {
@@ -543,7 +545,7 @@ func (f *fixture) configureAI(model llm.ChatModel, name string, tokens int, time
 }
 func (f *fixture) worker(t *testing.T) *jobs.Worker {
 	t.Helper()
-	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity))
+	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity), f.qaContext)
 	if err != nil {
 		t.Fatal(err)
 	}
