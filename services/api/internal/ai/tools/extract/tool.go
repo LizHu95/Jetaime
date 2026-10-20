@@ -21,7 +21,7 @@ type Tool struct {
 
 func New(model llm.ChatModel, name string, tokens int) *Tool {
 	t := &Tool{ChatModel: model, DefaultModel: name, Tokens: tokens}
-	t.Typed = tools.NewTyped(tools.Metadata{Name: "extract_todos", Description: "仅在用户明确要求提取或整理群聊行动安排时使用。返回待确认建议，不创建任务、提醒或修改状态。", Kind: "extract", Version: "extract-v20-scope-bounded", Model: name, Terminal: true, ReadOnly: true, Idempotent: true}, t.Execute, tools.Options[Output]{Input: func(s *jsonschema.Schema) {
+	t.Typed = tools.NewTyped(tools.Metadata{Name: "extract_todos", Description: "仅在用户明确要求提取或整理群聊行动安排时使用。返回待确认建议，不创建任务、提醒或修改状态。", Kind: "extract", Version: Version, Model: name, Terminal: true, ReadOnly: true, Idempotent: true}, t.Execute, tools.Options[Output]{Input: func(s *jsonschema.Schema) {
 		s.Properties["question"].MinLength = jsonschema.Ptr(1)
 		s.Properties["question"].MaxLength = jsonschema.Ptr(3000)
 	}, Present: func(o Output) tools.Completion {

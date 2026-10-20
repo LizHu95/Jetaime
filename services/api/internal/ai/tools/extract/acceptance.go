@@ -9,12 +9,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
 )
-
-const acceptancePrompt = prompts.Base + `
-任务：只检查输入的相邻真人消息对是否形成行动接受。“称呼＋来/帮我＋动作”是向当前对话接收者发出的请求，开头的亲昵称呼不应被当作另一个第三人。第一条必须提出具体行动请求，第二条肯定回应且语义明确指向该请求，才生成suggestion；普通聊天的附和、庆祝不算接受。
-若A请求B做某事，B回复“好”，B接受了该行动，负责人是B，来源必须同时包含两条消息。B无需再次重述动作；不能把这种明确接受漏掉。title只写动作，去掉开头称呼；请求里的“我”是请求者，改成“对方”，不能保留第一人称造成负责人混淆。例如A说“小宝来帮我拿包”，B回“好”，title为“帮对方拿包”，负责人B，而非小宝或A。不能写“回复好”。时间只用请求原文，没有则空字符串。检查tasks避免重复；后续状态另由独立核对处理。不符合条件返回空suggestions。只输出Schema JSON。`
 
 type acceptancePair struct {
 	Request  ai.Message `json:"request"`
@@ -63,7 +58,7 @@ func (w *Tool) supplementAcceptances(ctx context.Context, run *ai.Run, input ai.
 	if err != nil {
 		return nil, err
 	}
-	request := llm.Request{Model: run.Model, Messages: []llm.Message{{Role: "system", Content: acceptancePrompt + "\nSchema: " + string(prompts.ExtractSchema)}, {Role: "user", Content: string(payload)}}, Format: prompts.ExtractSchema, Options: llm.Options{Temperature: 0, NumCtx: w.Tokens, NumPredict: 2048}}
+	request := llm.Request{Model: run.Model, Messages: []llm.Message{{Role: "system", Content: acceptancePrompt + "\nSchema: " + string(extractSchema)}, {Role: "user", Content: string(payload)}}, Format: extractSchema, Options: llm.Options{Temperature: 0, NumCtx: w.Tokens, NumPredict: 2048}}
 	if err := llm.CheckContextBudget(request, w.Tokens); err != nil {
 		return nil, err
 	}

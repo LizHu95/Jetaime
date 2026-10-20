@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main/prompts"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
 	"github.com/google/uuid"
 )
 

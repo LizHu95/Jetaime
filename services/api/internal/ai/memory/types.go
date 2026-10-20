@@ -85,6 +85,4 @@ type Mutation struct {
 
 func hash(s string) string { v := sha256.Sum256([]byte(s)); return hex.EncodeToString(v[:]) }
 
-// Pipeline identity is persisted, not a reason to reset progress on deployment.
-const PipelineVersion = "memory-v1"
 const MaxBatchBytes = 18000

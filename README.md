@@ -133,6 +133,8 @@ services/api/
 
 当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。需要历史检索/回查时使用 `answer_question`；正式群聊额外注册 `set_reminder` 调用提醒领域 Service。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v6-direct-answer`，QA 为 `answer-question-v1`。
 
+提示词按能力维护：主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（上下文预算检查复用该子包）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
+
 生产群聊、调试台和离线评测均调用 `ai.Service → runtime → agent/main`。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天、数据库或调试台；未来新增 Agent 在注册点装配，不向聊天 worker 添加分支。群共享记忆通过 QA 的函数式上下文提供器接入；调试台与离线评测默认只使用传入快照。尚未实现跨 Agent 委派与调用树恢复。
 
 `ai.Job` 表示数据库排队与租约状态，`ai.Run` 表示一次执行记录，`ai.Result` 是允许保存并展示的回答或建议。每次运行带独立的 `agentId/invocationId`，原始模型响应和内部步骤不会进入消息 API 的结果对象。`chat` 的上下文适配器执行群权限与触发序号检查，`ai/context` 负责原文选择与预算。

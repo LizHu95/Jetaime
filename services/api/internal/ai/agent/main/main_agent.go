@@ -8,15 +8,15 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main/prompts"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 )
 
-const PromptVersion = "main-v6-direct-answer"
+const PromptVersion = prompts.Version
 const MaxToolSteps = 3
 
 // ExecuteMain can answer through respond in one model call, or select capabilities

@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main/prompts"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 

@@ -9,7 +9,6 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/prompts"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
@@ -42,7 +41,7 @@ func (w *Tool) extract(ctx context.Context, input ai.Context, question string) (
 		}
 		identity = &v
 	}
-	run = ai.Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: "extract", Question: question, Model: model, ModelIdentity: identity, PromptVersion: "extract-v20-scope-bounded", StartedAt: time.Now(), Status: "running", Steps: []ai.Step{}}
+	run = ai.Run{ID: "run-" + uuid.NewString(), GroupID: group, ActorID: actor, Kind: "extract", Question: question, Model: model, ModelIdentity: identity, PromptVersion: Version, StartedAt: time.Now(), Status: "running", Steps: []ai.Step{}}
 	defer func() {
 		run.DurationMS = time.Since(run.StartedAt).Milliseconds()
 		run.Status = "succeeded"
@@ -60,7 +59,7 @@ func (w *Tool) extract(ctx context.Context, input ai.Context, question string) (
 	if e != nil {
 		return run, e
 	}
-	request := llm.Request{Model: model, Messages: []llm.Message{{Role: "system", Content: prompts.Extract + "\nSchema: " + string(prompts.ExtractSchema)}, {Role: "user", Content: string(data)}}, Format: prompts.ExtractSchema, Options: llm.Options{NumCtx: w.Tokens, NumPredict: 2048}}
+	request := llm.Request{Model: model, Messages: []llm.Message{{Role: "system", Content: extractPrompt + "\nSchema: " + string(extractSchema)}, {Role: "user", Content: string(data)}}, Format: extractSchema, Options: llm.Options{NumCtx: w.Tokens, NumPredict: 2048}}
 	if err = llm.CheckContextBudget(request, w.Tokens); err != nil {
 		run.Steps = append(run.Steps, ai.Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
 		return run, err
