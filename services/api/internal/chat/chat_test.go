@@ -325,7 +325,7 @@ func TestPostgresRealtimeIsolationAndRevocation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	rt := realtime.New(ctx, f.store, f.auth)
-	mux := httpapi.NewRouter(NewHandler(f.service, auth.NewHandler(f.auth), rt))
+	mux := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt).Endpoints()})
 	server := httptest.NewServer(mux)
 	defer server.Close()
 	dial := func(token string) *websocket.Conn {

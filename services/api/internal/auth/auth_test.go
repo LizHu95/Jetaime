@@ -29,7 +29,7 @@ func TestPostgresCaseSensitiveUsernames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := httpapi.NewRouter(NewHandler(service))
+	router := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service).Endpoints()})
 	ids := map[string]bool{}
 	for i, username := range []string{"Liz", "liz", "LIZ"} {
 		password := fmt.Sprintf("pass0%d", i)
@@ -133,7 +133,7 @@ func TestPostgresAuthLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := httpapi.NewRouter(NewHandler(service))
+	router := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service).Endpoints()})
 	out := request(router, "/api/auth/register", registerRequest{Username: " alice_1 ", Password: testPassword, Nickname: " 测试昵称 "}, "")
 	if out.Code != 201 {
 		t.Fatalf("register: %d %s", out.Code, out.Body.String())
@@ -208,7 +208,7 @@ func TestPostgresAuthLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restartedRouter := httpapi.NewRouter(NewHandler(restarted))
+	restartedRouter := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(restarted).Endpoints()})
 	for range 2 {
 		out := request(restartedRouter, "/api/auth/logout", nil, first.Token)
 		if out.Code != 204 || out.Body.Len() != 0 {
@@ -410,7 +410,7 @@ func TestPostgresChangePassword(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	router := httpapi.NewRouter(NewHandler(service))
+	router := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service).Endpoints()})
 	for _, tc := range []struct {
 		old, new string
 		status   int

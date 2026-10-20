@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	push "github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -36,13 +37,13 @@ func respond(w http.ResponseWriter, status int, v any) {
 func fail(w http.ResponseWriter, status int, code string) {
 	respond(w, status, map[string]any{"error": map[string]string{"code": code, "message": code}})
 }
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/push/public-key", func(w http.ResponseWriter, r *http.Request) {
-		respond(w, 200, map[string]any{"enabled": h.config.Enabled, "publicKey": h.config.PublicKey})
-	})
-	mux.HandleFunc("POST /api/push/subscriptions", h.auth.RequireUser(h.subscribe))
-	mux.HandleFunc("DELETE /api/push/subscriptions", h.auth.RequireUser(h.remove))
-	mux.HandleFunc("POST /api/push/test", h.auth.RequireUser(h.test))
+func (h *Handler) Endpoints() *httpapi.PushHandlers {
+	return &httpapi.PushHandlers{
+		PublicKey: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			respond(w, 200, map[string]any{"enabled": h.config.Enabled, "publicKey": h.config.PublicKey})
+		}),
+		Subscribe: h.auth.RequireUser(h.subscribe), Remove: h.auth.RequireUser(h.remove), Test: h.auth.RequireUser(h.test),
+	}
 }
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	kind, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))

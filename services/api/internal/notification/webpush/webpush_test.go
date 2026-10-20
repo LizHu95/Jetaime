@@ -19,6 +19,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/database"
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	push "github.com/SherClockHolmes/webpush-go"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -57,7 +58,7 @@ type fixture struct {
 	users    []auth.User
 	tokens   []string
 	group    string
-	mux      *http.ServeMux
+	mux      http.Handler
 	config   Config
 }
 
@@ -121,7 +122,7 @@ func setup(t *testing.T) fixture {
 		t.Fatal(err)
 	}
 	f.group = *request.GroupID
-	NewHandler(pool, auth.NewHandler(accounts), f.config).RegisterRoutes(f.mux)
+	f.mux = httpapi.NewRouter(httpapi.Handlers{Push: NewHandler(pool, auth.NewHandler(accounts), f.config).Endpoints()})
 	return f
 }
 func (f fixture) request(t *testing.T, method, path, token string, body any) int {

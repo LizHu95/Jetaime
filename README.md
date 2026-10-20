@@ -48,9 +48,11 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 ## HTTP 路由与模块装配
 
-`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-assistant` 或 `make assistant` 显式启用 Assistant 模块；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
+`cmd/api/main.go` 读取命令行参数并监听退出信号 → `config.Parse` 生成配置 → `app.Run` 初始化模块并运行服务。`-auth` 控制账号、好友、群聊和通知 API；`-chat-ai` 控制正式群聊中的主 Agent；`-debug-console` 只控制本地 JSON 模拟页面，三个开关的职责不同。
 
-使用 Go 标准库 `net/http` 与 `ServeMux`。总 Router 在 `internal/httpapi/router.go`，只内置测试接口，通过 `NewRouter(modules ...Module)` 接收注入模块。各模块通过 `RegisterRoutes` 挂载 API 与页面；接口显式注册 HTTP 方法，业务 handler 分开实现。
+`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。通过 `-debug-console` 或 `make assistant` 显式启用本地调试台（旧参数 `-assistant` 兼容）；`make assistant` 关闭认证以保留独立的本地 JSON 调试流程。
+
+使用 Go 标准库 `net/http` 与 `ServeMux`。所有 HTTP 方法、路径和处理器绑定集中在 [internal/httpapi/router.go](services/api/internal/httpapi/router.go) 的 `NewRouter(Handlers)`，打开此文件即可查看完整路由表。启动流程在 [internal/app/server.go](services/api/internal/app/server.go)，模块装配在 [internal/app/modules.go](services/api/internal/app/modules.go)，按配置注入启用的端点组；未注入的组不注册路由。业务模块仅通过 `Endpoints()` 导出处理器并封装认证、参数和本机访问检查，不再自行创建路由或注册路径。
 
 PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrate` 初始化空库，默认认证模块开启连接及版本检查。SQL 随二进制嵌入，迁移有事务、并发锁、版本与校验和。`JETAIME_TEST_DATABASE_URL` 配合 `make db-test` 运行真实 PostgreSQL 集成测试，测试创建并清理独立 schema。数据库接入与启动方式见 [部署说明](deploy/api/README.md)，表结构见 [PostgreSQL 数据设计](docs/v2/PostgreSQL数据设计.md)。注册、登录、退出接口默认开启，见 [认证接口说明](docs/v2/认证接口.md)；双人群聊、实时同步、阅读进度和共享 AI 接口已实现，见 [双人群聊接口](docs/v2/双人群聊接口.md)。
 
@@ -90,7 +92,8 @@ services/api/
 ├── cmd/api/                   正式服务入口
 ├── cmd/assistant/             本地调试入口
 ├── cmd/workflow-eval/         离线评测入口
-├── internal/app/             配置、模块装配与后台任务生命周期
+├── internal/config/          命令行参数解析为明确的配置值
+├── internal/app/             启动流程、模块装配与后台任务生命周期
 ├── internal/auth/            账号与会话
 ├── internal/collaboration/   好友申请、群组、成员与关闭事务
 ├── internal/chat/            消息、阅读进度与 PostgreSQL 适配

@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 //go:embed web/*
@@ -17,52 +19,46 @@ var web embed.FS
 
 type Server struct {
 	workflow *Workflow
-	handler  http.Handler
 }
 
-func NewServer(w *Workflow) *Server {
-	s := &Server{workflow: w}
-	mux := http.NewServeMux()
+func NewServer(w *Workflow) *Server { return &Server{workflow: w} }
+func (s *Server) Endpoints() *httpapi.AssistantHandlers {
 	assets, _ := fs.Sub(web, "web")
-	mux.HandleFunc("GET /api/assistant/catalog", s.handleCatalog)
-	mux.HandleFunc("GET /api/assistant/state", s.handleState)
-	mux.HandleFunc("POST /api/assistant/run", s.withRequest(s.handleRun))
-	mux.HandleFunc("POST /api/assistant/messages", s.withRequest(s.handleMessages))
-	mux.HandleFunc("POST /api/assistant/reload", s.withRequest(s.handleReload))
-	mux.HandleFunc("POST /api/assistant/dismiss", s.withRequest(s.handleDismiss))
-	mux.HandleFunc("POST /api/assistant/confirm", s.withRequest(s.handleConfirm))
-	mux.HandleFunc("POST /api/assistant/complete", s.withRequest(s.handleComplete))
-	files := http.FileServer(http.FS(assets))
-	for _, path := range []string{"/{$}", "/style.css", "/app.js"} {
-		mux.Handle("GET "+path, files)
+	page := http.StripPrefix("/page/assistant", http.FileServer(http.FS(assets)))
+	return &httpapi.AssistantHandlers{
+		Catalog: s.localOnly(http.HandlerFunc(s.handleCatalog)), State: s.localOnly(http.HandlerFunc(s.handleState)),
+		Run: s.localOnly(s.withRequest(s.handleRun)), Messages: s.localOnly(s.withRequest(s.handleMessages)),
+		Reload: s.localOnly(s.withRequest(s.handleReload)), Dismiss: s.localOnly(s.withRequest(s.handleDismiss)),
+		Confirm: s.localOnly(s.withRequest(s.handleConfirm)), Complete: s.localOnly(s.withRequest(s.handleComplete)),
+		Page: s.localOnly(page),
 	}
-	s.handler = mux
-	return s
 }
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	host := r.Host
-	if h, _, err := net.SplitHostPort(host); err == nil {
-		host = h
-	}
-	ip := net.ParseIP(host)
-	if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-		reply(w, 403, map[string]string{"error": "local host required"})
-		return
-	}
-	if origin := r.Header.Get("Origin"); origin != "" {
-		u, err := url.Parse(origin)
-		if err != nil || u.Host != r.Host || (u.Scheme != "http" && u.Scheme != "https") {
-			reply(w, 403, map[string]string{"error": "same origin required"})
+func (s *Server) localOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		ip := net.ParseIP(host)
+		if host != "localhost" && (ip == nil || !ip.IsLoopback()) {
+			reply(w, 403, map[string]string{"error": "local host required"})
 			return
 		}
-	}
-	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-		reply(w, 403, map[string]string{"error": "cross-site request rejected"})
-		return
-	}
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Cache-Control", "no-store")
-	s.handler.ServeHTTP(w, r)
+		if origin := r.Header.Get("Origin"); origin != "" {
+			u, err := url.Parse(origin)
+			if err != nil || u.Host != r.Host || (u.Scheme != "http" && u.Scheme != "https") {
+				reply(w, 403, map[string]string{"error": "same origin required"})
+				return
+			}
+		}
+		if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			reply(w, 403, map[string]string{"error": "cross-site request rejected"})
+			return
+		}
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
 }
 
 type apiRequest struct {
@@ -240,10 +236,4 @@ func reply(w http.ResponseWriter, status int, value any) {
 
 func fail(w http.ResponseWriter, status int, err error) {
 	reply(w, status, map[string]string{"error": err.Error()})
-}
-
-// RegisterRoutes mounts this module with its local-access checks intact.
-func (s *Server) RegisterRoutes(mux *http.ServeMux) {
-	mux.Handle("/api/assistant/", s)
-	mux.Handle("/page/assistant/", http.StripPrefix("/page/assistant", s))
 }

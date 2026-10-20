@@ -9,18 +9,21 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 type Handler struct{ service *Service }
 
 func NewHandler(service *Service) *Handler { return &Handler{service: service} }
 
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/auth/register", h.register)
-	mux.HandleFunc("POST /api/auth/login", h.login)
-	mux.HandleFunc("POST /api/auth/logout", h.logout)
-	mux.HandleFunc("GET /api/auth/me", h.RequireUser(func(w http.ResponseWriter, r *http.Request, user User) { writeJSON(w, 200, user) }))
-	mux.HandleFunc("POST /api/auth/password", h.RequireUser(h.changePassword))
+// Endpoints exports handlers; URL and HTTP method bindings live in httpapi/router.go.
+func (h *Handler) Endpoints() *httpapi.AuthHandlers {
+	return &httpapi.AuthHandlers{
+		Register: http.HandlerFunc(h.register), Login: http.HandlerFunc(h.login), Logout: http.HandlerFunc(h.logout),
+		Me:             h.RequireUser(func(w http.ResponseWriter, r *http.Request, user User) { writeJSON(w, 200, user) }),
+		ChangePassword: h.RequireUser(h.changePassword),
+	}
 }
 
 type registerRequest struct {

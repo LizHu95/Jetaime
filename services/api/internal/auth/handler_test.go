@@ -1,10 +1,11 @@
 package auth
 
 import (
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 func TestRejectedRequests(t *testing.T) {
@@ -12,8 +13,7 @@ func TestRejectedRequests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mux := http.NewServeMux()
-	NewHandler(service).RegisterRoutes(mux)
+	mux := httpapi.NewRouter(httpapi.Handlers{Auth: NewHandler(service).Endpoints()})
 	for _, tc := range []struct {
 		name, path, contentType, body, authorization string
 		status                                       int

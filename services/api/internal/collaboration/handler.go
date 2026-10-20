@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 type Handler struct {
@@ -18,12 +19,8 @@ type Handler struct {
 func NewHandler(service *Service, authentication *auth.Handler) *Handler {
 	return &Handler{service: service, auth: authentication}
 }
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/contacts/users", h.auth.RequireUser(h.findUser))
-	mux.HandleFunc("GET /api/contacts/requests", h.auth.RequireUser(h.requests))
-	mux.HandleFunc("POST /api/contacts/requests", h.auth.RequireUser(h.send))
-	mux.HandleFunc("POST /api/contacts/requests/{id}/{action}", h.auth.RequireUser(h.resolve))
-	mux.HandleFunc("GET /api/groups", h.auth.RequireUser(h.groups))
+func (h *Handler) Endpoints() *httpapi.CollaborationHandlers {
+	return &httpapi.CollaborationHandlers{FindUser: h.auth.RequireUser(h.findUser), Requests: h.auth.RequireUser(h.requests), Send: h.auth.RequireUser(h.send), Resolve: h.auth.RequireUser(h.resolve), Groups: h.auth.RequireUser(h.groups)}
 }
 func write(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 )
 
 type Handler struct {
@@ -20,7 +21,7 @@ type Handler struct {
 func NewHandler(service *Service, authentication *auth.Handler, realtime http.Handler) *Handler {
 	return &Handler{service, authentication, realtime}
 }
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
+func (h *Handler) Endpoints() *httpapi.ChatHandlers {
 	wrap := func(next func(http.ResponseWriter, *http.Request, auth.User)) http.HandlerFunc {
 		return h.authentication.RequireUser(func(w http.ResponseWriter, r *http.Request, u auth.User) {
 			if group := r.PathValue("group"); group != "" && !validID(group) {
@@ -30,15 +31,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 			next(w, r, u)
 		})
 	}
-	mux.HandleFunc("GET /api/chat/groups/{group}", wrap(h.state))
-	mux.HandleFunc("GET /api/chat/groups/{group}/messages", wrap(h.messages))
-	mux.HandleFunc("GET /api/chat/groups/{group}/messages/{message}", wrap(h.message))
-	mux.HandleFunc("POST /api/chat/groups/{group}/messages", wrap(h.send))
-	mux.HandleFunc("POST /api/chat/groups/{group}/read", wrap(h.read))
-	mux.HandleFunc("GET /api/chat/groups/{group}/runs", wrap(h.runs))
-	mux.HandleFunc("POST /api/chat/groups/{group}/runs/{run}/retry", wrap(h.retry))
-	mux.HandleFunc("POST /api/chat/groups/{group}/close", wrap(h.close))
-	mux.HandleFunc("GET /api/chat/events", h.realtime.ServeHTTP)
+	return &httpapi.ChatHandlers{State: wrap(h.state), Messages: wrap(h.messages), Message: wrap(h.message), Send: wrap(h.send), Read: wrap(h.read), Runs: wrap(h.runs), Retry: wrap(h.retry), Close: wrap(h.close), Events: h.realtime}
 }
 func write(w http.ResponseWriter, status int, value any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/llm"
 )
 
@@ -113,11 +114,18 @@ func TestFailedPersistenceDoesNotChangeMemory(t *testing.T) {
 }
 func TestLocalHTTPBoundary(t *testing.T) {
 	_, w, _ := setup(t, "")
-	s := NewServer(w)
+	s := httpapi.NewRouter(httpapi.Handlers{Assistant: NewServer(w).Endpoints()})
 	for _, tc := range []struct {
 		host, origin, path string
 		status             int
-	}{{"evil.example", "", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "https://evil.example", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=chen", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=lin", 200}} {
+	}{{"evil.example", "", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "https://evil.example", "/api/assistant/catalog", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=chen", 403}, {"127.0.0.1:8081", "", "/api/assistant/state?groupId=daily&actorId=lin", 200},
+		{"evil.example", "", "/page/assistant/", 403},
+		{"127.0.0.1:8081", "https://evil.example", "/page/assistant/app.js", 403},
+		{"127.0.0.1:8081", "", "/page/assistant/", 200},
+		{"127.0.0.1:8081", "", "/page/assistant/style.css", 200},
+		{"127.0.0.1:8081", "", "/page/assistant/app.js", 200},
+		{"127.0.0.1:8081", "", "/page/assistant/unknown", 404},
+		{"127.0.0.1:8081", "", "/api/assistant/run", 405}} {
 		r := httptest.NewRequest("GET", tc.path, nil)
 		r.Host = tc.host
 		r.Header.Set("Origin", tc.origin)

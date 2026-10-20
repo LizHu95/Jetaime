@@ -86,7 +86,7 @@ func testModelAgentPush(t *testing.T, config llm.Config, outputEnv string) {
 	rt := realtime.New(ctx, f.store, f.auth)
 	go rt.Listen(ctx)
 	go f.worker(t).Work(ctx)
-	router := httpapi.NewRouter(NewHandler(f.service, auth.NewHandler(f.auth), rt))
+	router := httpapi.NewRouter(httpapi.Handlers{Chat: NewHandler(f.service, auth.NewHandler(f.auth), rt).Endpoints()})
 	server := httptest.NewServer(router)
 	defer server.Close()
 	connect := func(token string) *websocket.Conn {
