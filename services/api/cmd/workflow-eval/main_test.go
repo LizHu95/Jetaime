@@ -65,7 +65,7 @@ func TestMainEvaluationUsesRegisteredAgent(t *testing.T) {
 		}
 		content := `{"status":"answered","answer":"你好！","sourceMessageIds":[]}`
 		if strings.Contains(req.Messages[0].Content, "主Agent") {
-			content = `{"name":"answer_question","arguments":{"question":"你好","context":"general"}}`
+			content = `{"name":"respond","arguments":{"status":"answered","answer":"你好！","sourceMessageIds":[]}}`
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"done": true, "message": map[string]string{"content": content}})
 	}))
@@ -79,7 +79,7 @@ func TestMainEvaluationUsesRegisteredAgent(t *testing.T) {
 		}
 		previous = out.Run.InvocationID
 	}
-	if calls != 4 {
+	if calls != 2 {
 		t.Fatalf("ordinary answers made %d model calls", calls)
 	}
 }

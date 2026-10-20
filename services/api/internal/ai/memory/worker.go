@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -33,7 +34,13 @@ func (s *Service) ProcessOne(ctx context.Context, force bool) (bool, error) {
 	work, cancel := context.WithTimeout(ctx, 4*time.Minute)
 	defer cancel()
 	work, span := telemetry.Start(work, "memory.process", "CHAIN", attribute.String("session.id", b.GroupID), attribute.Int64("memory.from_seq", b.From), attribute.Int64("memory.to_seq", b.To), attribute.Bool("memory.extraction_reused", b.Extracted))
+	if data, e := json.Marshal(b); e == nil {
+		telemetry.Content(span, "input.value", string(data))
+	}
 	err = s.process(work, b)
+	if data, e := json.Marshal(map[string]any{"fromSeq": b.From, "toSeq": b.To, "succeeded": err == nil}); e == nil {
+		telemetry.Content(span, "output.value", string(data))
+	}
 	telemetry.End(span, err)
 	if err != nil {
 		save, stop := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
@@ -59,14 +66,14 @@ func (s *Service) process(ctx context.Context, b Batch) error {
 				return err
 			}
 		}
-		if err = validateCandidates(b, candidates); err != nil {
+		if err = traceValidateCandidates(ctx, b, candidates); err != nil {
 			return err
 		}
 		if err = s.Store.SaveExtraction(ctx, b, candidates); err != nil {
 			return err
 		}
 	}
-	if err = validateCandidates(b, candidates); err != nil {
+	if err = traceValidateCandidates(ctx, b, candidates); err != nil {
 		return err
 	}
 	mutations := append([]Mutation{}, b.Mutations...)
@@ -107,9 +114,16 @@ func (s *Service) process(ctx context.Context, b Batch) error {
 	}
 	return s.Store.Complete(ctx, b, mutations)
 }
+func traceValidateCandidates(ctx context.Context, b Batch, candidates []Candidate) error {
+	_, span := telemetry.Start(ctx, "memory.validate_candidates", "CHAIN", attribute.Int("memory.candidate_count", len(candidates)))
+	err := validateCandidates(b, candidates)
+	telemetry.End(span, err)
+	return err
+}
+
 func validateCandidates(b Batch, cs []Candidate) error {
 	if len(cs) > 20 {
-		return ErrInvalid
+		return fmt.Errorf("%w: candidate_limit", ErrInvalid)
 	}
 	sources := map[string]Message{}
 	subjects := map[string]bool{"shared": true}
@@ -121,35 +135,49 @@ func validateCandidates(b Batch, cs []Candidate) error {
 		subjects[m.SenderID] = true
 	}
 	seen := map[string]bool{}
-	for _, c := range cs {
-		if !validKind(c.Kind) || !subjects[c.Subject] || len(c.EventKey) > 200 || strings.TrimSpace(c.Content) == "" || len(c.Content) > 2000 || len(c.SourceIDs) == 0 || len(c.SourceIDs) > 43 {
-			return ErrInvalid
+	for i, c := range cs {
+		invalid := func(reason string) error { return fmt.Errorf("%w: candidate[%d] %s", ErrInvalid, i, reason) }
+		if !validKind(c.Kind) {
+			return invalid("invalid_kind")
+		}
+		if !subjects[c.Subject] {
+			return invalid("invalid_subject")
+		}
+		if len(c.EventKey) > 200 || strings.TrimSpace(c.EventKey) == "" {
+			return invalid("invalid_event_key")
+		}
+		if strings.TrimSpace(c.Content) == "" || len(c.Content) > 2000 {
+			return invalid("invalid_content")
+		}
+		if len(c.SourceIDs) == 0 || len(c.SourceIDs) > 43 {
+			return invalid("invalid_source_count")
 		}
 		if c.TemporalScope != "enduring" && c.TemporalScope != "temporary" && c.TemporalScope != "event" {
-			return ErrInvalid
-		}
-		if strings.TrimSpace(c.EventKey) == "" {
-			return ErrInvalid
+			return invalid("invalid_temporal_scope")
 		}
 		fresh := false
 		for _, id := range c.SourceIDs {
 			m, ok := sources[id]
-			if !ok || m.SenderID == "" {
-				return ErrInvalid
+			if !ok {
+				return invalid("source_not_in_batch")
+			}
+			if m.SenderID == "" {
+				return invalid("source_not_user")
 			}
 			fresh = fresh || m.Seq > b.From
 		}
 		if !fresh {
-			return ErrInvalid
+			return invalid("context_only_sources")
 		}
 		key := c.Kind + "\n" + c.Subject + "\n" + c.TemporalScope + "\n" + c.EventKey
 		if seen[key] {
-			return ErrInvalid
+			return invalid("duplicate_identity")
 		}
 		seen[key] = true
 	}
 	return nil
 }
+
 func validKind(k string) bool {
 	switch k {
 	case "preference", "decision", "plan", "fact", "constraint", "event":

@@ -129,7 +129,7 @@ QA 内部通过 `memory.Service.Search` 查询当前群的 `history` 文档：�
 
 ## Q13：待办提取现在需要单独 Agent 吗？
 
-不需要。`extract_todos` 已下掉默认工具注册，主 Agent 当前不会调用它；行动事项请求由 QA 作文字总结。暂留的提取实现包装既有固定提取、证据与行动状态核对流程，输出待确认建议，不创建任务或提醒。实现位于 [`tools/extract/workflow.go`](../../services/api/internal/ai/tools/extract/workflow.go)，工具定义、提取、证据校验与行动状态核对均由 `ai/tools/extract` 封装，主 Agent 只负责工具选择与执行。
+不需要。`extract_todos` 已下掉默认工具注册，主 Agent 当前不会调用它；行动事项请求由 QA 作文字总结。暂留的提取实现包装既有固定提取、证据与行动状态核对流程，输出待确认建议，不创建任务或提醒。实现位于 [`tools/extract/workflow.go`](../../services/api/internal/ai/tools/extract/workflow.go)，工具定义、提取、证据校验与行动状态核对均由 `ai/tools/extract` 封装，主 Agent 可以直接撰写普通回答，通过 respond 校验后返回；需要历史检索或业务操作时才选择相应工具。
 
 直接 `extract` 模式与 `/extract` 命令特判已移除，默认工具目录中也已移除 `extract_todos`。旧排队/重试任务在 Worker 读取后转入 main，原提问截止不变；结果中的 `kind=extract` 仍表示待办建议类型，不是可手选的入口。
 

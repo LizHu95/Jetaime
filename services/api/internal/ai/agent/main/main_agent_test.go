@@ -30,7 +30,7 @@ func (m *mainTestModel) Call(_ context.Context, r llm.Request) (llm.Result, erro
 	return llm.Result{Content: `{"suggestions":[]}`}, nil
 }
 
-func TestMainDelegatesAllAnswersToQuestionTool(t *testing.T) {
+func TestMainCanDelegateToQuestionTool(t *testing.T) {
 	for _, mode := range []string{"general", "history", "mixed"} {
 		t.Run(mode, func(t *testing.T) {
 			input := testContext()
@@ -44,8 +44,8 @@ func TestMainDelegatesAllAnswersToQuestionTool(t *testing.T) {
 			if err != nil || run.Answer == nil || run.Answer.Answer != "工具回答" || len(model.requests) != 2 || run.Route.Version != PromptVersion || run.Basis != mode {
 				t.Fatalf("QA not delegated: %v calls=%d", err, len(model.requests))
 			}
-			if !strings.Contains(model.requests[0].Messages[1].Content, "answer_question") || strings.Contains(model.requests[0].Messages[0].Content, "sourceMessageIds") {
-				t.Fatal("main still owns QA schema")
+			if !strings.Contains(model.requests[0].Messages[1].Content, "answer_question") {
+				t.Fatal("question tool missing from catalog")
 			}
 		})
 	}
@@ -82,7 +82,7 @@ func TestMainContextAndToolCatalogCannotBypassBudget(t *testing.T) {
 		input.Messages = append(input.Messages, m)
 	}
 	model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"怎么除味？","context":"general"}}`, answer: `{"status":"answered","answer":"回答","sourceMessageIds":[]}`}
-	agent, _ := newTestAgent(model, "test", 8192)
+	agent, _ := newTestAgent(model, "test", 16384)
 	if _, err := agent.ExecuteMain(context.Background(), input, "怎么除味？", nil); err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +108,12 @@ func TestMainToolLoopHasAHardLimit(t *testing.T) {
 	calls := 0
 	a.Tools, _ = tools.New(tools.NewTyped(tools.Metadata{Name: "continue", Description: "test"}, func(context.Context, tools.Scope, struct{}) (struct {
 		Value string `json:"value"`
-	}, error) { calls++; return struct {
-		Value string `json:"value"`
-	}{Value: "continue"}, nil }))
+	}, error) {
+		calls++
+		return struct {
+			Value string `json:"value"`
+		}{Value: "continue"}, nil
+	}))
 	if _, err := a.ExecuteMain(context.Background(), input, "test", nil); err == nil || calls != MaxToolSteps {
 		t.Fatal("unbounded tool loop", err, calls)
 	}
@@ -122,5 +125,37 @@ func TestRetiredExtractModeDoesNotInvokeAnyModel(t *testing.T) {
 	agent, _ := newTestAgent(model, "test", 8192)
 	if _, err := agent.Invoke(context.Background(), ai.Invocation{Context: input, Mode: "extract", Question: "提取待办"}); err == nil || len(model.requests) != 0 {
 		t.Fatal("retired extract mode executed", err)
+	}
+}
+
+func TestMainAnswersDirectlyInOneModelCall(t *testing.T) {
+	for _, ids := range []string{`[]`, `["m1"]`} {
+		model := &mainTestModel{decision: `{"name":"respond","arguments":{"status":"answered","answer":"这是直接回答。","sourceMessageIds":` + ids + `}}`}
+		agent, err := newTestAgent(model, "test", 16384)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := agent.ExecuteMain(context.Background(), testContext(), "请直接回答", nil)
+		if err != nil || run.Answer == nil || run.Answer.Answer != "这是直接回答。" || len(model.requests) != 1 || run.Route.Version != PromptVersion {
+			t.Fatalf("direct response failed: %+v %v", run, err)
+		}
+		if _, text, err := ai.ResultFromRun(run); err != nil || text != "这是直接回答。" {
+			t.Fatalf("final reply: %q %v", text, err)
+		}
+		if ids != `[]` && (len(run.Sources) != 1 || run.Sources[0].ID != "m1") {
+			t.Fatal("validated source lost")
+		}
+	}
+}
+
+func TestMainDirectAnswerCannotInventSources(t *testing.T) {
+	model := &mainTestModel{decision: `{"name":"respond","arguments":{"status":"answered","answer":"伪造的回答","sourceMessageIds":["another-group-message"]}}`}
+	agent, err := newTestAgent(model, "test", 16384)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run, err := agent.ExecuteMain(context.Background(), testContext(), "请回答", nil)
+	if !errors.Is(err, ai.ErrInvalidDecision) || run.Answer != nil || len(model.requests) != MaxToolSteps {
+		t.Fatalf("unverified reply accepted: %+v %v", run, err)
 	}
 }

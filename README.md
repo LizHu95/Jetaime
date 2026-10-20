@@ -131,7 +131,7 @@ services/api/
 └── internal/telemetry/       调用链
 ```
 
-当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。主 Agent 只选择并执行已注册工具：`answer_question` 统一日常、近期、历史与混合问答，正式群聊额外注册 `set_reminder` 调用提醒领域 Service；`extract_todos` 已移除默认注册，提取实现暂留。普通自动问答为一次工具选择加一次 QA 生成，QA 校验后的答案直接保存。`qa/help` 旧模式复用同一个 QA 工具，已移除直接 `extract` 模式和 `/extract` 命令特判，行动事项的文字总结统一交给 QA，不生成结构化待办建议；旧排队任务执行时转入 main。主提示词版本为 `main-v4-tools`，QA 为 `answer-question-v1`。
+当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。需要历史检索/回查时使用 `answer_question`；正式群聊额外注册 `set_reminder` 调用提醒领域 Service。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v6-direct-answer`，QA 为 `answer-question-v1`。
 
 生产群聊、调试台和离线评测均调用 `ai.Service → runtime → agent/main`。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天、数据库或调试台；未来新增 Agent 在注册点装配，不向聊天 worker 添加分支。群共享记忆通过 QA 的函数式上下文提供器接入；调试台与离线评测默认只使用传入快照。尚未实现跨 Agent 委派与调用树恢复。
 

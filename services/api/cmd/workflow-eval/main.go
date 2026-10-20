@@ -18,6 +18,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 )
 
@@ -39,8 +40,8 @@ func executeConfigured(ctx context.Context, input request, config llm.Config, ti
 	if err != nil {
 		return result{}, err
 	}
-	// Evaluation uses its fixture context and explicitly enables only read-only QA.
-	registry, err := tools.New(qa.New(provider, config.Model, config.ContextTokens, nil))
+	// Evaluation uses its fixture context and explicitly enables direct replies and read-only QA.
+	registry, err := tools.New(respond.New(), qa.New(provider, config.Model, config.ContextTokens, nil))
 	if err != nil {
 		return result{}, err
 	}
@@ -71,7 +72,7 @@ func main() {
 	modelFlags := llm.RegisterFlags(flag.CommandLine)
 	printConfig := flag.Bool("print-model-config", false, "print validated public model configuration without inference")
 	timeout := flag.Duration("model-timeout", 3*time.Minute, "model timeout")
-	tokens := flag.Int("context-tokens", 8192, "context capacity")
+	tokens := flag.Int("context-tokens", 16384, "context capacity")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		fatal(fmt.Errorf("unexpected arguments"))

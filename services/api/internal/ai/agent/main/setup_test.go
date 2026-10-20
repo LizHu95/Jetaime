@@ -5,6 +5,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"time"
 )
 
@@ -21,6 +22,6 @@ func newTestAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) 
 	if err != nil {
 		return nil, err
 	}
-	a.Tools, err = tools.New(qa.New(model, name, tokens, nil))
+	a.Tools, err = tools.New(respond.New(), qa.New(model, name, tokens, nil))
 	return a, err
 }

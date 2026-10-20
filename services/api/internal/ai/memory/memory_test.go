@@ -631,3 +631,66 @@ func TestMemoryConfigNeedsNoSwitchAndLoadsWorkingDirectoryDefault(t *testing.T) 
 		t.Fatal("removed switch silently disabled memory")
 	}
 }
+
+func TestModelExtractorIgnoresOnlyKnownHistoricalCandidates(t *testing.T) {
+	b := Batch{From: 128, To: 155, Members: []Person{{ID: "alice"}}, Messages: []Message{{ID: "old", Seq: 126, SenderID: "alice"}, {ID: "new", Seq: 154, SenderID: "alice"}, {ID: "assistant", Seq: 125}}}
+	old := Candidate{Kind: "event", Subject: "alice", EventKey: "interview", TemporalScope: "event", Content: "Interview on Friday", SourceIDs: []string{"old"}}
+	for _, tc := range []struct {
+		name    string
+		sources []string
+		want    int
+		valid   bool
+	}{
+		{"historical_only", []string{"old"}, 0, true},
+		{"new_evidence", []string{"old", "new"}, 1, true},
+		{"foreign_source", []string{"foreign"}, 1, false},
+		{"mixed_foreign_source", []string{"old", "foreign"}, 1, false},
+		{"assistant_source", []string{"assistant"}, 1, false},
+		{"missing_sources", nil, 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := old
+			candidate.SourceIDs = tc.sources
+			raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+			model := &fixedChatModel{content: string(raw)}
+			out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+			if err != nil || out == nil || len(out) != tc.want {
+				t.Fatalf("result: %+v %v", out, err)
+			}
+			if err := validateCandidates(b, out); (err == nil) != tc.valid {
+				t.Fatalf("validation: %v", err)
+			}
+		})
+	}
+	// Filtering an overlap candidate must preserve valid new candidates in the same response.
+	fresh := old
+	fresh.EventKey = "new-event"
+	fresh.SourceIDs = []string{"new"}
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{old, fresh}})
+	out, err := (ModelExtractor{Model: &fixedChatModel{content: string(raw)}, Config: testConfig().Extraction}).Extract(context.Background(), b)
+	if err != nil || len(out) != 1 || out[0].EventKey != "new-event" {
+		t.Fatalf("new candidate lost: %+v %v", out, err)
+	}
+}
+
+func TestPostgresHistoricalModelCandidateDoesNotBlockProgress(t *testing.T) {
+	f := fixture(t)
+	old := f.send(t, f.alice, "周五参加面试")
+	candidate := Candidate{Kind: "event", Subject: f.alice, EventKey: "interview", TemporalScope: "event", Content: "周五参加面试", SourceIDs: []string{old.ID}}
+	f.extract.extract = func(Batch) []Candidate { return []Candidate{candidate} }
+	f.init(t)
+	f.process(t)
+	next := f.send(t, f.bob, "知道了")
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	f.service.Extractor = ModelExtractor{Model: &fixedChatModel{content: string(raw)}, Config: testConfig().Extraction}
+	f.process(t)
+	if cursor := f.scalar(t, "SELECT cursor_seq FROM memory_progress"); cursor != int(next.Seq) {
+		t.Fatalf("batch stuck: %d", cursor)
+	}
+	if count := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='event'"); count != 1 {
+		t.Fatalf("historical fact duplicated: %d", count)
+	}
+	if count := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='history'"); count != 2 {
+		t.Fatalf("new history not retained: %d", count)
+	}
+}

@@ -16,11 +16,11 @@ import (
 	"github.com/google/uuid"
 )
 
-const PromptVersion = "main-v5-tool-contracts"
+const PromptVersion = "main-v6-direct-answer"
 const MaxToolSteps = 3
 
-// ExecuteMain only selects and executes registered capabilities. QA prompts,
-// retrieval, generation and evidence validation are owned by answer_question.
+// ExecuteMain can answer through respond in one model call, or select capabilities
+// for retrieval and actions. All final responses pass the registered validators.
 func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question string, load ai.ExtractContextLoader, fence ...int64) (run ai.Run, err error) {
 	ctx, span := telemetry.Start(ctx, "assistant.main", "CHAIN")
 	started := time.Now()
