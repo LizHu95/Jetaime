@@ -139,7 +139,7 @@ func setup(t *testing.T) fixture {
 		}
 		data, err := json.Marshal(map[string]any{"status": "answered", "answer": "共享 AI 回答", "sourceMessageIds": []string{payload.Context.Messages[0].ID}})
 		if strings.Contains(r.Messages[0].Content, "主Agent") {
-			data, err = json.Marshal(map[string]any{"name": "answer_question", "arguments": map[string]any{"question": "测试问题", "context": "history"}})
+			data, err = json.Marshal(map[string]any{"name": "answer_question", "arguments": map[string]any{"question": "测试问题"}})
 		}
 		return llm.Result{Content: string(data)}, err
 	}}

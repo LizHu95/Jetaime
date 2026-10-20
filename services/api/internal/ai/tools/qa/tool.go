@@ -33,7 +33,7 @@ func New(model llm.ChatModel, name string, tokens int, provider ContextProvider)
 	t := &Tool{Model: model, ModelName: name, Tokens: tokens, ContextProvider: provider}
 	t.Typed = tools.NewTyped(tools.Metadata{
 		Name:        Name,
-		Description: "回答问题、日常建议、写作或澄清；general使用一般知识，recent理解近期对话，history查询群聊历史事实，mixed结合群聊事实与一般建议。必要时内部检索历史并回查原文。只读，不创建任务或提醒。",
+		Description: "回答问题、日常建议、写作或澄清。自动混合检索历史并回查原文，同一问题复用已检索上下文；区分群聊事实与一般知识。只读，不创建任务或提醒。",
 		Version:     Version,
 		Kind:        "main",
 		Model:       name,
@@ -50,12 +50,7 @@ func New(model llm.ChatModel, name string, tokens int, provider ContextProvider)
 
 func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (output Output, err error) {
 	if strings.TrimSpace(args.Question) == "" || len(args.Question) > 3000 {
-		return output, tools.InvalidArguments("invalid_arguments", "question 不能为空且最多3000字节；context 只能为 general/recent/history/mixed。")
-	}
-	switch args.Context {
-	case "general", "recent", "history", "mixed":
-	default:
-		return output, tools.InvalidArguments("invalid_arguments", "question 不能为空且最多3000字节；context 只能为 general/recent/history/mixed。")
+		return output, tools.InvalidArguments("invalid_arguments", "question 不能为空且最多3000字节。")
 	}
 	if err = ai.ValidateContext(scope.Context); err != nil {
 		return output, err
@@ -75,7 +70,7 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 		tools.RecordModelIdentity(ctx, v)
 	}
 	// Required current request/references are checked before any retrieval model I/O.
-	baseline, err := FitContext(scope.Context, args.Question, args.Context, t.Tokens)
+	baseline, err := FitContext(scope.Context, args.Question, t.Tokens)
 	if err != nil {
 		return output, err
 	}
@@ -95,7 +90,7 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 	if err = ai.ValidateContext(input); err != nil {
 		return output, err
 	}
-	input, err = FitContext(input, args.Question, args.Context, t.Tokens)
+	input, err = FitContext(input, args.Question, t.Tokens)
 	if err != nil {
 		return output, err
 	}
@@ -105,7 +100,7 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 	output.HistoryScope = input.HistoryScope
 	building = false
 	tools.RecordStep(ctx, ai.Step{Name: "build_context", Status: "succeeded", StartedAt: started, DurationMS: time.Since(started).Milliseconds(), Output: input})
-	req, err := request(t.ModelName, input, args.Question, args.Context, t.Tokens)
+	req, err := request(t.ModelName, input, args.Question, t.Tokens)
 	if err != nil {
 		return output, err
 	}
@@ -134,7 +129,7 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 		err = fmt.Errorf("invalid QA answer")
 	}
 	if err == nil {
-		err = ai.CheckSources(input.GroupID, answer.SourceMessageIDs, messages, args.Context != "general" && answer.Status != "insufficient_evidence")
+		err = ai.CheckSources(input.GroupID, answer.SourceMessageIDs, messages, false)
 	}
 	step = ai.Step{Name: "validate_result", Status: "succeeded", StartedAt: time.Now()}
 	if err != nil {
@@ -148,15 +143,12 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 		output.Basis = "general"
 		if len(answer.SourceMessageIDs) > 0 {
 			output.Basis = "history"
-			if args.Context == "mixed" {
-				output.Basis = "mixed"
-			}
 		}
 	}
 	tools.RecordStep(ctx, step)
 	return output, err
 }
-func request(model string, input ai.Context, question, mode string, tokens int) (llm.Request, error) {
+func request(model string, input ai.Context, question string, tokens int) (llm.Request, error) {
 	data, err := json.Marshal(struct {
 		Context  ai.Context `json:"context"`
 		Question string     `json:"question"`
@@ -165,15 +157,12 @@ func request(model string, input ai.Context, question, mode string, tokens int) 
 		return llm.Request{}, err
 	}
 	omitted := input.HistoryScope != nil && input.HistoryScope.EarlierMessagesOmitted
-	return llm.Request{Model: model, Messages: []llm.Message{{Role: "system", Content: system(mode, omitted)}, {Role: "user", Content: string(data)}}, Format: Schema, Options: llm.Options{NumCtx: tokens, NumPredict: 2048}}, nil
+	return llm.Request{Model: model, Messages: []llm.Message{{Role: "system", Content: system(omitted)}, {Role: "user", Content: string(data)}}, Format: Schema, Options: llm.Options{NumCtx: tokens, NumPredict: 2048}}, nil
 }
 
 func (t *Tool) LegacyArguments(s tools.Scope) (json.RawMessage, bool) {
-	if s.LegacyMode == "qa" {
-		return MarshalArguments(s.Question, "history"), true
-	}
-	if s.LegacyMode == "help" {
-		return MarshalArguments(s.Question, "general"), true
+	if s.LegacyMode == "qa" || s.LegacyMode == "help" {
+		return MarshalArguments(s.Question), true
 	}
 	return nil, false
 }

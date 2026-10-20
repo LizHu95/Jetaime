@@ -28,6 +28,7 @@ const DefaultRecentBytes = 4 * 1024
 // references. Injectors may be wrapped to add future context sources; no model
 // call is needed to build the initial context.
 type ContextRequest struct {
+	MaxSeq     int64 // Backend-owned original trigger sequence fence.
 	Snapshot   ai.Context
 	TriggerID  string
 	Question   string
@@ -198,4 +199,30 @@ func ForQuestion(ctx context.Context, input ai.Context, question string, tokens 
 	id := "request-" + uuid.NewString()
 	input.Messages = append(append([]ai.Message{}, input.Messages...), ai.Message{ID: id, GroupID: input.GroupID, SenderID: input.ActorID, SentAt: at, Text: question})
 	return InjectDefaultContext(ctx, ContextRequest{Snapshot: input, TriggerID: id, Question: question, Tokens: tokens, Now: time.Now()})
+}
+
+// OptionalMessageToDrop keeps retrieved evidence ahead of unrelated background.
+// Required messages cannot be dropped even when every other message is evidence.
+func OptionalMessageToDrop(input ai.Context, required map[string]bool) int {
+	ranks := map[string]int{}
+	if input.HistoryScope != nil {
+		for rank, id := range input.HistoryScope.RetrievedMessageIDs {
+			if _, exists := ranks[id]; !exists {
+				ranks[id] = rank
+			}
+		}
+	}
+	for i, message := range input.Messages {
+		_, retrieved := ranks[message.ID]
+		if !required[message.ID] && !retrieved {
+			return i
+		}
+	}
+	remove, lowestRank := -1, -1
+	for i, message := range input.Messages {
+		if rank := ranks[message.ID]; !required[message.ID] && rank > lowestRank {
+			remove, lowestRank = i, rank
+		}
+	}
+	return remove
 }

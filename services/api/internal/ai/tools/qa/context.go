@@ -26,32 +26,30 @@ func HistoryContext(search Searcher, reader MessageReader) ContextProvider {
 	return func(ctx context.Context, r ContextRequest) (ai.Context, error) {
 		input := r.Scope.Context
 		input.Messages = append([]ai.Message{}, input.Messages...)
-		if r.Arguments.Context == "general" {
-			return input, nil
-		}
 		if r.Scope.ContextEndSeq <= 0 {
 			return input, fmt.Errorf("QA history requires a trusted sequence fence")
+		}
+
+		if input.HistoryScope != nil && input.HistoryScope.HistoricalSearch && r.Arguments.Question == r.Scope.Question {
+			return input, nil // The same query was retrieved before the main model call.
 		}
 		recent, err := reader.RecentMessages(ctx, input.GroupID, input.ActorID, r.Scope.ContextEndSeq, 40)
 		if err != nil {
 			return input, err
 		}
-		searched := false
-		extra := []memory.Message{}
-		if r.Arguments.Context == "history" || r.Arguments.Context == "mixed" {
-			result, e := search.Search(ctx, input.GroupID, input.ActorID, memory.SearchInput{Query: r.Arguments.Question, Limit: 5, Kind: "history", Mode: "hybrid", MaxSeq: r.Scope.ContextEndSeq})
-			if e != nil {
-				return input, e
-			}
-			ids := []string{}
-			for _, d := range result.Documents {
-				ids = append(ids, d.SourceIDs...)
-			}
-			extra, err = reader.SourceMessages(ctx, input.GroupID, input.ActorID, r.Scope.ContextEndSeq, ids)
-			if err != nil {
-				return input, err
-			}
-			searched = true
+		retrievedIDs := []string{}
+		result, e := search.Search(ctx, input.GroupID, input.ActorID, memory.SearchInput{Query: r.Arguments.Question, Limit: 5, Kind: "history", MaxSeq: r.Scope.ContextEndSeq})
+		if e != nil {
+			return input, e
+		}
+		ids := []string{}
+		for _, d := range result.Documents {
+			ids = append(ids, d.SourceIDs...)
+			retrievedIDs = append(retrievedIDs, d.SourceIDs...)
+		}
+		extra, err := reader.SourceMessages(ctx, input.GroupID, input.ActorID, r.Scope.ContextEndSeq, ids)
+		if err != nil {
+			return input, err
 		}
 		seen := map[string]bool{}
 		for _, m := range input.Messages {
@@ -67,10 +65,7 @@ func HistoryContext(search Searcher, reader MessageReader) ContextProvider {
 			}
 		}
 		input.Tasks = []ai.Task{}
-		input.HistoryScope = &ai.HistoryScope{Policy: "qa-recent-v1", EarlierMessagesOmitted: true, HistoricalSearch: searched}
-		if searched {
-			input.HistoryScope.Policy = "qa-history-v1"
-		}
+		input.HistoryScope = &ai.HistoryScope{Policy: "qa-history-v1", EarlierMessagesOmitted: true, HistoricalSearch: true, RetrievedMessageIDs: retrievedIDs}
 		return input, nil
 	}
 }
@@ -121,9 +116,9 @@ func cloneContext(input ai.Context) ai.Context {
 
 // FitContext pins the current request and direct references, then includes
 // whole evidence messages within the final QA request budget. No text is cut.
-func FitContext(input ai.Context, question, mode string, tokens int) (ai.Context, error) {
+func FitContext(input ai.Context, question string, tokens int) (ai.Context, error) {
 	if input.Request == nil {
-		req, err := request("", input, question, mode, tokens)
+		req, err := request("", input, question, tokens)
 		if err != nil {
 			return input, err
 		}
@@ -153,29 +148,45 @@ func FitContext(input ai.Context, question, mode string, tokens int) (ai.Context
 	earlier := scope.EarlierMessagesOmitted
 	scope.EarlierMessagesOmitted = earlier || len(out.Messages) < len(input.Messages)
 	out.HistoryScope = &scope
-	req, err := request("", out, question, mode, tokens)
+	req, err := request("", out, question, tokens)
 	if err != nil {
 		return out, err
 	}
 	if err = llm.CheckContextBudget(req, tokens); err != nil {
 		return out, err
 	}
+	byID := map[string]ai.Message{}
+	for _, m := range input.Messages {
+		byID[m.ID] = m
+	}
+	candidates := []ai.Message{}
+	queued := map[string]bool{}
+	// Ranked retrieval evidence takes priority over recent optional background.
+	for _, id := range scope.RetrievedMessageIDs {
+		if m, ok := byID[id]; ok && !selected[id] && !queued[id] {
+			candidates = append(candidates, m)
+			queued[id] = true
+		}
+	}
 	for i := len(input.Messages) - 1; i >= 0; i-- {
 		m := input.Messages[i]
-		if selected[m.ID] {
-			continue
+		if !selected[m.ID] && !queued[m.ID] {
+			candidates = append(candidates, m)
+			queued[m.ID] = true
 		}
+	}
+	for _, m := range candidates {
 		if len(out.Messages) >= 80 {
 			break
 		}
 		out.Messages = append(out.Messages, m)
-		req, err = request("", out, question, mode, tokens)
+		req, err = request("", out, question, tokens)
 		if err != nil {
 			return out, err
 		}
 		if llm.CheckContextBudget(req, tokens) != nil {
 			out.Messages = out.Messages[:len(out.Messages)-1]
-			break
+			continue
 		}
 		selected[m.ID] = true
 	}
@@ -189,7 +200,7 @@ func FitContext(input ai.Context, question, mode string, tokens int) (ai.Context
 		}
 		return out.Messages[i].SentAt.Before(out.Messages[j].SentAt)
 	})
-	req, err = request("", out, question, mode, tokens)
+	req, err = request("", out, question, tokens)
 	if err != nil {
 		return out, err
 	}
@@ -197,7 +208,7 @@ func FitContext(input ai.Context, question, mode string, tokens int) (ai.Context
 }
 
 // MarshalArguments is shared by compatibility adapters, never by the main model.
-func MarshalArguments(question, mode string) json.RawMessage {
-	raw, _ := json.Marshal(Arguments{question, mode})
+func MarshalArguments(question string) json.RawMessage {
+	raw, _ := json.Marshal(Arguments{Question: question})
 	return raw
 }

@@ -36,7 +36,7 @@ func TestPostgresAutomaticRoutingPersistsChildResult(t *testing.T) {
 					t.Fatal("future context leaked")
 				}
 				if strings.Contains(request.Messages[0].Content, "主Agent") {
-					return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"帮忙","context":"` + basis + `"}}`}, nil
+					return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"帮忙"}}`}, nil
 				}
 				sources := `[]`
 				if basis == "history" {
@@ -89,7 +89,7 @@ func TestPostgresRoutingFailureCanRetrySameRun(t *testing.T) {
 	}
 	f.model = testModel{func(_ context.Context, r llm.Request) (llm.Result, error) {
 		if strings.Contains(r.Messages[0].Content, "主Agent") {
-			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"怎么除味？","context":"general"}}`}, nil
+			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"怎么除味？"}}`}, nil
 		}
 		return llm.Result{Content: `{"status":"answered","answer":"保持通风","sourceMessageIds":[]}`}, nil
 	}}
@@ -124,7 +124,7 @@ func TestPostgresRetiredExtractJobUsesMainAndOriginalFence(t *testing.T) {
 			t.Fatal("future evidence leaked")
 		}
 		if strings.Contains(request.Messages[0].Content, "主Agent") {
-			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"整理待办","context":"recent"}}`}, nil
+			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"整理待办"}}`}, nil
 		}
 		return llm.Result{Content: `{"status":"answered","answer":"当前对话没有明确的待办安排。","sourceMessageIds":["` + trigger.ID + `"]}`}, nil
 	}}

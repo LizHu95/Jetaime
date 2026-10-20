@@ -9,6 +9,7 @@ import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { createMessageId } from '@/lib/message-id'
 import { useRealtime } from './realtime-provider'
 import { AIFailureDetails } from './ai-failure-details'
+import { MessageSources } from './message-sources'
 import { mergeMessages, type ChatState, type Group, type Message, type MessagePage, type Run } from './types'
 
 export function ChatPage() {
@@ -48,6 +49,11 @@ function Conversation({ groupId }: { groupId: string }) {
   const draftRevision = useRef(0)
   const [mention, setMention] = useState(false)
   const [sourceId, setSourceId] = useState('')
+  const sourceNavigation = useRef(0)
+  function releaseSourceFocus() {
+    sourceNavigation.current++
+    setSourceId('')
+  }
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState<string[]>([])
@@ -56,6 +62,14 @@ function Conversation({ groupId }: { groupId: string }) {
   const [older, setOlder] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [hasNew, setHasNew] = useState(false)
+  const [awayFromBottom, setAwayFromBottom] = useState(false)
+  const syncScrollPosition = useCallback(() => {
+    const view = viewport.current
+    if (!view) return
+    pinned.current = view.scrollHeight - view.scrollTop - view.clientHeight < 80
+    setAwayFromBottom(!pinned.current)
+    if (pinned.current) setHasNew(false)
+  }, [])
   const state = useQuery({ queryKey: [...key, 'state'], queryFn: ({ signal }) => apiRequest<ChatState>(base, { method: 'GET', token, signal }) })
   const runs = useQuery({ queryKey: [...key, 'runs'], queryFn: ({ signal }) => apiRequest<Run[]>(`${base}/runs`, { method: 'GET', token, signal }) })
   const messages = useQuery({
@@ -122,8 +136,16 @@ function Conversation({ groupId }: { groupId: string }) {
     } else if (pinned.current) view.scrollTop = view.scrollHeight
     else if ((messages.data.at(-1)?.seq || 0) > latestSeq.current) setHasNew(true)
     latestSeq.current = messages.data.at(-1)?.seq || 0
+    syncScrollPosition()
     void markVisible()
-  }, [messages.data, state.data, markVisible])
+  }, [messages.data, state.data, markVisible, syncScrollPosition])
+  useEffect(() => {
+    const view = viewport.current
+    if (!view) return
+    const observer = new ResizeObserver(syncScrollPosition)
+    observer.observe(view)
+    return () => observer.disconnect()
+  }, [state.isSuccess, syncScrollPosition])
   async function send(input?: NonNullable<typeof failed>) {
     if (sending) return
     const payload = input || (failed && failed.content === text && failed.mentionsAI === mention ? failed : { content: text, clientMessageId: createMessageId(), mentionsAI: mention })
@@ -163,22 +185,22 @@ function Conversation({ groupId }: { groupId: string }) {
     finally { setHistoryBusy(false) }
   }
   async function showSource(id: string) {
+    const navigation = ++sourceNavigation.current
     try {
       let source = messages.data?.find(message => message.id === id)
       if (!source) {
-        source = await apiRequest<Message>(`${base}/messages/${id}`, { method: 'GET', token })
+        source = await client.fetchQuery<Message>({ queryKey: [...key, 'message', id], queryFn: ({ signal }) => apiRequest<Message>(`${base}/messages/${id}`, { method: 'GET', token, signal }), staleTime: Infinity })
+        if (navigation !== sourceNavigation.current) return
         client.setQueryData<Message[]>([...key, 'messages'], old => mergeMessages(old || [], [source!]))
       }
       pinned.current = false
       setSourceId(id)
       requestAnimationFrame(() => {
+        if (navigation !== sourceNavigation.current) return
         const node = viewport.current?.querySelector<HTMLElement>(`[data-message-id="${id}"]`)
         node?.scrollIntoView({ block: 'center' })
       })
-    } catch (reason) { setError(errorMessage(reason)) }
-  }
-  function sourceIDs(message: Message) {
-    return [...new Set([...(message.agentResult?.answer?.sourceMessageIds || []), ...(message.agentResult?.suggestions?.flatMap(suggestion => suggestion.sourceMessageIds) || [])])]
+    } catch (reason) { if (navigation === sourceNavigation.current) setError(errorMessage(reason)) }
   }
   async function retry(run: Run) {
     if (retrying.includes(run.id)) return
@@ -194,7 +216,7 @@ function Conversation({ groupId }: { groupId: string }) {
   if (state.isError) return <section className="chat-empty"><p role="alert">{errorMessage(state.error)}</p><Link to="/chat/">返回群列表</Link></section>
   const peer = state.data.members.find(user => user.id !== actor)
   const activeRuns = runs.data?.filter(run => run.status === 'queued' || run.status === 'running') || []
-  return <section className="conversation">
+  return <section className="conversation" onPointerDownCapture={releaseSourceFocus} onWheelCapture={releaseSourceFocus} onKeyDownCapture={releaseSourceFocus}>
     <NavBar
       title={`与 ${peer?.nickname} 的群`}
       subtitle={`两位成员 + ${state.data.assistantName}`}
@@ -203,7 +225,7 @@ function Conversation({ groupId }: { groupId: string }) {
       backVisibility="mobile"
       actions={<Button asChild variant="outline"><Link to={`/chat/${groupId}/settings/`} aria-label="群聊配置"><Settings size={18} /><span>配置</span></Link></Button>}
     />
-    <div className="message-viewport" ref={viewport} onScroll={() => { const view = viewport.current!; pinned.current = view.scrollHeight - view.scrollTop - view.clientHeight < 80; if (pinned.current) setHasNew(false); void markVisible() }}>
+    <div className="message-viewport" ref={viewport} onScroll={() => { syncScrollPosition(); void markVisible() }}>
       {older && <button className="history-button" disabled={historyBusy} onClick={() => { void loadOlder() }}>{historyBusy ? '加载中…' : '加载更早的消息'}</button>}
       {messages.isError && <p role="alert">{errorMessage(messages.error)} <button onClick={() => { void messages.refetch() }}>重试</button></p>}
       {messages.isPending ? <p role="status">正在加载消息…</p> : messages.data?.length === 0 ? <p className="message-empty">从一句问候开始。需要帮助时 @AI。</p> : messages.data?.map(m => <div key={m.id} data-message-seq={m.seq} data-message-id={m.id} className={sourceId === m.id ? 'highlighted-source' : undefined}>
@@ -218,12 +240,12 @@ function Conversation({ groupId }: { groupId: string }) {
             </span>)}</div>}
             {m.replyToId && <small className="ai-reply-label">回复群内 @AI 提问</small>}<p className="message-bubble">{m.content}</p>
             {m.agentResult?.answer && <small className="agent-answer-status">{m.agentResult.kind === 'main' ? (m.agentResult.answer.status === 'answered' ? 'AI 回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : m.agentResult.kind === 'help' ? (m.agentResult.answer.status === 'answered' ? 'AI 建议' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : (m.agentResult.answer.status === 'answered' ? '依据群聊记录回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '历史证据存在冲突' : '历史证据不足')}</small>}
-            {sourceIDs(m).length > 0 && <div className="message-sources" aria-label="回答来源">{sourceIDs(m).map((id, index) => <button type="button" key={id} onClick={() => { void showSource(id) }}>来源 {index + 1}</button>)}</div>}
+            <MessageSources message={m} messages={messages.data || []} groupId={groupId} onSelect={id => { void showSource(id) }} />
             <span data-read-seq={m.seq} className="read-sentinel" /></div>
         </article>
       </div>)}
     </div>
-    {hasNew && <button className="new-message-button" onClick={() => { const view = viewport.current!; view.scrollTop = view.scrollHeight; pinned.current = true; setHasNew(false); void markVisible() }}>回到最新消息 ↓</button>}
+    {awayFromBottom && <button type="button" className="new-message-button" onClick={() => { const view = viewport.current!; view.scrollTop = view.scrollHeight; syncScrollPosition(); void markVisible() }}>{hasNew ? '有新消息 · 滚到底部 ↓' : '滚到底部 ↓'}</button>}
     <div className="ai-run-status" aria-live="polite">{activeRuns.length > 0 && <p>{activeRuns.some(run => run.status === 'running') ? 'AI 正在回复…' : 'AI 请求已排队…'}{activeRuns.length > 1 ? `（${activeRuns.length} 个请求）` : ''}</p>}
     </div>
     <form className="message-composer" onSubmit={e => { e.preventDefault(); void send() }}>

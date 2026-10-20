@@ -41,7 +41,7 @@ func TestPostgresDefaultContextFunctionAndDirectReference(t *testing.T) {
 	injections, calls := 0, 0
 	inject := func(ctx context.Context, request aicontext.ContextRequest) (ai.Context, error) {
 		injections++
-		if request.TriggerID != trigger.ID || request.Now.IsZero() || len(request.References) != 1 || request.References[0].ID != reference.ID {
+		if request.MaxSeq != trigger.Seq || request.TriggerID != trigger.ID || request.Now.IsZero() || len(request.References) != 1 || request.References[0].ID != reference.ID {
 			t.Fatal("injector input incomplete", request.TriggerID)
 		}
 		return aicontext.InjectDefaultContext(ctx, request)
@@ -62,7 +62,7 @@ func TestPostgresDefaultContextFunctionAndDirectReference(t *testing.T) {
 			t.Fatal("future history leaked")
 		}
 		if strings.Contains(request.Messages[0].Content, "主Agent") {
-			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"给个建议","context":"mixed"}}`}, nil
+			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"给个建议"}}`}, nil
 		}
 		return llm.Result{Content: `{"status":"answered","answer":"建议","sourceMessageIds":["` + reference.ID + `"]}`}, nil
 	}}

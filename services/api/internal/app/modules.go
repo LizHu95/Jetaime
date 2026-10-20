@@ -13,6 +13,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/history"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
@@ -89,6 +90,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		registry, e := tools.New(
 			respond.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
+			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
 			remindertool.New(m.reminderService, chat.ReminderOperation),
 		)
 		if e != nil {
@@ -152,7 +154,11 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 		m.background = append(m.background, webpush.NewWorker(m.database, pushConfig).Work)
 	}
 	if cfg.EnableChatAI {
-		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, remindertool.New(reminders, chat.ReminderOperation).Inject)
+		inject := remindertool.New(reminders, chat.ReminderOperation).Inject
+		if m.memoryService != nil {
+			inject = qa.HybridContextInjector(m.memoryService, m.memoryService.Store, inject)
+		}
+		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, inject)
 		m.background = append(m.background, worker.Work, worker.Work)
 	}
 	return nil

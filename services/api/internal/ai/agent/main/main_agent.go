@@ -87,13 +87,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			for _, id := range input.Request.RelatedMessageIDs {
 				required[id] = true
 			}
-			remove := -1
-			for i, m := range input.Messages {
-				if !required[m.ID] {
-					remove = i
-					break
-				}
-			}
+			remove := aicontext.OptionalMessageToDrop(input, required)
 			if remove < 0 {
 				break
 			}

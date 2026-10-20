@@ -2,12 +2,15 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type SearchInput struct {
@@ -18,7 +21,6 @@ type SearchInput struct {
 	Subject string     `json:"subject,omitempty"`
 	Since   *time.Time `json:"since,omitempty"`
 	Until   *time.Time `json:"until,omitempty"`
-	Mode    string     `json:"mode,omitempty"` // hybrid (default), vector, keyword
 }
 type SearchResult struct {
 	Documents         []Document `json:"documents"`
@@ -49,12 +51,6 @@ func (s *Service) Search(ctx context.Context, group, actor string, in SearchInpu
 	if len(strings.TrimSpace(in.Query)) == 0 || len(in.Query) > 3000 || in.MaxSeq < 0 || in.Limit < 0 || in.Limit > 20 || in.Kind != "" && in.Kind != "history" && !validKind(in.Kind) {
 		return out, ErrInvalid
 	}
-	if in.Mode == "" {
-		in.Mode = "hybrid"
-	}
-	if in.Mode != "hybrid" && in.Mode != "vector" && in.Mode != "keyword" {
-		return out, ErrInvalid
-	}
 	if in.Limit == 0 {
 		in.Limit = 5
 	}
@@ -66,27 +62,27 @@ func (s *Service) Search(ctx context.Context, group, actor string, in SearchInpu
 	if in.Since != nil && in.Until != nil && in.Since.After(*in.Until) {
 		return out, ErrInvalid
 	}
-	var v []float32
-	var err error
-	if in.Mode != "keyword" {
-		if s.Embedder == nil {
-			return out, ErrUnavailable
-		}
-		v, err = s.Embedder.Embed(ctx, in.Query)
-		if err != nil {
-			return out, err
-		}
-		if err = validateVector(v, s.Config.Embedding.Dimension); err != nil {
-			return out, err
-		}
+	if s.Embedder == nil {
+		return out, ErrUnavailable
+	}
+	v, err := s.Embedder.Embed(ctx, in.Query)
+	if err != nil {
+		return out, err
+	}
+	if err = validateVector(v, s.Config.Embedding.Dimension); err != nil {
+		return out, err
 	}
 	scores := map[string]float64{}
 	docs := map[string]Document{}
-	for _, mode := range []string{"keyword", "vector"} {
-		if in.Mode != "hybrid" && in.Mode != mode {
-			continue
+	for _, route := range []string{"keyword", "vector"} {
+		branchCtx, branch := telemetry.Start(ctx, "memory.search."+route, "RETRIEVER")
+		found, e := s.Store.searchDocuments(branchCtx, group, actor, in, v, route)
+		branch.SetAttributes(attribute.Int("retrieval.result_count", len(found)))
+		var branchError error
+		if e != nil {
+			branchError = errors.New("retrieval query failed")
 		}
-		found, e := s.Store.searchDocuments(ctx, group, actor, in, v, mode)
+		telemetry.End(branch, branchError)
 		if e != nil {
 			return out, e
 		}
@@ -142,11 +138,11 @@ func (s *Service) Search(ctx context.Context, group, actor string, in SearchInpu
 	}
 	return out, rows.Err()
 }
-func (s *Store) searchDocuments(ctx context.Context, group, actor string, in SearchInput, v []float32, mode string) ([]Document, error) {
+func (s *Store) searchDocuments(ctx context.Context, group, actor string, in SearchInput, v []float32, route string) ([]Document, error) {
 	args := []any{group, actor, in.Kind, in.Subject, in.Since, in.Until}
 	query := `SELECT ` + documentColumns + ` FROM memory_documents d JOIN chat_groups g ON g.id=d.group_id
  JOIN group_members m ON m.group_id=g.id AND m.user_id=$2 `
-	if mode == "vector" {
+	if route == "vector" {
 		query += `JOIN memory_embeddings e ON e.group_id=d.group_id AND e.content_hash=d.content_hash AND e.status='ready' AND e.model_version=$7 AND e.dimension=$8 `
 		args = append(args, s.Config.ModelVersion(), s.Config.Embedding.Dimension, vectorText(v))
 	}
@@ -154,7 +150,7 @@ func (s *Store) searchDocuments(ctx context.Context, group, actor string, in Sea
  AND ($5::timestamptz IS NULL OR d.source_end_at>=$5) AND ($6::timestamptz IS NULL OR d.source_start_at<=$6) `
 
 	order := `ORDER BY e.embedding OPERATOR(public.<=>) $9::public.vector,d.id LIMIT 20`
-	if mode == "keyword" {
+	if route == "keyword" {
 		args = append(args, in.Query)
 		query += `AND strpos(lower(d.content),lower($7))>0 `
 		order = `ORDER BY d.source_end_at DESC,d.id LIMIT 20`

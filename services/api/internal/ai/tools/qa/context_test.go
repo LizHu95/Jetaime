@@ -26,7 +26,7 @@ func TestEvidenceBudgetPinsCurrentAndReferencesWithoutCuttingOriginals(t *testin
 		input.Messages = append(input.Messages, message)
 	}
 	input.Messages = append(input.Messages, current)
-	selected, err := FitContext(input, "之前说什么？", "history", 8192)
+	selected, err := FitContext(input, "之前说什么？", 8192)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestEvidenceBudgetPinsCurrentAndReferencesWithoutCuttingOriginals(t *testin
 	if input.HistoryScope != nil || len(input.Messages) != 102 {
 		t.Fatal("source snapshot mutated")
 	}
-	req, err := request("test", selected, "之前说什么？", "history", 8192)
+	req, err := request("test", selected, "之前说什么？", 8192)
 	if err != nil {
 		t.Fatal(err)
 	}

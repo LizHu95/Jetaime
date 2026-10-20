@@ -7,9 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	respondtool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/google/uuid"
 )
 
@@ -29,6 +33,10 @@ func (qaMemoryModel) Embed(_ context.Context, text string) ([]float32, error) {
 }
 
 func TestPostgresMainQAToolRecallsIndexedHistoryWithOriginalFence(t *testing.T) {
+	t.Run("on_demand", func(t *testing.T) { testIndexedHistoryFence(t, false) })
+	t.Run("before_model", func(t *testing.T) { testIndexedHistoryFence(t, true) })
+}
+func testIndexedHistoryFence(t *testing.T, automatic bool) {
 	f := setup(t)
 	ctx := context.Background()
 	old, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "我们确认的目的地是苏州", ClientID: uuid.NewString()})
@@ -77,10 +85,16 @@ func TestPostgresMainQAToolRecallsIndexedHistoryWithOriginalFence(t *testing.T) 
 			t.Fatal("post-question evidence leaked")
 		}
 		if strings.Contains(r.Messages[0].Content, "主Agent") {
+			if automatic {
+				if !strings.Contains(r.Messages[1].Content, old.ID) {
+					t.Fatal("initial hybrid retrieval missed old evidence")
+				}
+				return llm.Result{Content: `{"name":"respond","arguments":{"status":"answered","answer":"我们确认去苏州。","sourceMessageIds":["` + old.ID + `"]}}`}, nil
+			}
 			if strings.Contains(r.Messages[1].Content, old.ID) {
 				t.Fatal("old evidence unexpectedly present in initial window")
 			}
-			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"我们确认的目的地是哪？","context":"history"}}`}, nil
+			return llm.Result{Content: `{"name":"answer_question","arguments":{"question":"我们确认的目的地是哪？"}}`}, nil
 		}
 		var payload struct {
 			Context struct {
@@ -109,9 +123,26 @@ func TestPostgresMainQAToolRecallsIndexedHistoryWithOriginalFence(t *testing.T) 
 	if job.ContextEnd != trigger.Seq {
 		t.Fatal("invalid original fence")
 	}
-	f.worker(t).Execute(ctx, job)
+	if automatic {
+		registry, e := tools.New(respondtool.New())
+		if e != nil {
+			t.Fatal(e)
+		}
+		executor, e := bootstrap.New(model, "test", 16384, registry)
+		if e != nil {
+			t.Fatal(e)
+		}
+		worker := jobs.New(f.store, executor, 16384, 10*time.Second, qa.HybridContextInjector(mem, mem.Store, nil))
+		worker.Execute(ctx, job)
+	} else {
+		f.worker(t).Execute(ctx, job)
+	}
 	jobs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
-	if err != nil || jobs[0].Status != "succeeded" || calls != 2 {
+	expectedCalls := 2
+	if automatic {
+		expectedCalls = 1
+	}
+	if err != nil || jobs[0].Status != "succeeded" || calls != expectedCalls {
 		t.Fatal("question tool failed", jobs, err, calls)
 	}
 	page, err := f.store.Messages(ctx, f.group, f.users[0].ID, trigger.Seq+1, 0, 100)

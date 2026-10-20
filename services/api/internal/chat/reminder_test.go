@@ -72,15 +72,15 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 		raw, err := json.Marshal(map[string]any{"name": "set_reminder", "arguments": args})
 		return llm.Result{Content: string(raw)}, err
 	}}
-	registry, err := tools.New(qa.New(model, "test", 8192, nil), adapter)
+	registry, err := tools.New(qa.New(model, "test", 16384, nil), adapter)
 	if err != nil {
 		t.Fatal(err)
 	}
-	executor, err := bootstrap.New(model, "test", 8192, registry)
+	executor, err := bootstrap.New(model, "test", 16384, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	worker := jobs.New(f.store, executor, 8192, 5*time.Second, adapter.Inject)
+	worker := jobs.New(f.store, executor, 16384, 5*time.Second, adapter.Inject)
 	process := func(text string, mention bool) ai.Job {
 		t.Helper()
 		input := SendInput{Content: text, ClientID: uuid.NewString(), MentionsAI: mention}
@@ -129,7 +129,7 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 		t.Fatal(list, err)
 	}
 	// A stale attempt cannot change reminder state after completion.
-	input, question, err := f.store.AgentContext(ctx, last, 8192, adapter.Inject)
+	input, question, err := f.store.AgentContext(ctx, last, 16384, adapter.Inject)
 	if err != nil {
 		t.Fatal(err)
 	}

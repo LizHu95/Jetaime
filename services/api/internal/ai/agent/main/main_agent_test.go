@@ -31,17 +31,17 @@ func (m *mainTestModel) Call(_ context.Context, r llm.Request) (llm.Result, erro
 }
 
 func TestMainCanDelegateToQuestionTool(t *testing.T) {
-	for _, mode := range []string{"general", "history", "mixed"} {
-		t.Run(mode, func(t *testing.T) {
+	for _, basis := range []string{"general", "history"} {
+		t.Run(basis, func(t *testing.T) {
 			input := testContext()
 			ids := `[]`
-			if mode != "general" {
+			if basis == "history" {
 				ids = `["m1"]`
 			}
-			model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"请帮忙","context":"` + mode + `"}}`, answer: `{"status":"answered","answer":"工具回答","sourceMessageIds":` + ids + `}`}
+			model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"请帮忙"}}`, answer: `{"status":"answered","answer":"工具回答","sourceMessageIds":` + ids + `}`}
 			agent, _ := newTestAgent(model, "test", 16384)
 			run, err := agent.ExecuteMain(context.Background(), input, "请帮忙", func(context.Context) (ai.Context, error) { t.Fatal("QA loaded extraction snapshot"); return input, nil })
-			if err != nil || run.Answer == nil || run.Answer.Answer != "工具回答" || len(model.requests) != 2 || run.Route.Version != PromptVersion || run.Basis != mode {
+			if err != nil || run.Answer == nil || run.Answer.Answer != "工具回答" || len(model.requests) != 2 || run.Route.Version != PromptVersion || run.Basis != basis {
 				t.Fatalf("QA not delegated: %v calls=%d", err, len(model.requests))
 			}
 			if !strings.Contains(model.requests[0].Messages[1].Content, "answer_question") {
@@ -63,7 +63,7 @@ func TestMainRejectsDisabledExtractionTool(t *testing.T) {
 	}
 }
 func TestMainRejectsUnregisteredCallsAndFormerDirectAnswerProtocol(t *testing.T) {
-	for _, decision := range []string{`not json`, `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"bypass","sourceMessageIds":[]}}`, `{"name":"delete","arguments":{}}`, `{"name":"answer_question","arguments":null}`, `{"name":"answer_question","arguments":{"question":"test","context":"general","groupId":"foreign"}}`, `{"name":"answer_question","arguments":{"question":"test","context":"general"},"extra":true}`} {
+	for _, decision := range []string{`not json`, `{"action":"answer","basis":"general","answer":{"status":"answered","answer":"bypass","sourceMessageIds":[]}}`, `{"name":"delete","arguments":{}}`, `{"name":"answer_question","arguments":null}`, `{"name":"answer_question","arguments":{"question":"test","groupId":"foreign"}}`, `{"name":"answer_question","arguments":{"question":"test"},"extra":true}`} {
 		input := testContext()
 		model := &mainTestModel{decision: decision}
 		agent, _ := newTestAgent(model, "test", 16384)
@@ -81,7 +81,7 @@ func TestMainContextAndToolCatalogCannotBypassBudget(t *testing.T) {
 		m.ID = string(rune('A' + i))
 		input.Messages = append(input.Messages, m)
 	}
-	model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"怎么除味？","context":"general"}}`, answer: `{"status":"answered","answer":"回答","sourceMessageIds":[]}`}
+	model := &mainTestModel{decision: `{"name":"answer_question","arguments":{"question":"怎么除味？"}}`, answer: `{"status":"answered","answer":"回答","sourceMessageIds":[]}`}
 	agent, _ := newTestAgent(model, "test", 16384)
 	if _, err := agent.ExecuteMain(context.Background(), input, "怎么除味？", nil); err != nil {
 		t.Fatal(err)

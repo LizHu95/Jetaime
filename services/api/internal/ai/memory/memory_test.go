@@ -204,7 +204,7 @@ func TestPostgresRestartSkipsCompletedDataAndOnlyProcessesNewMessages(t *testing
 		t.Fatalf("history recall: %+v %v", result, err)
 	}
 	second := f.send(t, f.bob, "后来改成周日去苏州")
-	result, err = restarted.Search(ctx, f.group, f.alice, SearchInput{Query: "苏州", Mode: "keyword"})
+	result, err = restarted.Search(ctx, f.group, f.alice, SearchInput{Query: "苏州"})
 	if err != nil || len(result.RecentUnprocessed) != 1 || result.RecentUnprocessed[0].ID != second.ID {
 		t.Fatalf("unindexed recent: %+v %v", result, err)
 	}
@@ -356,7 +356,7 @@ func TestPostgresNoopTemporaryPreferenceDeletionAndClosure(t *testing.T) {
 			t.Fatalf("closed group retained %s", table)
 		}
 	}
-	if _, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "喜欢", Mode: "keyword"}); !errors.Is(err, ErrNotFound) {
+	if _, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "喜欢"}); !errors.Is(err, ErrNotFound) {
 		t.Fatal("closed group accessible")
 	}
 }
@@ -504,7 +504,7 @@ func TestPostgresInvalidationRetainsVersionsAndEvidence(t *testing.T) {
 	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan'`); n != 2 {
 		t.Fatal("cancellation erased historical version")
 	}
-	if _, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "plan", Mode: "keyword"}); err != nil {
+	if _, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "plan"}); err != nil {
 		t.Fatal(err)
 	}
 }

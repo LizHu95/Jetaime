@@ -121,3 +121,15 @@ func TestInitialContextChecksInjectedExtensions(t *testing.T) {
 		t.Fatal("extension bypassed budget", err)
 	}
 }
+
+func TestOptionalContextDropsBackgroundThenLowestRankedEvidence(t *testing.T) {
+	input := ai.Context{Messages: []ai.Message{{ID: "best"}, {ID: "background"}, {ID: "lower"}, {ID: "current"}}, HistoryScope: &ai.HistoryScope{RetrievedMessageIDs: []string{"best", "lower"}}}
+	required := map[string]bool{"current": true}
+	if got := aicontext.OptionalMessageToDrop(input, required); got != 1 {
+		t.Fatalf("background not dropped first: %d", got)
+	}
+	input.Messages = append(input.Messages[:1], input.Messages[2:]...)
+	if got := aicontext.OptionalMessageToDrop(input, required); got != 1 {
+		t.Fatalf("best evidence dropped before lower ranked evidence: %d", got)
+	}
+}

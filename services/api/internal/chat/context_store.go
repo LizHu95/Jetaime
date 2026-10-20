@@ -91,7 +91,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 			input.Messages[i], input.Messages[j] = input.Messages[j], input.Messages[i]
 		}
 		input.HistoryScope = &ai.HistoryScope{Policy: "default-context-v1", EarlierMessagesOmitted: earlierOmitted}
-		request := aicontext.ContextRequest{Snapshot: input, TriggerID: r.TriggerID, Question: question, Tokens: budget, Now: input.Request.CurrentTime}
+		request := aicontext.ContextRequest{Snapshot: input, TriggerID: r.TriggerID, Question: question, Tokens: budget, Now: input.Request.CurrentTime, MaxSeq: r.ContextEnd}
 		if replyTo != nil {
 			reference, e := scanMessage(s.pool.QueryRow(ctx, messageSelect+`JOIN chat_groups g ON g.id=x.group_id WHERE x.group_id=$1 AND x.id=$2 AND x.seq<=$3 AND g.status='active'`, r.GroupID, *replyTo, r.ContextEnd))
 			if e != nil {

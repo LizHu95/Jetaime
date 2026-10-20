@@ -37,7 +37,7 @@ func TestQAToolValidatesRetrievedEvidenceInsteadOfInitialWindow(t *testing.T) {
 		return in, nil
 	}
 	tool := New(m, "test", 16384, provider)
-	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot(), ContextEndSeq: 10}, MarshalArguments("之前说什么？", "history"))
+	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot(), ContextEndSeq: 10}, MarshalArguments("之前说什么？"))
 	if err != nil || out.Completion.Answer == nil || len(out.Completion.Sources) != 1 || out.Completion.Sources[0].ID != "old" || !out.Terminal {
 		t.Fatal("retrieved citation rejected", err)
 	}
@@ -48,7 +48,6 @@ func TestQAToolValidatesRetrievedEvidenceInsteadOfInitialWindow(t *testing.T) {
 }
 func TestQAToolRejectsInvalidAnswersAndCitations(t *testing.T) {
 	for _, body := range []string{
-		`{"status":"answered","answer":"回答","sourceMessageIds":[]}`,
 		`{"status":"answered","answer":"回答","sourceMessageIds":["foreign"]}`,
 		`{"status":"answered","answer":"回答","sourceMessageIds":["current","current"]}`,
 		`{"status":"answered","answer":"回答","sourceMessageIds":["current"],"extra":true}`,
@@ -56,14 +55,14 @@ func TestQAToolRejectsInvalidAnswersAndCitations(t *testing.T) {
 		`not JSON`,
 	} {
 		model := &modelStub{content: body}
-		out, err := New(model, "test", 16384, nil).Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("之前说什么？", "history"))
+		out, err := New(model, "test", 16384, nil).Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("之前说什么？"))
 		if err == nil || out.Completion.Answer != nil {
 			t.Fatal("invalid answer exposed", body)
 		}
 	}
 }
 func TestQAToolBudgetAndArgumentFailuresAvoidAllExternalCalls(t *testing.T) {
-	for _, raw := range []json.RawMessage{json.RawMessage(`{"question":"问题","context":"general","groupId":"other"}`), json.RawMessage(`{"question":"","context":"general"}`), json.RawMessage(`{"question":"问题","context":"unknown"}`)} {
+	for _, raw := range []json.RawMessage{json.RawMessage(`{"question":"问题","groupId":"other"}`), json.RawMessage(`{"question":""}`), json.RawMessage(`{"question":"问题","context":"general"}`), json.RawMessage(`{"question":"问题","context":"recent"}`), json.RawMessage(`{"question":"问题","context":"history"}`), json.RawMessage(`{"question":"问题","context":"mixed"}`), json.RawMessage(`{"question":"问题","context":"unknown"}`)} {
 		m := &modelStub{}
 		providers := 0
 		tool := New(m, "test", 4096, func(context.Context, ContextRequest) (ai.Context, error) { providers++; return snapshot(), nil })
@@ -77,7 +76,7 @@ func TestQAToolBudgetAndArgumentFailuresAvoidAllExternalCalls(t *testing.T) {
 	tool := New(m, "test", 8192, func(context.Context, ContextRequest) (ai.Context, error) { providers++; return snapshot(), nil })
 	in := snapshot()
 	in.Messages[0].Text = strings.Repeat("太大", 20000)
-	if _, err := tool.Invoke(context.Background(), tools.Scope{Context: in}, MarshalArguments("问题", "history")); !errors.Is(err, llm.ErrContextLimit) || providers != 0 || m.calls != 0 {
+	if _, err := tool.Invoke(context.Background(), tools.Scope{Context: in}, MarshalArguments("问题")); !errors.Is(err, llm.ErrContextLimit) || providers != 0 || m.calls != 0 {
 		t.Fatal("required context bypassed guard", err)
 	}
 }
@@ -98,7 +97,7 @@ func TestQAToolRejectsChangedTrustedScopeOrRequiredEvidence(t *testing.T) {
 			change(&in)
 			return in, nil
 		})
-		if _, err := tool.Invoke(context.Background(), tools.Scope{Context: original}, MarshalArguments("问题", "general")); err == nil || m.calls != 0 {
+		if _, err := tool.Invoke(context.Background(), tools.Scope{Context: original}, MarshalArguments("问题")); err == nil || m.calls != 0 {
 			t.Fatal("provider changed scope/pinned evidence", err)
 		}
 		if original.Request.Timezone != "Asia/Shanghai" || !original.Request.SentAt.Equal(snapshot().Request.SentAt) || len(original.Request.RelatedMessageIDs) != 0 {
@@ -109,7 +108,7 @@ func TestQAToolRejectsChangedTrustedScopeOrRequiredEvidence(t *testing.T) {
 func TestGeneralQAAllowsKnowledgeWithoutHistoricalCitations(t *testing.T) {
 	m := &modelStub{content: `{"status":"answered","answer":"通风并清洁","sourceMessageIds":[]}`}
 	tool := New(m, "test", 16384, nil)
-	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("怎么除味？", "general"))
+	out, err := tool.Invoke(context.Background(), tools.Scope{Context: snapshot()}, MarshalArguments("怎么除味？"))
 	if err != nil || out.Completion.Basis != "general" || m.calls != 1 {
 		t.Fatal("general QA regressed", err)
 	}

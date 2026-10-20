@@ -61,9 +61,10 @@ type RequestContext struct {
 
 // HistoryScope describes selection of original messages, not a summary of them.
 type HistoryScope struct {
-	HistoricalSearch       bool   `json:"historicalSearch,omitempty"`
-	Policy                 string `json:"policy"`
-	EarlierMessagesOmitted bool   `json:"earlierMessagesOmitted"`
+	RetrievedMessageIDs    []string `json:"-"` // Internal evidence priority, never a grant to cite missing messages.
+	HistoricalSearch       bool     `json:"historicalSearch,omitempty"`
+	Policy                 string   `json:"policy"`
+	EarlierMessagesOmitted bool     `json:"earlierMessagesOmitted"`
 }
 type Answer struct {
 	Status           string   `json:"status"`
