@@ -59,21 +59,22 @@ func (s *Service) Execute(ctx context.Context, in Invocation) (Run, error) {
 
 // Job is durable scheduling state, independent from an agent's execution Run.
 type Job struct {
-	TriggerMode string       `json:"triggerMode"`
-	Recognition *Recognition `json:"recognition,omitempty"`
-	TraceID     *string      `json:"traceId"`
-	TraceParent string       `json:"-"`
-	TraceState  string       `json:"-"`
-	QueuedAt    time.Time    `json:"-"`
-	Kind        string       `json:"agentKind"`
-	ID          string       `json:"id"`
-	GroupID     string       `json:"groupId"`
-	AssistantID string       `json:"-"`
-	TriggerID   string       `json:"triggerMessageId"`
-	RequestedBy string       `json:"requestedBy"`
-	ContextEnd  int64        `json:"contextEndSeq"`
-	Status      string       `json:"status"`
-	Attempt     int          `json:"attempt"`
-	ErrorCode   *string      `json:"errorCode"`
-	ResponseID  *string      `json:"responseMessageId"`
+	TriggerMentionsAI bool         `json:"-"`
+	TriggerMode       string       `json:"triggerMode"`
+	Recognition       *Recognition `json:"recognition,omitempty"`
+	TraceID           *string      `json:"traceId"`
+	TraceParent       string       `json:"-"`
+	TraceState        string       `json:"-"`
+	QueuedAt          time.Time    `json:"-"`
+	Kind              string       `json:"agentKind"`
+	ID                string       `json:"id"`
+	GroupID           string       `json:"groupId"`
+	AssistantID       string       `json:"-"`
+	TriggerID         string       `json:"triggerMessageId"`
+	RequestedBy       string       `json:"requestedBy"`
+	ContextEnd        int64        `json:"contextEndSeq"`
+	Status            string       `json:"status"`
+	Attempt           int          `json:"attempt"`
+	ErrorCode         *string      `json:"errorCode"`
+	ResponseID        *string      `json:"responseMessageId"`
 }

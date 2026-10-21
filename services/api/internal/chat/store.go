@@ -231,11 +231,11 @@ func (s *Store) Close(ctx context.Context, group, actor string) error {
 	return err
 }
 
-const runSelect = `SELECT id::text,group_id::text,assistant_id::text,trigger_message_id::text,requested_by::text,context_end_seq,status,attempt_count,error_code,response_message_id::text,agent_kind,trace_parent,trace_state,queued_at,trace_id,trigger_mode,recognition FROM agent_runs `
+const runSelect = `SELECT id::text,group_id::text,assistant_id::text,trigger_message_id::text,requested_by::text,context_end_seq,status,attempt_count,error_code,response_message_id::text,agent_kind,trace_parent,trace_state,queued_at,trace_id,trigger_mode,recognition,trigger_mentions_ai FROM agent_runs `
 
 func scanRun(row pgx.Row) (Run, error) {
 	var r Run
-	err := row.Scan(&r.ID, &r.GroupID, &r.AssistantID, &r.TriggerID, &r.RequestedBy, &r.ContextEnd, &r.Status, &r.Attempt, &r.ErrorCode, &r.ResponseID, &r.Kind, &r.TraceParent, &r.TraceState, &r.QueuedAt, &r.TraceID, &r.TriggerMode, &r.Recognition)
+	err := row.Scan(&r.ID, &r.GroupID, &r.AssistantID, &r.TriggerID, &r.RequestedBy, &r.ContextEnd, &r.Status, &r.Attempt, &r.ErrorCode, &r.ResponseID, &r.Kind, &r.TraceParent, &r.TraceState, &r.QueuedAt, &r.TraceID, &r.TriggerMode, &r.Recognition, &r.TriggerMentionsAI)
 	return r, err
 }
 func (s *Store) Runs(ctx context.Context, group, actor string) ([]Run, error) {

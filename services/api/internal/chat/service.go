@@ -58,7 +58,7 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 	if !input.MentionsAI {
 		return s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	}
-	ctx, span := telemetry.Start(ctx, "chat.ai", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor))
+	ctx, span := telemetry.Start(ctx, "chat.ai", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor), attribute.String("chat.trigger_mode", "reactive"), attribute.String("chat.trigger_source", "mention"), attribute.Bool("chat.trigger_mentions_ai", true))
 	telemetry.Content(span, "input.value", input.Content)
 	message, err := s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	var traceErr error

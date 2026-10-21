@@ -61,7 +61,7 @@ func Init(ctx context.Context) (func(context.Context) error, error) {
 
 type attributesKey struct{}
 
-// Start carries only application-controlled identity fields to child observations.
+// Start carries only application-controlled identity and trigger fields to child observations.
 func Start(ctx context.Context, name, kind string, attrs ...attribute.KeyValue) (context.Context, trace.Span) {
 	return StartAt(ctx, name, kind, time.Time{}, attrs...)
 }
@@ -75,7 +75,7 @@ func StartAt(ctx context.Context, name, kind string, started time.Time, attrs ..
 	}
 	for _, attr := range attrs {
 		switch attr.Key {
-		case "session.id", "user.id", "chat.run_id":
+		case "session.id", "user.id", "chat.run_id", "chat.trigger_mode", "chat.trigger_source", "chat.trigger_mentions_ai":
 			fields[attr.Key] = attr
 		}
 	}

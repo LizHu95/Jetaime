@@ -8,11 +8,71 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type failureStore struct {
 	code, answer string
 	completions  int
+}
+
+type tracingExecutor struct{}
+
+func (tracingExecutor) Execute(ctx context.Context, _ ai.Invocation) (ai.Run, error) {
+	ctx, parent := telemetry.Start(ctx, "ai.invoke", "CHAIN")
+	_, child := telemetry.Start(ctx, "llm.call", "LLM")
+	telemetry.End(child, nil)
+	telemetry.End(parent, nil)
+	return ai.Run{}, ai.ErrInvalidDecision
+}
+
+func TestWorkerTracesDurableTriggerSourceOnEveryNode(t *testing.T) {
+	previous := otel.GetTracerProvider()
+	t.Cleanup(func() { otel.SetTracerProvider(previous) })
+	t.Setenv("JETAIME_TRACE_CAPTURE_CONTENT", "false")
+	for _, tc := range []struct {
+		name, storedMode string
+		mentions         bool
+		mode, source     string
+	}{
+		{"proactive", "proactive", false, "proactive", "proactive"},
+		{"mention", "mention", true, "reactive", "mention"},
+		{"reminder followup", "mention", false, "reactive", "reminder_followup"},
+		{"missing legacy metadata", "", false, "unknown", "unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			exporter := tracetest.NewInMemoryExporter()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSyncer(exporter))
+			otel.SetTracerProvider(provider)
+			defer func() {
+				if err := provider.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			}()
+			store := &failureStore{}
+			New(store, tracingExecutor{}, 16384, time.Second).Execute(context.Background(), ai.Job{ID: "job", GroupID: "group", RequestedBy: "user", Kind: "auto", TriggerMode: tc.storedMode, TriggerMentionsAI: tc.mentions, Attempt: 2})
+			spans := exporter.GetSpans()
+			if len(spans) != 5 {
+				t.Fatalf("unexpected execution spans: %d", len(spans))
+			}
+			for _, span := range spans {
+				attrs := map[string]attribute.Value{}
+				for _, attr := range span.Attributes {
+					attrs[string(attr.Key)] = attr.Value
+				}
+				if attrs["chat.trigger_mode"].AsString() != tc.mode || attrs["chat.trigger_source"].AsString() != tc.source || attrs["chat.trigger_mentions_ai"].AsBool() != tc.mentions {
+					t.Fatalf("trigger metadata missing on %s: %v", span.Name, attrs)
+				}
+				if _, ok := attrs["chat.trigger_mentions_ai"]; !ok {
+					t.Fatalf("missing false mention flag on %s", span.Name)
+				}
+			}
+		})
+	}
 }
 
 func (*failureStore) Claim(context.Context, time.Duration) (ai.Job, error) {

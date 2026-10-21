@@ -92,6 +92,9 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if run.TriggerMode != "mention" || run.TriggerMentionsAI != mention {
+			t.Fatal("mention/followup metadata lost")
+		}
 		if run.TriggerID != m.ID {
 			t.Fatal("wrong trigger")
 		}

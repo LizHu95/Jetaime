@@ -73,6 +73,9 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !run.TriggerMentionsAI || run.TriggerMode != "mention" {
+		t.Fatal("mention trigger metadata lost")
+	}
 	if run.TraceParent == "" || run.QueuedAt.IsZero() {
 		t.Fatal("queue context not persisted")
 	}
@@ -128,6 +131,9 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	retried, err := f.store.Claim(context.Background(), time.Minute)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !retried.TriggerMentionsAI || retried.TriggerMode != "mention" {
+		t.Fatal("retry changed original trigger metadata")
 	}
 	restored := telemetry.Restore(context.Background(), retried.TraceParent, retried.TraceState)
 	_, attempt := telemetry.Start(restored, "attempt", "CHAIN")

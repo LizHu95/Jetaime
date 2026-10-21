@@ -68,7 +68,7 @@ func TestPostgresProactiveDebounceWindowAndSilence(t *testing.T) {
 	}
 	dueProactive(t, f)
 	run, err := f.store.Claim(ctx, time.Minute)
-	if err != nil || run.TriggerMode != "proactive" || run.TriggerID != last.ID {
+	if err != nil || run.TriggerMode != "proactive" || run.TriggerMentionsAI || run.TriggerID != last.ID {
 		t.Fatal("wrong proactive trigger", run, err)
 	}
 	if _, err = f.store.Claim(ctx, time.Minute); !errors.Is(err, pgx.ErrNoRows) {

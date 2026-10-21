@@ -52,8 +52,9 @@ func (s *Worker) Work(ctx context.Context) {
 	}
 }
 func (s *Worker) Execute(ctx context.Context, run ai.Job) {
+	triggerMode, triggerSource := triggerMetadata(run)
 	ctx = telemetry.Restore(ctx, run.TraceParent, run.TraceState)
-	ctx, span := telemetry.Start(ctx, "chat.ai.execute", "CHAIN", attribute.String("user.id", run.RequestedBy), attribute.String("chat.run_id", run.ID), attribute.String("session.id", run.GroupID), attribute.String("chat.trigger_message_id", run.TriggerID), attribute.Int("chat.attempt", run.Attempt))
+	ctx, span := telemetry.Start(ctx, "chat.ai.execute", "CHAIN", attribute.String("user.id", run.RequestedBy), attribute.String("chat.run_id", run.ID), attribute.String("session.id", run.GroupID), attribute.String("chat.trigger_message_id", run.TriggerID), attribute.Int("chat.attempt", run.Attempt), attribute.String("chat.trigger_mode", triggerMode), attribute.String("chat.trigger_source", triggerSource), attribute.Bool("chat.trigger_mentions_ai", run.TriggerMentionsAI))
 	if !run.QueuedAt.IsZero() {
 		span.SetAttributes(attribute.Int64("chat.queue_wait_ms", time.Since(run.QueuedAt).Milliseconds()))
 	}
@@ -137,7 +138,7 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 		}
 	}
 	telemetry.End(persistSpan, saveErr)
-	log.Printf("chat agent run=%s trace_id=%s status=%s", run.ID, span.SpanContext().TraceID(), runStatus(code, persistErr))
+	log.Printf("chat agent run=%s trace_id=%s trigger_mode=%s trigger_source=%s status=%s", run.ID, span.SpanContext().TraceID(), triggerMode, triggerSource, runStatus(code, persistErr))
 }
 
 func runStatus(code string, err error) string {
@@ -145,4 +146,19 @@ func runStatus(code string, err error) string {
 		return "failed"
 	}
 	return "succeeded"
+}
+
+// Durable execution mode and the trigger message's real mention flag survive
+// restarts and retries. Never infer the source from model output or chat text.
+func triggerMetadata(run ai.Job) (mode, source string) {
+	if run.TriggerMode == "proactive" {
+		return "proactive", "proactive"
+	}
+	if run.TriggerMentionsAI {
+		return "reactive", "mention"
+	}
+	if run.TriggerMode == "mention" {
+		return "reactive", "reminder_followup"
+	}
+	return "unknown", "unknown"
 }

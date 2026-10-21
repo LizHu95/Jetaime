@@ -52,6 +52,16 @@ AI 入队、Worker 执行、聊天上下文构建、Agent 调度、主 Agent、�
 
 OpenInference 字段包含节点类型、模型名、输入输出、Token 数与 session/user。`JETAIME_TRACE_CAPTURE_CONTENT=true` 显式开启内容采集（单字段 64 KiB 上限）；`OTEL_SDK_DISABLED=true` 关闭全部上报。普通聊天和非 AI HTTP 请求不采集。远程有认证的 Phoenix 可设置 `PHOENIX_API_KEY`。
 
+Worker 执行节点 `chat.ai.execute` 及模型、工具等子节点带有触发来源属性，不依赖开启聊天内容采集：
+
+| 属性 | 值 |
+| --- | --- |
+| `chat.trigger_mode` | `proactive` 主动介入；`reactive` 被动请求 |
+| `chat.trigger_source` | `proactive` 安静窗口触发；`mention` 明确 @AI；`reminder_followup` 提醒草稿补全 |
+| `chat.trigger_mentions_ai` | 触发消息是否真实包含结构化/解析后的 @AI 标记 |
+
+字段从持久化任务读取，恢复和重试保留原触发来源。旧 Trace 不回填；缺少来源信息的旧内存调用标为 `unknown`。数据库原有 `trigger_mode=mention` 包含 @AI 和提醒补全两条被动路径，Trace 使用 `reactive` 统一表达被动类型，再通过 `trigger_source` 区分。
+
 ## 运维
 
 ```sh
