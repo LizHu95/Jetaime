@@ -8,6 +8,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
@@ -19,7 +20,10 @@ import (
 
 const notificationChannel = notification.Channel
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool            *pgxpool.Pool
+	convertLocation location.Converter
+}
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 func rollback(tx pgx.Tx) {
@@ -153,6 +157,16 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 			return Message{}, ErrConflict
 		}
 		return Message{}, err
+	}
+	if input.ClientContext != nil && input.ClientContext.Location != nil {
+		fix := input.ClientContext.Location
+		raw, e := json.Marshal(fix)
+		if e != nil {
+			return Message{}, ErrInvalid
+		}
+		if _, e = tx.Exec(ctx, `INSERT INTO message_client_locations(message_id,location,expires_at) VALUES($1,$2,$3)`, id, raw, time.Now().Add(location.Retention)); e != nil {
+			return Message{}, e
+		}
 	}
 	// A live clarification belongs only to its requesting member. Preserve the
 	// original mention flag so HTTP retries still match the saved user message.

@@ -38,6 +38,8 @@ type Call struct {
 
 // Scope is backend-owned; it is never decoded from model arguments.
 type Scope struct {
+	ExcludedCards  map[string]bool    // Invocation-local exclusions activated by a replacement search.
+	Cards          map[string]ai.Card // Invocation-local, populated only by successful tools.
 	Context        ai.Context
 	ContextEndSeq  int64
 	Question       string
@@ -48,6 +50,7 @@ type Scope struct {
 // Completion is an optional presentation of a successful business result.
 // Tools never construct the Agent's execution Run.
 type Completion struct {
+	Cards        []ai.Card
 	Silent       bool
 	Answer       *ai.Answer
 	Suggestions  []ai.Suggestion

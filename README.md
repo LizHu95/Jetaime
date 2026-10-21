@@ -154,7 +154,7 @@ services/api/
 
 ## 开发与检查
 
-Go 工具链版本由 `.go-version` 管理；Go 模块最低要求 Go 1.24，依赖 UUID 库、飞书官方 Go SDK 和 Eino 模型组件；本地评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
+Go 工具链版本由 `.go-version` 管理；Go 模块最低要求 Go 1.25（官方 MCP Go SDK 的要求），依赖 UUID 库、飞书官方 Go SDK 和 Eino 模型组件；本地评测使用独立 Python 项目 `evals/`。根目录提供统一检查入口：
 
 ```sh
 make fmt        # 格式化 Go 源码

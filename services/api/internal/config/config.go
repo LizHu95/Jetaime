@@ -24,6 +24,7 @@ type Config struct {
 	DebugConsole     DebugConsole
 	Model            llm.Config
 	ModelTimeout     time.Duration
+	GaodeAPIKey      string `json:"-"` // Server-only credential for the official Amap MCP.
 	Memory           memory.Config
 	MemoryBackfill   bool
 }
@@ -72,6 +73,7 @@ func Parse(args []string) (Config, error) {
 	// The implicit chat-ai default applies only when account APIs are enabled.
 	cfg.EnableChatAI = cfg.EnableAccountAPI && cfg.EnableChatAI
 	cfg.DatabaseURL = os.Getenv("JETAIME_DATABASE_URL")
+	cfg.GaodeAPIKey = os.Getenv("JETAIME_GAODE_API_KEY")
 	if err := cfg.validateAddress(); err != nil {
 		return cfg, err
 	}

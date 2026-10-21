@@ -76,6 +76,20 @@ func (a *Agent) invokeProactive(ctx context.Context, in ai.Invocation) (ai.Run, 
 	in.Context.Request = &request
 	in.Context.Request.TriggerMode = "proactive"
 	in.Context.Request.AllowWrites = decision.Intent.Type == "execute_request"
+	// Recognition evidence must survive later optional-background compaction.
+	seen := map[string]bool{}
+	ids := append(append([]string{}, request.RelatedMessageIDs...), decision.Intent.EvidenceMessageIDs...)
+	for _, breakdown := range decision.Breakdowns {
+		ids = append(ids, breakdown.EvidenceMessageIDs...)
+	}
+	in.Context.Request.RelatedMessageIDs = nil
+	for _, id := range ids {
+		if !seen[id] {
+			in.Context.Request.RelatedMessageIDs = append(in.Context.Request.RelatedMessageIDs, id)
+			seen[id] = true
+		}
+	}
+
 	question := "主动介入目标：" + decision.Intent.Objective + "。依据对话简短、中立地帮助大家，不展示诊断标签或内部推理，不重复已解决的问题。"
 	output, err := a.ExecuteMain(ctx, in.Context, question, in.LoadExtraction, in.ContextEndSeq)
 	output.StartedAt = started

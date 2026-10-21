@@ -48,7 +48,9 @@ API 上报始终直连回环端口 `/v1/traces`，不经过 Nginx 的 Basic Auth
 
 ## Trace 覆盖
 
-AI 入队、Worker 执行、聊天上下文构建、Agent 调度、主 Agent、工具调用、模型调用和结果落库均有 span。主 Agent 和工具记录的内部步骤另作为 `step.*` span 上报，包括 `build_context`、`budget`、`validate_result`、`tool_call`、`tool_result` 等；只上报实际执行/记录的步骤，不为未发生的分支生成节点。步骤保留已有测量时间和父 Trace，错误仅上报稳定类别。旧提取 workflow 的事件记录继续保留。
+AI 入队（`chat.ai.enqueue`）、Worker 执行（`chat.ai.execute`）、聊天上下文构建、Agent 调度、主 Agent、工具调用、模型调用和结果落库均有 span。主 Agent 和工具记录的内部步骤另作为 `step.*` span 上报，包括 `build_context`、`budget`、`validate_result`、`tool_call`、`tool_result` 等；只上报实际执行/记录的步骤，不为未发生的分支生成节点。步骤保留已有测量时间和父 Trace，错误仅上报稳定类别。旧提取 workflow 的事件记录继续保留。
+
+入队 span 的 OK 只表示请求成功入队，不代表异步任务成功；任务结果看 `chat.ai.execute` 和 `assistant.main` 的状态。工具额度用尽进入额外收尾轮时记录 `step.tool_budget`，其中 `finalResponseOnly=true` 表示只允许最终回答或主动静默。
 
 OpenInference 字段包含节点类型、模型名、输入输出、Token 数与 session/user。`JETAIME_TRACE_CAPTURE_CONTENT=true` 显式开启内容采集（单字段 64 KiB 上限）；`OTEL_SDK_DISABLED=true` 关闭全部上报。普通聊天和非 AI HTTP 请求不采集。远程有认证的 Phoenix 可设置 `PHOENIX_API_KEY`。
 

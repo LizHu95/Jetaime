@@ -4,7 +4,7 @@ import { useAuth } from './auth-provider'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PageHeader } from '@/components/page-header'
+import { SubpageLayout } from '@/components/subpage-layout'
 import { LoaderCircle } from 'lucide-react'
 
 export function PasswordPage() {
@@ -34,8 +34,7 @@ export function PasswordPage() {
       else setError(reason instanceof ApiError && reason.code === 'invalid_credentials' ? '旧密码不正确' : errorMessage(reason))
     } finally { setPending(false) }
   }
-  return <main className="profile-page password-page">
-    <PageHeader title="修改密码" backTo="/me/" backLabel="返回我的账号" />
+  return <SubpageLayout className="password-page" title="修改密码" backTo="/me/" backLabel="返回我的账号">
     <p className="password-description">修改成功后，所有设备需使用新密码重新登录。</p>
     <form onSubmit={submit} className="password-form" aria-busy={pending}>
       <fieldset disabled={pending}>
@@ -56,5 +55,5 @@ export function PasswordPage() {
         <Button type="submit" className="submit-button" disabled={pending}>{pending && <LoaderCircle className="animate-spin" size={18} />}{pending ? '正在修改…' : '保存新密码'}</Button>
       </fieldset>
     </form>
-  </main>
+  </SubpageLayout>
 }

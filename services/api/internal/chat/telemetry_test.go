@@ -98,7 +98,7 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 	spans := exporter.GetSpans()
 	var enqueueID trace.SpanID
 	for _, span := range spans {
-		if span.Name == "chat.ai" {
+		if span.Name == "chat.ai.enqueue" {
 			enqueueID = span.SpanContext.SpanID()
 		}
 	}

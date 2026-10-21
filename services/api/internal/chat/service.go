@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
@@ -39,6 +40,9 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 	if !validID(group) || !validID(input.ClientID) || !utf8.ValidString(input.Content) || strings.ContainsRune(input.Content, '\x00') || strings.TrimSpace(input.Content) == "" || utf8.RuneCountInString(input.Content) > 4000 {
 		return Message{}, ErrInvalid
 	}
+	if input.ClientContext != nil && input.ClientContext.Location != nil && !input.ClientContext.Location.Valid(time.Now()) {
+		return Message{}, ErrInvalid
+	}
 	input.MentionsAI = input.MentionsAI || aiMention.MatchString(input.Content)
 	if input.AgentKind == "" {
 		input.AgentKind = "qa"
@@ -58,7 +62,7 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 	if !input.MentionsAI {
 		return s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	}
-	ctx, span := telemetry.Start(ctx, "chat.ai", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor), attribute.String("chat.trigger_mode", "reactive"), attribute.String("chat.trigger_source", "mention"), attribute.Bool("chat.trigger_mentions_ai", true))
+	ctx, span := telemetry.Start(ctx, "chat.ai.enqueue", "CHAIN", attribute.String("session.id", group), attribute.String("user.id", actor), attribute.String("chat.trigger_mode", "reactive"), attribute.String("chat.trigger_source", "mention"), attribute.Bool("chat.trigger_mentions_ai", true))
 	telemetry.Content(span, "input.value", input.Content)
 	message, err := s.store.Send(ctx, group, actor, input, s.aiEnabled)
 	var traceErr error

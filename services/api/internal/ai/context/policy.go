@@ -21,7 +21,7 @@ func RecentRouteContext(input ai.Context, question string, tokens int, earlierOm
 	return InjectDefaultContext(context.Background(), ContextRequest{Snapshot: input, TriggerID: input.Messages[len(input.Messages)-1].ID, Question: question, Now: time.Now(), Tokens: tokens})
 }
 
-const DefaultRecentMessages = 12
+const DefaultRecentMessages = 6
 const DefaultRecentBytes = 4 * 1024
 
 // ContextRequest contains an authorized snapshot and separately loaded direct

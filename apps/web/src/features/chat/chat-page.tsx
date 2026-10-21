@@ -10,6 +10,9 @@ import { createMessageId } from '@/lib/message-id'
 import { useRealtime } from './realtime-provider'
 import { AIFailureDetails } from './ai-failure-details'
 import { MessageSources } from './message-sources'
+import { AgentCards } from './agent-cards'
+import { freshLocation, getCurrentLocation, locationPreference, saveLocationPreference, type SendMessageInput } from './location'
+import { useLocationPreference } from './use-location-preference'
 import { mergeMessages, type ChatState, type Group, type Message, type MessagePage, type Run } from './types'
 
 export function ChatPage() {
@@ -46,8 +49,13 @@ function Conversation({ groupId }: { groupId: string }) {
   const confirmedRead = useRef(0)
   const reading = useRef(false)
   const [text, setText] = useState('')
+  const composerInput = useRef<HTMLTextAreaElement>(null)
   const draftRevision = useRef(0)
   const [mention, setMention] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [locationNotice, setLocationNotice] = useState('')
+  const autoLocation = useLocationPreference(actor)
+  const sendBusy = useRef(false)
   const [sourceId, setSourceId] = useState('')
   const sourceNavigation = useRef(0)
   function releaseSourceFocus() {
@@ -58,7 +66,7 @@ function Conversation({ groupId }: { groupId: string }) {
   const [error, setError] = useState('')
   const [retrying, setRetrying] = useState<string[]>([])
   const [retryErrors, setRetryErrors] = useState<Record<string, string>>({})
-  const [failed, setFailed] = useState<{ content: string; clientMessageId: string; mentionsAI: boolean } | null>(null)
+  const [failed, setFailed] = useState<SendMessageInput | null>(null)
   const [older, setOlder] = useState(false)
   const [historyBusy, setHistoryBusy] = useState(false)
   const [hasNew, setHasNew] = useState(false)
@@ -147,13 +155,36 @@ function Conversation({ groupId }: { groupId: string }) {
     return () => observer.disconnect()
   }, [state.isSuccess, syncScrollPosition])
   async function send(input?: NonNullable<typeof failed>) {
-    if (sending) return
-    const payload = input || (failed && failed.content === text && failed.mentionsAI === mention ? failed : { content: text, clientMessageId: createMessageId(), mentionsAI: mention })
+    if (sendBusy.current || sending || locating) return
+    let payload: SendMessageInput = input || (failed && failed.content === text && failed.mentionsAI === mention ? failed : { content: text, clientMessageId: createMessageId(), mentionsAI: mention })
     if (!payload.content.trim()) return
     if (Array.from(payload.content).length > 4000) { setError('消息最多 4000 个字符'); return }
     const sentRevision = draftRevision.current
+    const isRetry = !!input || payload === failed
+    const useLocation = !isRetry && autoLocation
+    sendBusy.current = true
     setSending(true); setError('')
     try {
+      if (useLocation) {
+        setLocating(true); setLocationNotice('正在获取位置…')
+        try {
+          const fix = await getCurrentLocation()
+          if (locationPreference(actor)) {
+            payload = { ...payload, clientContext: { location: fix } }
+            setLocationNotice('已附带本次获取的当前位置。')
+          }
+        } catch (reason) {
+          saveLocationPreference(actor, false)
+          setLocationNotice(reason instanceof Error ? reason.message : '定位失败，请手动输入地点。')
+        } finally { setLocating(false) }
+      }
+      if (payload.clientContext && !locationPreference(actor)) payload = { ...payload, clientContext: undefined }
+      if (isRetry && payload.clientContext && !freshLocation(payload.clientContext.location, Date.now(), 5 * 60 * 1000)) {
+        payload = { ...payload, clientContext: undefined }
+        setLocationNotice('原请求的位置已失效，本次重试不附带定位；可手动填写出发地点。')
+      }
+      // A network retry keeps the original request; it must never acquire a new position.
+      // The server accepts this original evidence for its bounded job lifetime.
       const message = await apiRequest<Message>(`${base}/messages`, { token, body: payload })
       client.setQueryData<Message[]>([...key, 'messages'], old => {
         // Do not advance catchup beyond messages this client has never fetched.
@@ -168,7 +199,15 @@ function Conversation({ groupId }: { groupId: string }) {
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === 'unauthorized') setSession(null)
       else { setFailed(payload); setError(errorMessage(reason)) }
-    } finally { setSending(false) }
+    } finally { sendBusy.current = false; setSending(false) }
+  }
+  function askAboutCard(question: string) {
+    draftRevision.current++
+    setText(previous => previous.trim() ? `${previous}\n${question}` : question)
+    setMention(true)
+    setError('')
+    setFailed(null)
+    requestAnimationFrame(() => composerInput.current?.focus())
   }
   async function loadOlder() {
     const view = viewport.current, first = messages.data?.[0]
@@ -239,6 +278,7 @@ function Conversation({ groupId }: { groupId: string }) {
               {retryErrors[run.id] && <small role="alert">{retryErrors[run.id]}</small>}
             </span>)}</div>}
             {m.replyToId && <small className="ai-reply-label">回复群内 @AI 提问</small>}<p className="message-bubble">{m.content}</p>
+            {m.senderType === 'assistant' && <AgentCards cards={m.agentResult?.cards} onAsk={askAboutCard} disabled={sending || !state.data.aiEnabled} />}
             {m.agentResult?.answer && <small className="agent-answer-status">{m.agentResult.kind === 'main' ? (m.agentResult.answer.status === 'answered' ? 'AI 回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : m.agentResult.kind === 'help' ? (m.agentResult.answer.status === 'answered' ? 'AI 建议' : m.agentResult.answer.status === 'conflicting_evidence' ? '信息存在冲突' : '需要补充信息') : (m.agentResult.answer.status === 'answered' ? '依据群聊记录回答' : m.agentResult.answer.status === 'conflicting_evidence' ? '历史证据存在冲突' : '历史证据不足')}</small>}
             <MessageSources message={m} messages={messages.data || []} groupId={groupId} onSelect={id => { void showSource(id) }} />
             <span data-read-seq={m.seq} className="read-sentinel" /></div>
@@ -250,8 +290,9 @@ function Conversation({ groupId }: { groupId: string }) {
     </div>
     <form className="message-composer" onSubmit={e => { e.preventDefault(); void send() }}>
       {error && <div role="alert" className="account-error">{error}{failed && <button type="button" disabled={sending} onClick={() => { void send(failed) }}>重试发送</button>}</div>}
-      <label htmlFor="messageInput" className="sr-only">消息内容</label><textarea id="messageInput" value={text} onChange={e => { draftRevision.current++; setText(e.target.value) }} placeholder="写点什么，需要帮忙时 @AI" rows={2} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }} />
-      <div className="composer-actions"><button type="button" className={`mention-button ${mention ? 'selected' : ''}`} aria-pressed={mention} onClick={() => setMention(!mention)} disabled={sending}><Sparkles size={16} />@AI</button><small>Enter 发送 · Shift + Enter 换行</small><Button disabled={sending || !text.trim()} type="submit"><Send size={16} />{sending ? '发送中…' : '发送'}</Button></div>
+      <label htmlFor="messageInput" className="sr-only">消息内容</label><textarea id="messageInput" ref={composerInput} value={text} onChange={e => { draftRevision.current++; setText(e.target.value) }} placeholder="写点什么，需要帮忙时 @AI" rows={2} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); void send() } }} />
+      {locationNotice && <div className="composer-location" role="status">{locationNotice}<Link to={`/chat/${groupId}/settings/`}>定位设置</Link></div>}
+      <div className="composer-actions"><button type="button" className={`mention-button ${mention ? 'selected' : ''}`} aria-pressed={mention} onClick={() => setMention(!mention)} disabled={sending}><Sparkles size={16} />@AI</button><Button disabled={sending || locating || !text.trim()} type="submit"><Send size={16} />{sending ? '发送中…' : '发送'}</Button></div>
     </form>
   </section>
 }

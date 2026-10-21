@@ -34,10 +34,11 @@ type Message struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 }
 type SendInput struct {
-	AgentKind  string `json:"agentKind,omitempty"`
-	Content    string `json:"content"`
-	ClientID   string `json:"clientMessageId"`
-	MentionsAI bool   `json:"mentionsAI"`
+	ClientContext *ClientContext `json:"clientContext,omitempty"`
+	AgentKind     string         `json:"agentKind,omitempty"`
+	Content       string         `json:"content"`
+	ClientID      string         `json:"clientMessageId"`
+	MentionsAI    bool           `json:"mentionsAI"`
 }
 type State struct {
 	ProactiveEnabled bool        `json:"proactiveEnabled"`

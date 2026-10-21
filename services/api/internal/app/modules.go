@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,8 +13,10 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/mcpclient"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/amap"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/history"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
@@ -24,6 +28,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/webpush"
 	"github.com/LizHu95/Jetaime/services/api/internal/reminder"
@@ -88,13 +93,20 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
 		}
 		// Complete production chat capability list, including its domain dependencies.
-		registry, e := tools.New(
+		entries := []tools.Tool{
 			respond.New(),
 			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
 			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
 			remindertool.New(m.reminderService, chat.ReminderOperation),
-		)
+		}
+		if key := strings.TrimSpace(cfg.GaodeAPIKey); key != "" {
+			endpoint := "https://mcp.amap.com/mcp?" + url.Values{"key": {key}}.Encode()
+			client := mcpclient.New(endpoint)
+			guard := chat.NewService(chat.NewStore(m.database), true).AuthorizeExternalTool
+			entries = append(entries, amap.New(client, guard)...)
+		}
+		registry, e := tools.New(entries...)
 		if e != nil {
 			return nil, e
 		}
@@ -142,6 +154,8 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 	}
 
 	chatStore := chat.NewStore(m.database)
+	chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
+	m.background = append(m.background, chatStore.CleanLocations)
 	chatService := chat.NewService(chatStore, cfg.EnableChatAI)
 	events := realtime.New(ctx, chatStore, accounts)
 	m.handlers.Auth = authentication

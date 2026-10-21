@@ -6,7 +6,7 @@ import { useAuth } from '@/features/auth/auth-provider'
 import { apiRequest, ApiError, errorMessage } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { PageHeader } from '@/components/page-header'
+import { SubpageLayout } from '@/components/subpage-layout'
 import type { Session } from '@/features/auth/schema'
 
 type User = Session['user']
@@ -77,8 +77,7 @@ export function ContactsPage() {
       </div>
     </div>
   }
-  return <main className="contacts-page">
-    <PageHeader title="加好友" backTo="/chat/" backLabel="返回聊天" />
+  return <SubpageLayout className="contacts-page" title="加好友" backTo="/chat/" backLabel="返回聊天">
     <form className="contact-search" onSubmit={e => { e.preventDefault(); void act('search', async () => {
       setFound(null)
       setFound(await apiRequest<User>(`/contacts/users?username=${encodeURIComponent(username.trim())}`, { method: 'GET', token }))
@@ -108,5 +107,5 @@ export function ContactsPage() {
           {pending.length === 0 && <p className="contact-empty">暂无待处理申请</p>}
           {history.length > 0 && <details className="contact-history"><summary>历史申请 · {history.length}</summary>{history.map(requestRow)}</details>}</>}
     </section>
-  </main>
+  </SubpageLayout>
 }

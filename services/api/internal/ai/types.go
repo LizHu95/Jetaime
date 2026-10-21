@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 )
 
 type User struct {
@@ -39,29 +40,38 @@ type ReminderDraft struct {
 	Time    string `json:"time"`
 }
 
+// RecommendedPlace records only places actually displayed in authorized recent messages.
+type RecommendedPlace struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type Context struct {
-	ReminderDraft *ReminderDraft  `json:"reminderDraft,omitempty"`
-	Request       *RequestContext `json:"request,omitempty"`
-	ActorID       string          `json:"actorId"`
-	GroupID       string          `json:"groupId"`
-	Users         []User          `json:"users"`
-	Messages      []Message       `json:"messages"`
-	Tasks         []Task          `json:"tasks"`
-	HistoryScope  *HistoryScope   `json:"historyScope,omitempty"`
+	RecentPlaces  []RecommendedPlace `json:"recentRecommendedPlaces,omitempty"`
+	ReminderDraft *ReminderDraft     `json:"reminderDraft,omitempty"`
+	Request       *RequestContext    `json:"request,omitempty"`
+	ActorID       string             `json:"actorId"`
+	GroupID       string             `json:"groupId"`
+	Users         []User             `json:"users"`
+	Messages      []Message          `json:"messages"`
+	Tasks         []Task             `json:"tasks"`
+	HistoryScope  *HistoryScope      `json:"historyScope,omitempty"`
 }
 
 // RequestContext is execution metadata, separate from untrusted chat content.
 type RequestContext struct {
-	TriggerMode       string    `json:"triggerMode,omitempty"`
-	AllowWrites       bool      `json:"-"`
-	JobID             string    `json:"-"`
-	JobAttempt        int       `json:"-"`
-	MessageID         string    `json:"messageId"`
-	SenderID          string    `json:"senderId"`
-	SentAt            time.Time `json:"sentAt"`
-	CurrentTime       time.Time `json:"currentTime"`
-	Timezone          string    `json:"timezone"`
-	RelatedMessageIDs []string  `json:"relatedMessageIds,omitempty"`
+	Location          *location.Fix `json:"-"`
+	LocationStatus    string        `json:"locationStatus,omitempty"`
+	TriggerMode       string        `json:"triggerMode,omitempty"`
+	AllowWrites       bool          `json:"-"`
+	JobID             string        `json:"-"`
+	JobAttempt        int           `json:"-"`
+	MessageID         string        `json:"messageId"`
+	SenderID          string        `json:"senderId"`
+	SentAt            time.Time     `json:"sentAt"`
+	CurrentTime       time.Time     `json:"currentTime"`
+	Timezone          string        `json:"timezone"`
+	RelatedMessageIDs []string      `json:"relatedMessageIds,omitempty"`
 }
 
 // HistoryScope describes selection of original messages, not a summary of them.
@@ -99,6 +109,7 @@ type Step struct {
 	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
+	Cards         []Card         `json:"cards,omitempty"`
 	Silent        bool           `json:"silent,omitempty"`
 	Recognition   *Recognition   `json:"recognition,omitempty"`
 	AgentID       string         `json:"agentId,omitempty"`
@@ -131,6 +142,7 @@ type RouteDecision struct {
 }
 
 type Result struct {
+	Cards         []Card         `json:"cards,omitempty"`
 	Basis         string         `json:"basis,omitempty"`
 	Route         *RouteDecision `json:"route,omitempty"`
 	HistoryScope  *HistoryScope  `json:"historyScope,omitempty"`

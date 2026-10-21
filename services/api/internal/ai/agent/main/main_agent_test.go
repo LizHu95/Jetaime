@@ -58,7 +58,7 @@ func TestMainRejectsDisabledExtractionTool(t *testing.T) {
 		t.Fatal("disabled tool loaded an extraction snapshot")
 		return input, nil
 	})
-	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps {
+	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps+1 {
 		t.Fatal("disabled extraction tool executed", err)
 	}
 }
@@ -68,7 +68,7 @@ func TestMainRejectsUnregisteredCallsAndFormerDirectAnswerProtocol(t *testing.T)
 		model := &mainTestModel{decision: decision}
 		agent, _ := newTestAgent(model, "test", 16384)
 		_, err := agent.ExecuteMain(context.Background(), input, "test", nil)
-		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps {
+		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps+1 {
 			t.Fatal("invalid tool call accepted", err)
 		}
 	}
@@ -155,7 +155,7 @@ func TestMainDirectAnswerCannotInventSources(t *testing.T) {
 		t.Fatal(err)
 	}
 	run, err := agent.ExecuteMain(context.Background(), testContext(), "请回答", nil)
-	if !errors.Is(err, ai.ErrInvalidDecision) || run.Answer != nil || len(model.requests) != MaxToolSteps {
+	if !errors.Is(err, ai.ErrInvalidDecision) || run.Answer != nil || len(model.requests) != MaxToolSteps+1 {
 		t.Fatalf("unverified reply accepted: %+v %v", run, err)
 	}
 }
