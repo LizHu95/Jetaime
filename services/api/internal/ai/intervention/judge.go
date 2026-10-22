@@ -4,6 +4,7 @@ package intervention
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -53,11 +54,13 @@ func (j *Judge) Decide(ctx context.Context, input ai.VerificationInput) (result 
 	combined := input.Conversation
 	combined.Messages = append(append([]ai.Message{}, combined.Messages...), input.Evidence.Messages...)
 	result.Steps, err = j.call(ctx, "decide_intervention", verificationPrompt, input, resolved, schema, &result.Decision, func() error {
-		if err := validateRecognition(result.Decision, combined); err != nil {
-			return err
+		evidenceErr := validateRecognition(result.Decision, combined)
+		var rejection *candidateRejection
+		if evidenceErr != nil && !errors.As(evidenceErr, &rejection) {
+			return evidenceErr
 		}
 		if !result.Decision.ShouldIntervene {
-			return nil
+			return evidenceErr
 		}
 		// Verification is read-only and cannot manufacture a new operation request.
 		if result.Decision.Intent.Type == "execute_request" {
@@ -77,7 +80,7 @@ func (j *Judge) Decide(ctx context.Context, input ai.VerificationInput) (result 
 		if !historical || !candidate {
 			return ai.ErrInvalidDecision
 		}
-		return nil
+		return evidenceErr
 	})
 	return result, err
 }
@@ -116,6 +119,17 @@ func (j *Judge) call(ctx context.Context, name, prompt string, input any, resolv
 		if err == nil {
 			step.Status, step.Output = "succeeded", output
 		} else {
+			var rejection *candidateRejection
+			if callErr == nil && !formatError && errors.As(err, &rejection) && rejectIntervention(output, rejection) {
+				// An evidence gate declining to intervene is a successful silent
+				// outcome, not a broken workflow. Keep the model's rejected proposal
+				// for quality review without setting an error on the step or run.
+				step.Status = "succeeded"
+				step.Output = map[string]any{"outcome": "candidate_rejected", "reasonCode": rejection.Code, "reason": rejection.Reason, "breakdownType": rejection.Breakdown, "modelOutput": out.Content, "decision": output}
+				steps = append(steps, step)
+				tools.TraceStep(ctx, step)
+				return steps, nil
+			}
 			step.Error = err.Error()
 			if callErr == nil {
 				step.Output = map[string]any{"modelOutput": out.Content, "validationError": err.Error()}
@@ -199,9 +213,6 @@ func validateCandidate(d ai.InterventionCandidate, input ai.RecognitionInput) er
 		}
 	}
 	decision := ai.Recognition{ShouldIntervene: d.Action == "intervene", Reason: d.Reason, Breakdowns: d.Breakdowns, Intent: d.Intent}
-	if err := validateRecognition(decision, input); err != nil {
-		return err
-	}
 	switch d.Action {
 	case "skip", "intervene":
 		if d.Verification != nil {
@@ -228,7 +239,27 @@ func validateCandidate(d ai.InterventionCandidate, input ai.RecognitionInput) er
 	default:
 		return invalid()
 	}
-	return nil
+	return validateRecognition(decision, input)
+}
+
+// candidateRejection is an ordinary evidence-gate outcome. Invalid sources,
+// malformed decisions and authorization violations remain actual errors.
+type candidateRejection struct {
+	Code, Reason, Breakdown string
+}
+
+func (r *candidateRejection) Error() string { return r.Code + ": " + r.Reason }
+
+func rejectIntervention(output any, rejection *candidateRejection) bool {
+	switch decision := output.(type) {
+	case *ai.InterventionCandidate:
+		*decision = ai.InterventionCandidate{Action: "skip", Reason: rejection.Reason, Breakdowns: []ai.Breakdown{}}
+	case *ai.Recognition:
+		*decision = ai.Recognition{Reason: rejection.Reason, Breakdowns: []ai.Breakdown{}}
+	default:
+		return false
+	}
+	return true
 }
 
 func validText(value string, max int) bool {
@@ -241,8 +272,10 @@ func validateRecognition(d ai.Recognition, input ai.RecognitionInput) error {
 		return invalid()
 	}
 	ids := map[string]bool{}
+	messages := map[string]ai.Message{}
 	for _, m := range input.Messages {
 		ids[m.ID] = true
+		messages[m.ID] = m
 	}
 	check := func(evidence []string) bool {
 		if len(evidence) == 0 {
@@ -257,12 +290,28 @@ func validateRecognition(d ai.Recognition, input ai.RecognitionInput) error {
 		}
 		return true
 	}
+	var rejection *candidateRejection
 	for _, b := range d.Breakdowns {
 		if (b.Type == "forgotten_constraint" || b.Type == "goal_drift" || b.Type == "risky_commitment") && len(b.EvidenceMessageIDs) < 2 {
 			return invalid()
 		}
 		if !check(b.EvidenceMessageIDs) {
 			return invalid()
+		}
+		if _, communication := ai.HelpForCommunication(b.Type); communication {
+			// A relational breakdown needs actual interaction evidence. AI replies,
+			// one person's repeated messages and missing identities cannot supply it.
+			speakers := map[string]bool{}
+			for _, id := range b.EvidenceMessageIDs {
+				message := messages[id]
+				if message.SenderID == "" || (message.SenderType != "" && message.SenderType != "user") {
+					return invalid()
+				}
+				speakers[message.SenderID] = true
+			}
+			if len(speakers) < 2 {
+				rejection = &candidateRejection{Code: "insufficient_participant_evidence", Reason: "沟通障碍证据仅来自一位成员，暂不介入，等待另一位成员回应", Breakdown: b.Type}
+			}
 		}
 	}
 	if d.Intent != nil {
@@ -280,6 +329,11 @@ func validateRecognition(d ai.Recognition, input ai.RecognitionInput) error {
 				return invalid()
 			}
 		}
+	}
+	// Validate every source and intent before returning a non-error outcome:
+	// a rejected proposal must not mask an unrelated invalid reference or write.
+	if rejection != nil {
+		return rejection
 	}
 	return nil
 }

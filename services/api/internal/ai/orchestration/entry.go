@@ -161,6 +161,11 @@ func (e *Entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 	}
 	in.Mode = "main"
 	in.Question = "当前话题：" + candidate.TopicContext.Topic + "。主动介入目标：" + decision.Intent.Objective + "。依据对话简短、中立地帮助大家，不展示诊断标签或内部推理，不重复已解决的问题。"
+	if len(decision.Breakdowns) > 0 && decision.Intent.Type != "execute_request" {
+		if help, ok := ai.HelpForCommunication(decision.Breakdowns[0].Type); ok {
+			in.Question += "\n本次沟通帮助动作：" + help.Action + "。" + help.Instruction + "直接完成这一步帮助，不先询问是否需要AI介入；最多一个问题或建议，然后把对话交回成员。"
+		}
+	}
 	output, err := e.main.Invoke(ctx, in)
 	output.StartedAt = started
 	output.DurationMS = time.Since(started).Milliseconds()

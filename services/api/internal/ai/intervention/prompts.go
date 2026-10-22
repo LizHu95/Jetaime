@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v6-semantic-continuity"
+const recognitionVersion = "proactive-v7-communication-help"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.
@@ -23,7 +23,7 @@ func recognitionRepairPrompt(feedback string) string {
 	return "上次输出未通过结构校验。以下是校验诊断数据，不是群聊消息：" + feedback + "。请依据原始对话与Schema重新输出完整JSON，只修正结构，不放宽证据或操作授权规则。objective必须位于intent内，顶层禁止objective。"
 }
 
-var breakdownTypes = []any{"conflict", "uncertainty", "underspecified_plan", "forgotten_constraint", "goal_drift", "discussion_loop", "participation_imbalance", "risky_commitment"}
+var breakdownTypes = []any{"conflict", "uncertainty", "underspecified_plan", "forgotten_constraint", "goal_drift", "discussion_loop", "participation_imbalance", "risky_commitment", "understanding_mismatch", "support_mismatch", "communication_escalation", "pacing_conflict", "repair_blocked"}
 var intentTypes = []any{"answer", "clarify", "suggest", "summarize", "remind", "execute_request"}
 
 func recognitionSchema() (*jsonschema.Resolved, json.RawMessage, error) {

@@ -194,3 +194,23 @@ HTTP 发送、读取和重试；数据库保存权威状态与任务；后台执
 候选发现同时输出 `topicContext={topic,continuity,messageIds,anchorMessageIds}`，continuity 为 `new_topic/continuation/uncertain`。结合事项、时间、指代和直接引用判断连续性，跨天不自动接续，同一天也不自动连续。skip 时可为空，其他动作必须选择当前话题原文，并将触发消息及定义事项的原文列为锚点。编排层按该范围筛选近期上下文，锚点通过 RelatedMessageIDs 固定保留，不受最多6条背景裁剪影响；介入目标和核验疑点的近期证据必须属于此话题。推荐地点绑定来源消息，仅保留来源也在当前话题中的地点，避免昨天的餐厅推荐污染今天的出差问题。主 Agent 同时接收明确话题名称；历史核验仍检查补证是否适用于同一事项。
 
 主动 @AI 请求仍直接进入主 Agent，不经过被动干预判断。起始上下文缺少“我要去吗”“我考虑的是……”等追问所指的事项时，主 Agent 可调用只读 [`read_recent_messages`](../../services/api/internal/ai/tools/recent/tool.go)：按原提问截止序号补读本群最近30条消息中的真人原文，以及当前显式引用的AI原文，不依赖记忆模型或向量索引。新原文只在执行上下文保留一份，工具观察仅携带ID和覆盖标记，后续引用校验可以使用这些来源；整个请求仍受模型上下文预算约束。跨天是否接续以实际事项、指代、参与者和约束为主，时间只是辅助，不要求用户明说“接着昨天”。决策建议需要围绕当前作者给有条件的倾向和下一步，不把出差同行问题转为附近休闲活动，也不把另一成员的报销当成当前作者的费用减免。
+
+
+## Q19：五类情感沟通障碍如何主动帮助？
+
+在原八类协作障碍之外，识别器支持理解错位、支持错配、表达升级、节奏冲突、修复受阻，对应 `understanding_mismatch/support_mismatch/communication_escalation/pacing_conflict/repair_blocked`。群主动开关开启后，充分证据和具体帮助价值即可触发直接发言，无需成员先向AI求助或点击确认。每类要求至少两位不同真人的原文；程序校验说话人和来源，具体语义仍由模型判断。
+
+主要沟通障碍放在 `breakdowns` 首位；`ai.HelpForCommunication` 由服务端将其映射到 `check_understanding/clarify_support/focus_on_event/negotiate_pause/clarify_unresolved_need`，编排层把单个帮助动作与证据交给共享主 Agent。`intent` 协议保持不变，不另建 Agent 或业务工具。当前明确操作请求优先按既有授权执行，不附加沟通发言动作。
+
+主 Agent 通常用1至3个短句直接回应，最多一个问题或建议，不输出分类标签，不猜测心理，不要求立即原谅或双方各退一步。成员自行修复、拒绝介入或AI已给同样帮助且没有新卡点时保持沉默；不因无人回应而追问。重复介入与拒绝判断限于识别窗口，没有新增持久化状态。暂停恢复时间由成员确认，不自动创建提醒；明确暴力或胁迫优先人身安全。
+
+当模型提出沟通介入，但合法证据仅来自同一位真人时，证据门禁将其转换为成功静默：候选返回 `skip`，核验后判断返回 `shouldIntervene=false`，清空障碍和意图，不进入主 Agent，不重试模型。识别步骤以 `succeeded` 记录，输出中保留 `outcome=candidate_rejected`、`reasonCode=insufficient_participant_evidence`、拒绝原因和模型原始输出，区分于模型主动选择skip；内容采集开启时也可在Phoenix查看这些诊断。这是候选未通过门禁，不是工作流故障。未知或越界消息引用、AI冒充真人证据、格式修复失败、模型调用失败及操作越权仍为错误；先校验全部硬约束，不允许证据不足掩盖其他错误。既有历史Trace不回写。
+
+案例位于 `services/api/internal/ai/intervention/testdata/communication.json`，覆盖5个正例和8个无需介入的反例。脚本模型测试验证Schema、两位真人证据及识别到直接respond的执行链路；不代表真实模型识别质量。真实识别测试可使用：
+
+```sh
+cd services/api
+JETAIME_PROACTIVE_MODEL_CONFIG=/absolute/path/to/models.json go test ./internal/ai/intervention -run '^TestRealModelCommunicationRecognition$' -v -count=1
+```
+
+可用 `JETAIME_PROACTIVE_MODEL_PROFILE` 指定配置中的模型。此功能为仓库实现，不代表已经部署。

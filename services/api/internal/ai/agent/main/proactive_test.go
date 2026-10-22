@@ -182,3 +182,80 @@ func invokePassiveEntry(t *testing.T, main *Agent, input ai.Context) (ai.Run, er
 	}
 	return entry.Invoke(context.Background(), ai.Invocation{Context: input, TriggerMode: "proactive"})
 }
+
+func TestCommunicationInterventionDirectResponse(t *testing.T) {
+	for _, tc := range []struct{ kind, action, previous, current, answer string }{
+		{"understanding_mismatch", "check_understanding", "我在意的是你答应之前没有和我商量，不是不让你去。", "说到底你就是不让我去，你说几次都一样。", "刚才说的是希望提前商量，你理解的重点也是这个吗？"},
+		{"support_mismatch", "clarify_support", "我想让你先听我说，不想现在听建议。", "你就应该按我说的方法改，不然有什么好说的。", "她已经说了现在想先被听一听，可以先听完再一起想办法。"},
+		{"communication_escalation", "focus_on_event", "这次迟到我等了很久，心里很难受。", "你就是个自私又讨厌的人。", "先聚焦这次迟到：你希望下次对方具体怎么做？"},
+		{"pacing_conflict", "negotiate_pause", "我需要暂停一下，缓过来再聊。", "不行，现在必须继续说清楚。", "先尊重暂停，等缓下来后再商量一个双方能接受的时间继续。"},
+		{"repair_blocked", "clarify_unresolved_need", "我已经道歉了，就翻篇吧。", "我在意的还有你没提前通知，你还没回应下次怎么办。", "还有下次怎样提前通知没有回应，可以先把这个安排说具体。"},
+	} {
+		t.Run(tc.kind, func(t *testing.T) {
+			candidate := ai.InterventionCandidate{
+				TopicContext: &ai.TopicContext{Topic: "当前沟通分歧", Continuity: "continuation", MessageIDs: []string{"m1", "m6"}, AnchorMessageIDs: []string{"m1", "m6"}},
+				Action:       "intervene", Reason: "明确的互动卡点仍未解决", Breakdowns: []ai.Breakdown{{Type: tc.kind, EvidenceMessageIDs: []string{"m1", "m6"}}},
+				Intent: &ai.InterventionIntent{Type: "clarify", Objective: "帮助双方推进当前沟通", EvidenceMessageIDs: []string{"m1", "m6"}},
+			}
+			decision, err := json.Marshal(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reply, err := json.Marshal(map[string]any{"name": "respond", "arguments": map[string]any{"status": "answered", "answer": tc.answer, "sourceMessageIds": []string{"m1", "m6"}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			model := &proactiveModel{outputs: []string{string(decision), string(reply)}}
+			agent, _ := NewAgent(model, "test", 32768)
+			agent.Tools, _ = tools.New(respond.New(), silence.New())
+			input := testContext()
+			input.Messages[0].Text = tc.previous
+			input.Messages[1].Text = tc.current
+			input.Messages[1].SenderID = "xia"
+			input.ActorID = "xia"
+			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: "xia", SentAt: input.Messages[1].SentAt}
+			run, err := invokePassiveEntry(t, agent, input)
+			if err != nil || run.Silent || run.Recognition == nil || len(model.requests) != 2 {
+				t.Fatalf("direct intervention failed: run=%+v err=%v calls=%d", run, err, len(model.requests))
+			}
+			var payload struct {
+				Context  ai.Context `json:"context"`
+				Question string     `json:"question"`
+			}
+			if err := json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(payload.Question, tc.action) || payload.Context.Request.AllowWrites || len(payload.Context.Request.RelatedMessageIDs) != 2 {
+				t.Fatalf("lost help action, evidence, or write boundary: %+v", payload)
+			}
+		})
+	}
+}
+
+func TestRejectedCommunicationCandidateEndsSuccessfullyWithoutMain(t *testing.T) {
+	// Reproduce the production case: two statements by the same person were
+	// mistaken for support mismatch before their partner had responded.
+	candidate := ai.InterventionCandidate{
+		TopicContext: &ai.TopicContext{Topic: "手办损坏", Continuity: "new_topic", MessageIDs: []string{"m1", "m6"}, AnchorMessageIDs: []string{"m1", "m6"}},
+		Action:       "intervene", Reason: "表达难过需要沟通帮助", Breakdowns: []ai.Breakdown{{Type: "support_mismatch", EvidenceMessageIDs: []string{"m1", "m6"}}},
+		Intent: &ai.InterventionIntent{Type: "suggest", Objective: "安抚情绪并建议沟通补救", EvidenceMessageIDs: []string{"m1", "m6"}},
+	}
+	raw, _ := json.Marshal(candidate)
+	model := &proactiveModel{outputs: []string{string(raw)}}
+	agent, _ := NewAgent(model, "test", 32768)
+	agent.Tools, _ = tools.New(respond.New(), silence.New())
+	input := testContext()
+	input.Messages[0].Text = "你把我的手办弄坏了"
+	input.Messages[1].Text = "我很难过"
+	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
+	run, err := invokePassiveEntry(t, agent, input)
+	if err != nil || !run.Silent || run.Status != "succeeded" || run.Error != "" || len(model.requests) != 1 || run.Recognition == nil || run.Recognition.ShouldIntervene || run.Recognition.Intent != nil {
+		t.Fatalf("normal evidence rejection became a failed workflow: %+v %v", run, err)
+	}
+	if len(run.Steps) != 1 || run.Steps[0].Status != "succeeded" || run.Steps[0].Error != "" {
+		t.Fatalf("rejected candidate retained error steps: %+v", run.Steps)
+	}
+	if diagnostic := run.Steps[0].Output.(map[string]any); diagnostic["outcome"] != "candidate_rejected" || diagnostic["reasonCode"] != "insufficient_participant_evidence" {
+		t.Fatalf("missing quality diagnostic: %+v", diagnostic)
+	}
+}

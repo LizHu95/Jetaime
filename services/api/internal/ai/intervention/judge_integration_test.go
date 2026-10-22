@@ -13,37 +13,7 @@ import (
 
 // Opt-in only; recognition uses real inference but never executes any tools.
 func TestRealModelProactiveRecognition(t *testing.T) {
-	path := os.Getenv("JETAIME_PROACTIVE_MODEL_CONFIG")
-	if path == "" {
-		t.Skip("set JETAIME_PROACTIVE_MODEL_CONFIG for real recognition acceptance")
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal("could not read model profiles")
-	}
-	var profiles struct {
-		DefaultProfile string                `json:"default_profile"`
-		Models         map[string]llm.Config `json:"models"`
-	}
-	if json.Unmarshal(data, &profiles) != nil {
-		t.Fatal("invalid model profiles")
-	}
-	profile := os.Getenv("JETAIME_PROACTIVE_MODEL_PROFILE")
-	if profile == "" {
-		profile = profiles.DefaultProfile
-	}
-	config, ok := profiles.Models[profile]
-	if !ok {
-		t.Fatal("model profile not found")
-	}
-	model, err := config.New(time.Minute)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a, err := New(model, config.Model, config.ContextTokens)
-	if err != nil {
-		t.Fatal(err)
-	}
+	a, config := realRecognitionJudge(t)
 	for _, tc := range []struct {
 		name, previous, current string
 		action                  string
@@ -145,4 +115,65 @@ func TestRealModelProactiveRecognition(t *testing.T) {
 		}
 	})
 
+}
+
+func realRecognitionJudge(t *testing.T) (*Judge, llm.Config) {
+	t.Helper()
+	path := os.Getenv("JETAIME_PROACTIVE_MODEL_CONFIG")
+	if path == "" {
+		t.Skip("set JETAIME_PROACTIVE_MODEL_CONFIG for real recognition acceptance")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal("could not read model profiles")
+	}
+	var profiles struct {
+		DefaultProfile string                `json:"default_profile"`
+		Models         map[string]llm.Config `json:"models"`
+	}
+	if json.Unmarshal(data, &profiles) != nil {
+		t.Fatal("invalid model profiles")
+	}
+	profile := os.Getenv("JETAIME_PROACTIVE_MODEL_PROFILE")
+	if profile == "" {
+		profile = profiles.DefaultProfile
+	}
+	config, ok := profiles.Models[profile]
+	if !ok {
+		t.Fatal("model profile not found")
+	}
+	model, err := config.New(time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := New(model, config.Model, config.ContextTokens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return a, config
+}
+
+// These cases evaluate recognition quality only when explicitly configured.
+func TestRealModelCommunicationRecognition(t *testing.T) {
+	judge, config := realRecognitionJudge(t)
+	for _, tc := range communicationCases(t) {
+		t.Run(tc.Name, func(t *testing.T) {
+			input := ai.RecognitionInput{TriggerMode: "proactive", CurrentMessageID: tc.Messages[len(tc.Messages)-1].ID, Messages: tc.Messages}
+			result, err := judge.Discover(context.Background(), input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expected := "skip"
+			if tc.Breakdown != "" {
+				expected = "intervene"
+			}
+			if result.Decision.Action != expected {
+				t.Fatalf("expected %s, got %+v", expected, result.Decision)
+			}
+			if tc.Breakdown != "" && (len(result.Decision.Breakdowns) == 0 || result.Decision.Breakdowns[0].Type != tc.Breakdown) {
+				t.Fatalf("expected primary breakdown %s, got %+v", tc.Breakdown, result.Decision)
+			}
+			t.Logf("model=%s action=%s", config.Model, result.Decision.Action)
+		})
+	}
 }

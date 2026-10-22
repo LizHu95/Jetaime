@@ -136,6 +136,35 @@ func TestPassiveInterventionUsesSharedMainWithEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestCommunicationHelpRespectsPrimaryGoalAndExplicitOperations(t *testing.T) {
+	for _, tc := range []struct {
+		name, intent string
+		kinds        []string
+		wantHelp     bool
+	}{
+		{"primary communication", "clarify", []string{"pacing_conflict", "conflict"}, true},
+		{"secondary communication", "clarify", []string{"conflict", "pacing_conflict"}, false},
+		{"explicit operation", "execute_request", []string{"pacing_conflict"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			breakdowns := []ai.Breakdown{}
+			for _, kind := range tc.kinds {
+				breakdowns = append(breakdowns, ai.Breakdown{Type: kind, EvidenceMessageIDs: []string{"m1", "m2"}})
+			}
+			main := &testAgent{}
+			judge := &testRecognizer{result: ai.RecognitionResult{Decision: ai.Recognition{ShouldIntervene: true, Reason: "当前目标明确", Breakdowns: breakdowns, Intent: &ai.InterventionIntent{Type: tc.intent, Objective: "处理当前目标", EvidenceMessageIDs: []string{"m1", "m2"}}}}}
+			entry, _ := New(main, judge)
+			_, err := entry.Invoke(context.Background(), passiveInput())
+			if err != nil || main.calls != 1 {
+				t.Fatalf("main not invoked: %v", err)
+			}
+			if got := strings.Contains(main.input.Question, "negotiate_pause"); got != tc.wantHelp {
+				t.Fatalf("help overrode primary goal: %s", main.input.Question)
+			}
+		})
+	}
+}
 func TestCancellationAfterRecognitionDoesNotInvokeMain(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
