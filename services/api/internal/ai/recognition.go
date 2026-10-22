@@ -1,5 +1,23 @@
 package ai
 
+import "context"
+
+// InterventionMessageLimit is the shared passive-recognition window size.
+const InterventionMessageLimit = 30
+
+// Recognizer judges conversation evidence without executing the main agent.
+type Recognizer interface {
+	Discover(context.Context, RecognitionInput) (CandidateResult, error)
+	Decide(context.Context, VerificationInput) (RecognitionResult, error)
+}
+
+type RecognitionResult struct {
+	Decision      Recognition
+	Steps         []Step
+	Model         string
+	PromptVersion string
+}
+
 // RecognitionInput contains only the authorized, ordered conversation window.
 type RecognitionInput struct {
 	TriggerMode      string    `json:"triggerMode"`
@@ -24,3 +42,48 @@ type Recognition struct {
 	Breakdowns      []Breakdown         `json:"breakdowns"`
 	Intent          *InterventionIntent `json:"intent"`
 }
+
+// InterventionCandidate describes a bounded next step, not a tool call.
+type InterventionCandidate struct {
+	Action       string                `json:"action"`
+	Reason       string                `json:"reason"`
+	Breakdowns   []Breakdown           `json:"breakdowns"`
+	Intent       *InterventionIntent   `json:"intent"`
+	Verification *VerificationQuestion `json:"verification"`
+}
+
+type VerificationQuestion struct {
+	Topic              string   `json:"topic"`
+	Query              string   `json:"query"`
+	EvidenceMessageIDs []string `json:"evidenceMessageIds"`
+}
+
+type CandidateResult struct {
+	Decision      InterventionCandidate
+	Steps         []Step
+	Model         string
+	PromptVersion string
+}
+
+type VerificationInput struct {
+	Conversation RecognitionInput      `json:"conversation"`
+	Candidate    InterventionCandidate `json:"candidate"`
+	Evidence     InterventionEvidence  `json:"evidence"`
+}
+
+// These provider arguments are server-owned and never parsed from model output.
+type InterventionEvidenceRequest struct {
+	Context       Context
+	ContextEndSeq int64
+	Question      VerificationQuestion
+}
+
+type InterventionEvidence struct {
+	Messages  []Message `json:"messages"`
+	Coverage  string    `json:"coverage"` // partial: sparse retrieval cannot establish absence of revisions.
+	Truncated bool      `json:"truncated"`
+}
+
+type InterventionEvidenceProvider func(context.Context, InterventionEvidenceRequest) (InterventionEvidence, error)
+
+const MaxInterventionEvidenceMessages = 50

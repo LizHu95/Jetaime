@@ -11,6 +11,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/mcpclient"
@@ -89,8 +90,10 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			return nil, fmt.Errorf("chat AI requires account services")
 		}
 		var provider qa.ContextProvider
+		var interventionEvidence ai.InterventionEvidenceProvider
 		if m.memoryService != nil {
 			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
+			interventionEvidence = intervention.HistoryEvidence(m.memoryService, m.memoryService.Store)
 		}
 		// Complete production chat capability list, including its domain dependencies.
 		entries := []tools.Tool{
@@ -110,7 +113,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		if e != nil {
 			return nil, e
 		}
-		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
+		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry, interventionEvidence)
 		if err != nil {
 			return nil, err
 		}

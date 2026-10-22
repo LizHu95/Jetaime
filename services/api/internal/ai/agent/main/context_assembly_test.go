@@ -33,7 +33,7 @@ func thirtyMessageContext() ai.Context {
 
 func TestProactiveRecognizesThirtyButExecutesWithEvidenceAndSixRecent(t *testing.T) {
 	model := &proactiveModel{outputs: []string{
-		`{"shouldIntervene":true,"reason":"需要补充地点","breakdowns":[{"type":"underspecified_plan","evidenceMessageIds":["m2"]}],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m0"]}}`,
+		`{"action":"intervene","verification":null,"reason":"需要补充地点","breakdowns":[{"type":"underspecified_plan","evidenceMessageIds":["m2"]}],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m0"]}}`,
 		`{"name":"remain_silent","arguments":{"reason":"先等待成员补充"}}`,
 	}}
 	agent, err := NewAgent(model, "test", 32768)
@@ -45,7 +45,7 @@ func TestProactiveRecognizesThirtyButExecutesWithEvidenceAndSixRecent(t *testing
 		t.Fatal(err)
 	}
 	input := thirtyMessageContext()
-	run, err := agent.Invoke(context.Background(), ai.Invocation{Context: input, TriggerMode: "proactive"})
+	run, err := invokePassiveEntry(t, agent, input)
 	if err != nil || !run.Silent || len(model.requests) != 2 {
 		t.Fatal("proactive execution failed", err)
 	}

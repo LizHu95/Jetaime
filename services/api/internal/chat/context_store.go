@@ -33,7 +33,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 	input.Users = append(input.Users, ai.User{ID: r.AssistantID, Nickname: "AI · " + state.AssistantName})
 	recentLimit := aicontext.DefaultRecentMessages + 1 // Trigger plus bounded background for every question.
 	if r.TriggerMode == "proactive" {
-		recentLimit = 30
+		recentLimit = ai.InterventionMessageLimit
 	}
 
 	order := ` ORDER BY x.seq`

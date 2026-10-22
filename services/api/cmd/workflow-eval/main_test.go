@@ -137,7 +137,9 @@ func TestCloudRejectsDisabledExtractionTool(t *testing.T) {
 	defer s.Close()
 	c := llm.Config{Provider: "openai-compatible", BaseURL: s.URL + "/v1", Model: "cloud-test", APIKeyEnv: "TEST_EVAL_KEY", OutputMode: "json_schema", ContextTokens: 32768}
 	out, err := executeConfigured(context.Background(), input, c, time.Second)
-	if err != nil || out.Error == "" || out.Run.Status != "failed" || len(out.Run.Suggestions) != 0 || calls != mainagent.MaxToolSteps {
+	// The registered respond tool allows one finalization round after the
+	// ordinary tool budget. Extraction must remain rejected in that round too.
+	if err != nil || out.Error == "" || out.Run.Status != "failed" || len(out.Run.Suggestions) != 0 || calls != mainagent.MaxToolSteps+1 {
 		t.Fatalf("disabled extraction accepted: %+v %v, calls=%d", out, err, calls)
 	}
 }

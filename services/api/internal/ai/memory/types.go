@@ -20,6 +20,7 @@ var (
 )
 
 type Message struct {
+	SenderType string    `json:"senderType,omitempty"`
 	ID         string    `json:"id"`
 	Seq        int64     `json:"seq"`
 	SenderID   string    `json:"senderId"`

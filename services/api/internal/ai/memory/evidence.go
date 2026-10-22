@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-const evidenceColumns = `x.id::text,x.seq,COALESCE(x.sender_user_id::text,x.sender_assistant_id::text),COALESCE(u.nickname,a.name),x.content,x.created_at`
+const evidenceColumns = `x.id::text,x.seq,COALESCE(x.sender_user_id::text,x.sender_assistant_id::text),COALESCE(u.nickname,a.name),x.content,x.created_at,x.sender_type`
 const evidenceJoins = ` FROM messages x JOIN chat_groups g ON g.id=x.group_id JOIN group_members member ON member.group_id=g.id AND member.user_id=$2
  LEFT JOIN users u ON u.id=x.sender_user_id LEFT JOIN group_assistants a ON a.id=x.sender_assistant_id `
 
@@ -24,7 +24,7 @@ func (s *Store) RecentMessages(ctx context.Context, group, actor string, end int
 	out := []Message{}
 	for rows.Next() {
 		var m Message
-		if err = rows.Scan(&m.ID, &m.Seq, &m.SenderID, &m.SenderName, &m.Text, &m.SentAt); err != nil {
+		if err = rows.Scan(&m.ID, &m.Seq, &m.SenderID, &m.SenderName, &m.Text, &m.SentAt, &m.SenderType); err != nil {
 			return nil, err
 		}
 		out = append(out, m)
@@ -56,7 +56,7 @@ func (s *Store) SourceMessages(ctx context.Context, group, actor string, end int
 	out := []Message{}
 	for rows.Next() {
 		var m Message
-		if err = rows.Scan(&m.ID, &m.Seq, &m.SenderID, &m.SenderName, &m.Text, &m.SentAt); err != nil {
+		if err = rows.Scan(&m.ID, &m.Seq, &m.SenderID, &m.SenderName, &m.Text, &m.SentAt, &m.SenderType); err != nil {
 			return nil, err
 		}
 		out = append(out, m)

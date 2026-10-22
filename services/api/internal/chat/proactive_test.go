@@ -89,7 +89,7 @@ func TestPostgresProactiveDebounceWindowAndSilence(t *testing.T) {
 		if err := json.Unmarshal([]byte(req.Messages[1].Content), &in); err != nil || len(in.Messages) != 30 || in.CurrentMessageID != last.ID {
 			t.Fatal("recognition window changed", err)
 		}
-		return llm.Result{Content: `{"shouldIntervene":false,"reason":"讨论正常推进","breakdowns":[],"intent":null}`}, nil
+		return llm.Result{Content: `{"action":"skip","verification":null,"reason":"讨论正常推进","breakdowns":[],"intent":null}`}, nil
 	}}
 	f.worker(t).Execute(ctx, run)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
@@ -206,7 +206,7 @@ func TestPostgresProactiveReplyAndConcurrentActivity(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					decision := ai.Recognition{ShouldIntervene: true, Reason: "约束需要确认", Breakdowns: []ai.Breakdown{{Type: "forgotten_constraint", EvidenceMessageIDs: []string{trigger.ID}}}, Intent: &ai.InterventionIntent{Type: "clarify", Objective: "确认是否调整预算", EvidenceMessageIDs: []string{trigger.ID}}}
+					decision := ai.InterventionCandidate{Action: "intervene", Reason: "约束需要确认", Breakdowns: []ai.Breakdown{{Type: "uncertainty", EvidenceMessageIDs: []string{trigger.ID}}}, Intent: &ai.InterventionIntent{Type: "clarify", Objective: "确认是否调整预算", EvidenceMessageIDs: []string{trigger.ID}}}
 					body, _ := json.Marshal(decision)
 					return llm.Result{Content: string(body)}, nil
 				}
