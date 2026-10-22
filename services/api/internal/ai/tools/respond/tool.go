@@ -1,0 +1,57 @@
+// Package respond validates a final answer already written by the main model.
+package respond
+
+import (
+	"context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/google/jsonschema-go/jsonschema"
+	"strings"
+)
+
+type Output struct {
+	Status       string           `json:"status"`
+	Answer       string           `json:"answer"`
+	SourceIDs    []string         `json:"sourceMessageIds"`
+	Sources      []ai.Message     `json:"-"`
+	HistoryScope *ai.HistoryScope `json:"-"`
+}
+
+func New() *tools.Typed[ai.Answer, Output] {
+	return tools.NewTyped(tools.Metadata{Name: "respond", Description: "直接返回你写好的最终回答，不再调用模型；用于无需检索或外部操作的问题。", Kind: "main", Terminal: true, ReadOnly: true, Idempotent: true}, execute, tools.Options[Output]{Input: func(s *jsonschema.Schema) {
+		s.Properties["status"].Enum = []any{"answered", "insufficient_evidence", "conflicting_evidence"}
+		s.Properties["answer"].MinLength = jsonschema.Ptr(1)
+		s.Properties["answer"].MaxLength = jsonschema.Ptr(30000)
+		ids := s.Properties["sourceMessageIds"]
+		ids.Type = "array"
+		ids.Types = nil
+		ids.UniqueItems = true
+	}, Present: func(out Output) tools.Completion {
+		basis := "general"
+		if len(out.SourceIDs) > 0 {
+			basis = "history"
+		}
+		return tools.Completion{Answer: &ai.Answer{Status: out.Status, Answer: out.Answer, SourceMessageIDs: out.SourceIDs}, Basis: basis, Sources: out.Sources, HistoryScope: out.HistoryScope}
+	}})
+}
+
+func execute(_ context.Context, scope tools.Scope, answer ai.Answer) (Output, error) {
+	if strings.TrimSpace(answer.Answer) == "" || len(answer.Answer) > 30000 || strings.ContainsRune(answer.Answer, '\x00') {
+		return Output{}, tools.InvalidArguments("invalid_answer", "回答必须是非空、有效且不超过30000字节的文本。")
+	}
+	messages := map[string]ai.Message{}
+	for _, message := range scope.Context.Messages {
+		messages[message.ID] = message
+	}
+	if err := ai.CheckSources(scope.Context.GroupID, answer.SourceMessageIDs, messages, false); err != nil {
+		return Output{}, tools.InvalidArguments("invalid_answer_sources", "来源只能引用本次上下文中本群的消息ID，不能伪造或重复引用。需要更多历史时调用 answer_question。")
+	}
+	out := Output{Status: answer.Status, Answer: answer.Answer, SourceIDs: answer.SourceMessageIDs}
+	if len(answer.SourceMessageIDs) > 0 {
+		out.HistoryScope = scope.Context.HistoryScope
+	}
+	for _, id := range answer.SourceMessageIDs {
+		out.Sources = append(out.Sources, messages[id])
+	}
+	return out, nil
+}

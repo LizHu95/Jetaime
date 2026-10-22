@@ -1,0 +1,19 @@
+{
+  "embedding": {
+    "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen3.7-text-embedding-flash",
+    "revision": "v1",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "dimension": 1024,
+    "max_input_bytes": 24576
+  },
+  "extraction": {
+    "provider": "openai-compatible",
+    "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "model": "qwen3.7-plus",
+    "api_key_env": "DASHSCOPE_API_KEY",
+    "output_mode": "json_object",
+    "enable_thinking": false,
+    "context_tokens": 32768
+  }
+}

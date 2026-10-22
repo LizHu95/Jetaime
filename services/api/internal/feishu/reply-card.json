@@ -1,0 +1,21 @@
+{
+  "config": {"wide_screen_mode": true},
+  "header": {
+    "template": "blue",
+    "title": {"tag": "plain_text", "content": "Jetaime"}
+  },
+  "elements": [
+    {"tag": "div", "text": {"tag": "plain_text", "content": "我是你们的生活小助手，有需要我一直都在"}},
+    {
+      "tag": "action",
+      "actions": [
+        {
+          "tag": "button",
+          "text": {"tag": "plain_text", "content": "测试回调"},
+          "type": "primary",
+          "value": {"action": "ping"}
+        }
+      ]
+    }
+  ]
+}

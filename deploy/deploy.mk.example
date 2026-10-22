@@ -1,0 +1,6 @@
+# Copy to local/deploy.mk (ignored by Git). Use Make syntax, without shell quotes.
+# Environment variables and make command-line assignments override these defaults.
+DEPLOY_SSH ?= user@host
+# Optional: parent directory containing api/ on the same server.
+# DEPLOY_DEST ?= $(DEPLOY_SSH):/srv/jetaime/
+DEPLOY_WEB_DIR ?= /var/www/jetaime

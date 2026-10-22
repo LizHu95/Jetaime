@@ -1,4 +1,4 @@
-name: Go checks
+name: Workflow checks
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   check:
-    name: Go quality checks
+    name: Go and evaluator checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -25,5 +25,8 @@ jobs:
         with:
           go-version-file: .go-version
           cache-dependency-path: services/api/go.*
-      - name: Run Go checks
-        run: make go-check
+      - name: Set up uv
+        run: |
+          python -m pip install uv==0.12.20
+      - name: Run checks
+        run: make check

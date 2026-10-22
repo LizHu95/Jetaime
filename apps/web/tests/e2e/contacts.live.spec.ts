@@ -1,0 +1,41 @@
+import { expect, test } from '@playwright/test'
+test.skip(!process.env.WEB_LIVE_AUTH, 'Requires isolated real API')
+test('real API: add and accept, both see group, change password and re-login', async ({ page, browser, request }) => {
+  const prefix = crypto.randomUUID().replaceAll('-', '').slice(0, 12)
+  const alice = `a_${prefix}`, bob = `b_${prefix}`, password = ' 测试密码😀123 '
+  for (const username of [alice, bob]) expect((await request.post('/api/auth/register', { data: { username, password, nickname: username === alice ? '测试甲' : '测试乙' } })).status()).toBe(201)
+  const second = await browser.newContext({ baseURL: test.info().project.use.baseURL })
+  const bobPage = await second.newPage()
+  try {
+    for (const [current, username] of [[page, alice], [bobPage, bob]] as const) {
+      await current.goto('/page/auth/login/')
+      await current.getByLabel('账号', { exact: true }).fill(username)
+      await current.getByLabel('密码', { exact: true }).fill(password)
+      await current.getByRole('button', { name: '登录', exact: true }).click()
+      await current.getByRole('link', { name: '加好友', exact: true }).click()
+      await expect(current.getByRole('heading', { name: '加好友' })).toBeVisible()
+    }
+    await page.getByLabel('对方账号（区分大小写）').fill(bob)
+    await page.getByRole('button', { name: '查找', exact: true }).click()
+    await page.getByRole('button', { name: '添加好友', exact: true }).click()
+    await bobPage.reload()
+    await bobPage.getByRole('button', { name: '接受', exact: true }).click()
+    await bobPage.getByRole('status').getByRole('link', { name: '去聊天' }).click()
+    await expect(bobPage.getByRole('heading', { name: '与 测试甲 的群', exact: true })).toBeVisible()
+    await page.goto('/page/chat/')
+    await expect(page.getByRole('link', { name: /测试乙/ })).toBeVisible()
+    const oldToken = await page.evaluate(() => JSON.parse(localStorage.getItem('jetaime.auth.session')!).token as string)
+    await page.getByRole('navigation', { name: '主导航' }).getByRole('link', { name: '我', exact: true }).click()
+    await page.getByRole('link', { name: '修改密码', exact: true }).click()
+    await page.getByLabel('旧密码', { exact: true }).fill(password)
+    await page.getByLabel('新密码', { exact: true }).fill('新的密码😀456')
+    await page.getByLabel('确认新密码').fill('新的密码😀456')
+    await page.getByRole('button', { name: '保存新密码' }).click()
+    await expect(page.getByRole('status')).toContainText('密码已修改')
+    expect((await request.get('/api/groups', { headers: { Authorization: `Bearer ${oldToken}` } })).status()).toBe(401)
+    expect((await request.post('/api/auth/login', { data: { username: alice, password } })).status()).toBe(401)
+    await page.getByLabel('密码', { exact: true }).fill('新的密码😀456')
+    await page.getByRole('button', { name: '登录', exact: true }).click()
+    await expect(page.getByRole('link', { name: /测试乙/ })).toBeVisible()
+  } finally { await second.close() }
+})
