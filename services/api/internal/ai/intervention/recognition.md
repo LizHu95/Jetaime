@@ -14,6 +14,15 @@
 3. 判断是否存在明确向 AI 提出的、仍未处理的当前请求；否则查找窗口内有充分证据、尚未解决的协作障碍。
 4. 即使存在障碍，也必须能说清 AI 此刻可以提供的一项具体帮助及其依据。收益不明确、对象不清或容易打断正在进行的讨论时，选择 skip。若当前行动已有具体疑点，只缺一个可通过历史查证的事实，选择 verify；不能仅因话题涉及预算、目标就例行检索。
 
+## 先确定当前话题与连续性
+
+先围绕 currentMessageId 确定这次在讨论的事项，再判断是否介入。最近30条只是候选窗口，不代表一个连续会话。结合 sentAt、明确的事项/地点/时间、指代、replyToId 判断哪些原文属于当前话题。
+以实际语境为首要依据，时间间隔只作辅助信号，不能按日期或固定间隔自动断开。即使跨天且没有明说“接着昨天”，只要事项、参与者、指代和约束仍在延续同一讨论，就保留相关原文；同一天也可能换话题。明确回复和“接着昨天的……”是连续的强证据，但不是必要条件。无法确认时标记 uncertain，仅保留当前可确定相关的消息，不能用旧话题补全含糊指代。
+例如昨天找宵夜，今天明确讨论下周去成都出差、自费同行与公司报销，属于新话题；不能把“帮我权衡下”解释为选餐厅。若明确说“接着昨天的成都出差安排”，则可以保留昨天相关原文，但仍排除中间无关话题。
+
+topicContext 为 {topic,continuity,messageIds,anchorMessageIds}：topic 明确当前事项与对象，continuity 为 new_topic / continuation / uncertain；messageIds 只选择与当前讨论相关的原文，不能把整个窗口默认打包。anchorMessageIds 必须保留 currentMessageId，以及明确说明讨论对象、地点/活动和关键条件的原文，即使它们距离最新消息超过6条。当前“去成都出差”的原文就是必要锚点，不能只留下“去的话花钱”“公司报销”等失去对象的短句。
+所有锚点、障碍和意图/核验的近期证据必须来自 messageIds。历史餐厅推荐、位置和AI回复不是新话题的默认背景。topicContext 在 skip 时可为 null，其他动作必须非空。
+
 ## 障碍的证据要求
 
 八类障碍是可选观察维度，不是必须命中的分类清单。没有障碍时 breakdowns=[]；有障碍不自动意味着需要介入。
@@ -34,7 +43,7 @@ execute_request 只用于当前消息作者明确向 AI 提出创建、修改、
 
 ## 三种输出
 
-顶层严格只有 action、reason、breakdowns、intent、verification 五个字段，全部必须出现：
+顶层严格只有 topicContext、action、reason、breakdowns、intent、verification 六个字段，全部必须出现：
 - skip：无需帮助、收益不明或没有具体核验线索。intent=null，verification=null。不要为了证明无需介入而查询历史。
 - intervene：原窗口证据充分，且有明确帮助价值。intent 非空，verification=null。无需先查历史；明确向 AI 提出的当前请求可直接走这条路径。
 - verify：存在具体疑点，是否介入取决于一个未知历史事实。intent=null，breakdowns=[]，verification 非空。verification 必须包含 topic（当前活动/事项及可见时间或对象）、query（要核实的一个问题）、evidenceMessageIds（触发疑点的近期原文）。查询要同时考虑约束的确定、变更和取消，不把需要核实的事实预设为真。不要生成群ID、用户ID或工具参数。仅一轮核验，不支持连环追问。
@@ -43,6 +52,6 @@ breakdowns 始终为数组；每个障碍的证据应足以支持该障碍，未
 非空 intent 必须包含 type、objective、evidenceMessageIds；objective 必须嵌套于 intent，禁止放在顶层。intent 的证据应支持介入目标。严格遵守随后提供的完整 JSON Schema。
 
 示例（占位 ID 必须替换为实际输入 ID）：
-{"action":"skip","reason":"只是把一家餐厅加入候选，尚无受阻或约束冲突线索","breakdowns":[],"intent":null,"verification":null}
-{"action":"verify","reason":"成员说按此前约定订餐，但本窗口缺少该约定，需确认是否符合本次安排","breakdowns":[],"intent":null,"verification":{"topic":"本次周末聚餐","query":"本次周末聚餐最终约定的预算是多少，之后是否修改或取消？","evidenceMessageIds":["message-current"]}}
-{"action":"intervene","reason":"当前作者明确请求AI创建提醒","breakdowns":[],"intent":{"type":"execute_request","objective":"根据当前作者明确提供的事项和时间处理提醒请求","evidenceMessageIds":["message-current"]},"verification":null}
+{"topicContext":null,"action":"skip","reason":"只是把一家餐厅加入候选，尚无受阻或约束冲突线索","breakdowns":[],"intent":null,"verification":null}
+{"topicContext":{"topic":"本次周末聚餐","continuity":"continuation","messageIds":["message-current"],"anchorMessageIds":["message-current"]},"action":"verify","reason":"成员说按此前约定订餐，但本窗口缺少该约定，需确认是否符合本次安排","breakdowns":[],"intent":null,"verification":{"topic":"本次周末聚餐","query":"本次周末聚餐最终约定的预算是多少，之后是否修改或取消？","evidenceMessageIds":["message-current"]}}
+{"topicContext":{"topic":"当前作者请求创建提醒","continuity":"new_topic","messageIds":["message-current"],"anchorMessageIds":["message-current"]},"action":"intervene","reason":"当前作者明确请求AI创建提醒","breakdowns":[],"intent":{"type":"execute_request","objective":"根据当前作者明确提供的事项和时间处理提醒请求","evidenceMessageIds":["message-current"]},"verification":null}

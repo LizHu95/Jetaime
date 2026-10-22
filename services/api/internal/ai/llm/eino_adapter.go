@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
@@ -20,9 +21,11 @@ import (
 )
 
 type Adapter struct {
-	config  Config
-	timeout time.Duration
-	key     string
+	config     Config
+	timeout    time.Duration
+	key        string
+	candidates []*Adapter
+	active     atomic.Uint64
 }
 
 var _ ChatModel = (*Adapter)(nil)
@@ -95,7 +98,14 @@ func (t *captureTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr error) {
+func (a *Adapter) Call(ctx context.Context, in Request) (Result, error) {
+	if len(a.candidates) > 0 {
+		return a.callWithFallback(ctx, in)
+	}
+	return a.callOnce(ctx, in)
+}
+
+func (a *Adapter) callOnce(ctx context.Context, in Request) (out Result, callErr error) {
 	ctx, span := telemetry.Start(ctx, "llm.call", "LLM", attribute.String("llm.model_name", a.config.Model), attribute.String("llm.provider", a.config.Provider))
 	if span.IsRecording() && strings.EqualFold(os.Getenv("JETAIME_TRACE_CAPTURE_CONTENT"), "true") {
 		messages, err := json.Marshal(in.Messages)

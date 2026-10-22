@@ -44,7 +44,17 @@ type Recognition struct {
 }
 
 // InterventionCandidate describes a bounded next step, not a tool call.
+// TopicContext separates the current discussion from nearby unrelated history.
+// Anchors name the original messages that define the subject and must survive trimming.
+type TopicContext struct {
+	Topic            string   `json:"topic"`
+	Continuity       string   `json:"continuity"`
+	MessageIDs       []string `json:"messageIds"`
+	AnchorMessageIDs []string `json:"anchorMessageIds"`
+}
+
 type InterventionCandidate struct {
+	TopicContext *TopicContext         `json:"topicContext"`
 	Action       string                `json:"action"`
 	Reason       string                `json:"reason"`
 	Breakdowns   []Breakdown           `json:"breakdowns"`

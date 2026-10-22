@@ -42,8 +42,9 @@ type ReminderDraft struct {
 
 // RecommendedPlace records only places actually displayed in authorized recent messages.
 type RecommendedPlace struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	SourceMessageID string `json:"-"`
+	ID              string `json:"id"`
+	Name            string `json:"name"`
 }
 
 type Context struct {

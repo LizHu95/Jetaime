@@ -34,7 +34,7 @@ make assistant ASSISTANT_ARGS='-model-config ../../local/other-models.json -addr
 
 也可使用 `python3 scripts/dev.py assistant`、`python3 scripts/dev.py eval` 等同一入口。模型参数放在 JSON 中，启动命令不需要手动 source 或逐项指定模型参数。环境文件使用单行 `KEY=value` 或带引号的值，不执行命令替换或变量展开。直接 `go run` 不加载环境文件。
 
-支持 Eino Ollama / OpenAI 兼容接口，启动时选择模型，切换需重启；云模型与 profile 配置见 [模型接入说明](docs/v2/运行说明.md#eino-模型接入与启动选择)。
+支持 Eino Ollama / OpenAI 兼容接口；启动时加载主模型和顶层 `fallback_profiles` 候选列表，调用失败时自动切换，成功后优先沿用该候选。修改候选配置需重启；云模型与 profile 配置见 [模型接入说明](docs/v2/运行说明.md#eino-模型接入与启动选择)。
 
 打开 <http://127.0.0.1:8081/page/assistant/>。页面内嵌于 Go 服务，无需前端依赖或构建。Ctrl+C 停止服务。
 
@@ -136,7 +136,7 @@ services/api/
 └── internal/telemetry/       调用链
 ```
 
-当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 12 条/4 KiB 近期背景判断需求；只有需要历史证据时才调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v8-on-demand-history`，QA 为 `answer-question-v2-hybrid`。
+当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 12 条/4 KiB 近期背景判断需求；追问丢失所指事项时可通过 `read_recent_messages` 补读有权限与序号截止的近期真人原文；需要历史证据时调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v20-followup-advice`，QA 为 `answer-question-v2-hybrid`。
 
 提示词按能力维护：被动干预的候选发现正文位于 [`intervention/recognition.md`](services/api/internal/ai/intervention/recognition.md)，补证后的最终判断位于 [`intervention/verification.md`](services/api/internal/ai/intervention/verification.md)，通过 `go:embed` 编译进程序，Schema、版本与结构修复提示位于 [`intervention/prompts.go`](services/api/internal/ai/intervention/prompts.go)；主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（上下文预算检查复用该子包）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
 

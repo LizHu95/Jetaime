@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -234,24 +235,39 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		for _, source := range result.Completion.Sources {
 			required[source.ID] = true
 		}
+		// Read tools can restore original conversation evidence for the next main
+		// decision. Keep one copy in context; observations carry only tool metadata.
+		if !result.Terminal || input.Request.TriggerMode == "proactive" {
+			known := map[string]bool{}
+			for _, message := range input.Messages {
+				known[message.ID] = true
+			}
+			for _, source := range result.Completion.Sources {
+				if !known[source.ID] {
+					input.Messages = append(input.Messages, source)
+					known[source.ID] = true
+				}
+			}
+			if result.Completion.HistoryScope != nil {
+				input.HistoryScope = result.Completion.HistoryScope
+			}
+			if len(result.Completion.Sources) > 0 {
+				sort.SliceStable(input.Messages, func(i, j int) bool {
+					if input.Messages[i].ID == input.Request.MessageID {
+						return false
+					}
+					if input.Messages[j].ID == input.Request.MessageID {
+						return true
+					}
+					return input.Messages[i].SentAt.Before(input.Messages[j].SentAt)
+				})
+			}
+			scope.Context = input
+		}
 		if result.Terminal {
 			// Proactive read results are evidence, not permission to speak. Give
 			// the main model a final chance to abstain after checking them.
 			if input.Request.TriggerMode == "proactive" && call.Name != "respond" && call.Name != "remain_silent" && readOnlyTool(a.Tools, call.Name) {
-				known := map[string]bool{}
-				for _, message := range input.Messages {
-					known[message.ID] = true
-				}
-				for _, source := range result.Completion.Sources {
-					if !known[source.ID] {
-						input.Messages = append(input.Messages, source)
-						known[source.ID] = true
-					}
-				}
-				if result.Completion.HistoryScope != nil {
-					input.HistoryScope = result.Completion.HistoryScope
-				}
-				scope.Context = input
 				observations = append(observations, map[string]any{"name": call.Name, "result": result.Data})
 				continue
 			}

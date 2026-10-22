@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v4-bounded-verification"
+const recognitionVersion = "proactive-v6-semantic-continuity"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.
@@ -49,6 +49,7 @@ func candidateSchema() (*jsonschema.Resolved, json.RawMessage, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	s.Properties["topicContext"].Properties["continuity"].Enum = []any{"new_topic", "continuation", "uncertain"}
 	s.Properties["action"].Enum = []any{"skip", "intervene", "verify"}
 	s.Properties["breakdowns"].Types = nil
 	s.Properties["breakdowns"].Type = "array"

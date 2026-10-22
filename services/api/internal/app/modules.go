@@ -20,6 +20,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/amap"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/history"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
@@ -100,6 +101,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			respond.New(),
 			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
+			recent.New(memory.NewStore(m.database, cfg.Memory)),
 			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
 			remindertool.New(m.reminderService, chat.ReminderOperation),
 		}

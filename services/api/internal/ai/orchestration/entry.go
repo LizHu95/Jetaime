@@ -64,6 +64,49 @@ func (e *Entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 		return run, err
 	}
 	candidate := result.Decision
+	originalCount := len(in.Context.Messages)
+	if candidate.Action != "skip" {
+		if candidate.TopicContext == nil {
+			return run, ai.ErrInvalidDecision
+		}
+		topic := candidate.TopicContext
+		selected := map[string]bool{}
+		for _, id := range topic.MessageIDs {
+			selected[id] = true
+		}
+		if !selected[current.ID] {
+			return run, ai.ErrInvalidDecision
+		}
+		messages := []ai.Message{}
+		for _, message := range in.Context.Messages {
+			if selected[message.ID] {
+				messages = append(messages, message)
+			}
+		}
+		in.Context.Messages = messages
+		input.Messages = messages
+		request := *in.Context.Request
+		request.RelatedMessageIDs = nil
+		for _, id := range in.Context.Request.RelatedMessageIDs {
+			if selected[id] {
+				request.RelatedMessageIDs = append(request.RelatedMessageIDs, id)
+			}
+		}
+		request.RelatedMessageIDs = append(request.RelatedMessageIDs, topic.AnchorMessageIDs...)
+		in.Context.Request = &request
+		places := []ai.RecommendedPlace{}
+		for _, place := range in.Context.RecentPlaces {
+			if selected[place.SourceMessageID] {
+				places = append(places, place)
+			}
+		}
+		in.Context.RecentPlaces = places
+		if in.Context.HistoryScope != nil {
+			history := *in.Context.HistoryScope
+			history.EarlierMessagesOmitted = history.EarlierMessagesOmitted || len(messages) < originalCount
+			in.Context.HistoryScope = &history
+		}
+	}
 	decision := ai.Recognition{ShouldIntervene: candidate.Action == "intervene", Reason: candidate.Reason, Breakdowns: candidate.Breakdowns, Intent: candidate.Intent}
 	if candidate.Action == "verify" {
 		var steps []ai.Step
@@ -117,7 +160,7 @@ func (e *Entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 		}
 	}
 	in.Mode = "main"
-	in.Question = "主动介入目标：" + decision.Intent.Objective + "。依据对话简短、中立地帮助大家，不展示诊断标签或内部推理，不重复已解决的问题。"
+	in.Question = "当前话题：" + candidate.TopicContext.Topic + "。主动介入目标：" + decision.Intent.Objective + "。依据对话简短、中立地帮助大家，不展示诊断标签或内部推理，不重复已解决的问题。"
 	output, err := e.main.Invoke(ctx, in)
 	output.StartedAt = started
 	output.DurationMS = time.Since(started).Milliseconds()

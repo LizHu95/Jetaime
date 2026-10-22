@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
 )
@@ -126,8 +129,8 @@ func TestBootstrapRoutesActiveAndPassiveToSameMain(t *testing.T) {
 	}{
 		{name: "active mention", trigger: "mention", outputs: []string{answer}},
 		{name: "active followup", outputs: []string{answer}},
-		{name: "passive silence", trigger: "proactive", outputs: []string{`{"action":"skip","verification":null,"reason":"正常聊天","breakdowns":[],"intent":null}`}, silent: true},
-		{name: "passive intervention", trigger: "proactive", outputs: []string{`{"action":"intervene","verification":null,"reason":"地点不明确","breakdowns":[],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m"]}}`, answer}},
+		{name: "passive silence", trigger: "proactive", outputs: []string{`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"skip","verification":null,"reason":"正常聊天","breakdowns":[],"intent":null}`}, silent: true},
+		{name: "passive intervention", trigger: "proactive", outputs: []string{`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"intervene","verification":null,"reason":"地点不明确","breakdowns":[],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m"]}}`, answer}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := &entryModel{outputs: append([]string{}, tc.outputs...)}
@@ -155,7 +158,7 @@ func TestBootstrapRoutesActiveAndPassiveToSameMain(t *testing.T) {
 }
 
 func TestBootstrapVerificationHandoffKeepsHistoricalEvidence(t *testing.T) {
-	const discovery = `{"action":"verify","reason":"需核实此前预算","breakdowns":[],"intent":null,"verification":{"topic":"本次周末聚餐","query":"此前预算及后续修改是什么","evidenceMessageIds":["m"]}}`
+	const discovery = `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"verify","reason":"需核实此前预算","breakdowns":[],"intent":null,"verification":{"topic":"本次周末聚餐","query":"此前预算及后续修改是什么","evidenceMessageIds":["m"]}}`
 	for _, intervene := range []bool{true, false} {
 		t.Run(fmt.Sprint("intervene=", intervene), func(t *testing.T) {
 			final := `{"shouldIntervene":false,"reason":"预算已经调整，无需重复参与","breakdowns":[],"intent":null}`
@@ -205,6 +208,135 @@ func TestBootstrapVerificationHandoffKeepsHistoricalEvidence(t *testing.T) {
 			}
 			if len(snapshot.Messages) != 1 || len(snapshot.Request.RelatedMessageIDs) != 0 {
 				t.Fatal("recognition snapshot mutated")
+			}
+		})
+	}
+}
+
+func TestPassiveTopicScopePreservesTripAnchorAndSeparatesOldPlaces(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		continuation bool
+		oldAge       time.Duration
+	}{
+		{"different topics across days", false, 24 * time.Hour},
+		{"different topics within one day", false, time.Hour},
+		{"explicit continuation across days", true, 24 * time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			now := time.Date(2026, 10, 22, 21, 32, 0, 0, time.FixedZone("Asia/Shanghai", 8*3600))
+			messages := []ai.Message{
+				{ID: "food", GroupID: "g", SenderID: "u", SenderType: "user", Text: "昨天推荐的宵夜餐厅", SentAt: now.Add(-tc.oldAge)},
+				{ID: "trip", GroupID: "g", SenderID: "u", SenderType: "user", Text: "下周一去成都出差，是否自费同行", SentAt: now.Add(-10 * time.Minute)},
+			}
+			ids := []string{"trip"}
+			for i := 0; i < 8; i++ {
+				id := fmt.Sprint("short-", i)
+				messages = append(messages, ai.Message{ID: id, GroupID: "g", SenderID: "u", Text: "公司报销，同行自费，再权衡一下", SentAt: now.Add(time.Duration(i-8) * time.Second)})
+				ids = append(ids, id)
+			}
+			messages = append(messages, ai.Message{ID: "current", GroupID: "g", SenderID: "u", Text: "帮我对比权衡下", SentAt: now})
+			ids = append(ids, "current")
+			topic := &ai.TopicContext{Topic: "去成都出差是否自费同行", Continuity: "new_topic", MessageIDs: ids, AnchorMessageIDs: []string{"trip", "current"}}
+			if tc.continuation {
+				topic.Topic, topic.Continuity = "继续昨天宵夜推荐", "continuation"
+				topic.MessageIDs = []string{"food", "current"}
+				topic.AnchorMessageIDs = []string{"food", "current"}
+				messages[len(messages)-1].Text = "接着昨天的宵夜推荐，帮我对比权衡下"
+			}
+			candidate := ai.InterventionCandidate{TopicContext: topic, Action: "intervene", Reason: "当前作者明确请求权衡", Breakdowns: []ai.Breakdown{}, Intent: &ai.InterventionIntent{Type: "suggest", Objective: "比较是否同行", EvidenceMessageIDs: []string{"current"}}}
+			discovery, err := json.Marshal(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			model := &entryModel{outputs: []string{string(discovery), `{"name":"remain_silent","arguments":{"reason":"暂不补充"}}`}}
+			registry, _ := tools.New(silence.New())
+			service, err := New(model, "test", 32768, registry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := ai.Context{GroupID: "g", ActorID: "u", Users: []ai.User{{ID: "u", Nickname: "用户"}}, Messages: messages, Request: &ai.RequestContext{MessageID: "current", SentAt: now}, RecentPlaces: []ai.RecommendedPlace{{ID: "old-place", Name: "旧餐厅", SourceMessageID: "food"}}}
+			run, err := service.Execute(context.Background(), ai.Invocation{TriggerMode: "proactive", Context: input})
+			if err != nil || !run.Silent || len(model.requests) != 2 {
+				t.Fatalf("topic handoff failed: %v", err)
+			}
+			var payload struct {
+				Context  ai.Context `json:"context"`
+				Question string     `json:"question"`
+			}
+			if err := json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &payload); err != nil {
+				t.Fatal(err)
+			}
+			got := map[string]bool{}
+			for _, message := range payload.Context.Messages {
+				got[message.ID] = true
+			}
+			if tc.continuation {
+				if !got["food"] || got["trip"] || len(payload.Context.RecentPlaces) != 1 {
+					t.Fatal("cross-day continuation was incorrectly cut", payload)
+				}
+			} else if !got["trip"] || got["food"] || len(payload.Context.RecentPlaces) != 0 {
+				t.Fatal("trip anchor dropped or unrelated restaurant leaked", payload)
+			}
+			if len(input.Messages) != 11 || len(input.RecentPlaces) != 1 || len(input.Request.RelatedMessageIDs) != 0 {
+				t.Fatal("original snapshot mutated")
+			}
+		})
+	}
+}
+
+type followupReader struct {
+	t        *testing.T
+	messages []memory.Message
+	calls    int
+}
+
+func (r *followupReader) RecentMessages(_ context.Context, group, actor string, end int64, limit int) ([]memory.Message, error) {
+	r.calls++
+	if group != "g" || actor != "u" || end != 42 || limit != 30 {
+		r.t.Fatal("follow-up scope changed")
+	}
+	return r.messages, nil
+}
+func TestActiveFollowupReadsOriginalTripBeforeResponding(t *testing.T) {
+	now := time.Now()
+	for _, question := range []string{"我要去吗", "我考虑的是不确定下周有没有事，其次要学习，还有家里有猫咪"} {
+		t.Run(question, func(t *testing.T) {
+			reader := &followupReader{t: t, messages: []memory.Message{
+				{ID: "trip", Seq: 10, SenderID: "other", SenderType: "user", Text: "下周一去成都出差，我公司报销，你同行需自费", SentAt: now.Add(-24 * time.Hour)},
+				{ID: "concerns", Seq: 11, SenderID: "u", SenderType: "user", Text: "我下周日程没确定，还要学习和照顾猫咪", SentAt: now.Add(-time.Hour)},
+			}}
+			model := &entryModel{outputs: []string{
+				`{"name":"read_recent_messages","arguments":{}}`,
+				`{"name":"respond","arguments":{"status":"answered","answer":"目前更倾向先暂缓确认同行。先确认下周安排、学习时间和猫咪照护，再决定是否自费去成都。","sourceMessageIds":["trip","concerns","current"]}}`,
+			}}
+			registry, err := tools.New(recent.New(reader), respond.New())
+			if err != nil {
+				t.Fatal(err)
+			}
+			service, err := New(model, "test", 32768, registry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input := ai.Context{GroupID: "g", ActorID: "u", Users: []ai.User{{ID: "u", Nickname: "提问者"}, {ID: "other", Nickname: "出差者"}}, Messages: []ai.Message{{ID: "current", GroupID: "g", SenderID: "u", Text: question, SentAt: now}}, Request: &ai.RequestContext{MessageID: "current", SenderID: "u", SentAt: now}}
+			run, err := service.Execute(context.Background(), ai.Invocation{TriggerMode: "mention", ContextEndSeq: 42, Context: input, Question: question})
+			if err != nil || run.Answer == nil || reader.calls != 1 || len(model.requests) != 2 {
+				t.Fatalf("follow-up recovery failed: %+v %v", run, err)
+			}
+			var payload struct {
+				Context ai.Context `json:"context"`
+			}
+			if err := json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Context.Messages) != 3 || payload.Context.Messages[0].ID != "trip" || payload.Context.Messages[2].ID != "current" {
+				t.Fatal("trip evidence missing or chronology lost", payload)
+			}
+			if strings.Count(model.requests[1].Messages[1].Content, "下周一去成都出差") != 1 {
+				t.Fatal("duplicated original evidence")
+			}
+			if len(input.Messages) != 1 {
+				t.Fatal("original request mutated")
 			}
 		})
 	}

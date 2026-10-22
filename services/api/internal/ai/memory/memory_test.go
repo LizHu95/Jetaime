@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -654,11 +655,14 @@ func TestModelExtractorIgnoresOnlyKnownHistoricalCandidates(t *testing.T) {
 			raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
 			model := &fixedChatModel{content: string(raw)}
 			out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
-			if err != nil || out == nil || len(out) != tc.want {
-				t.Fatalf("result: %+v %v", out, err)
+			if !tc.valid {
+				if !errors.Is(err, ErrInvalid) || model.calls != 2 || out != nil {
+					t.Fatalf("invalid evidence not rejected after one retry: %+v %v calls=%d", out, err, model.calls)
+				}
+				return
 			}
-			if err := validateCandidates(b, out); (err == nil) != tc.valid {
-				t.Fatalf("validation: %v", err)
+			if err != nil || out == nil || len(out) != tc.want || model.calls != 1 {
+				t.Fatalf("result: %+v %v calls=%d", out, err, model.calls)
 			}
 		})
 	}
@@ -692,5 +696,146 @@ func TestPostgresHistoricalModelCandidateDoesNotBlockProgress(t *testing.T) {
 	}
 	if count := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='history'"); count != 2 {
 		t.Fatalf("new history not retained: %d", count)
+	}
+}
+
+// Simulate a model that corrects an invented source after validation feedback.
+type correctingMemoryModel struct {
+	requests []llm.Request
+	results  []string
+	err      error
+}
+
+func (m *correctingMemoryModel) Call(_ context.Context, req llm.Request) (llm.Result, error) {
+	m.requests = append(m.requests, req)
+	if len(m.requests) > len(m.results) {
+		return llm.Result{}, m.err
+	}
+	return llm.Result{Content: m.results[len(m.requests)-1]}, nil
+}
+
+func TestModelExtractorRepairsUnknownSourceWithBatchEvidence(t *testing.T) {
+	b := Batch{From: 216, To: 234, Members: []Person{{ID: "alice"}}, Messages: []Message{{ID: "actual-message-id", Seq: 233, SenderID: "alice", Text: "周六去杭州"}}}
+	candidate := Candidate{Kind: "plan", Subject: "alice", EventKey: "trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{"invented-id"}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.SourceIDs = []string{"actual-message-id"}
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &correctingMemoryModel{results: []string{string(bad), string(good)}}
+	out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+	if err != nil || len(out) != 1 || out[0].SourceIDs[0] != "actual-message-id" || len(model.requests) != 2 {
+		t.Fatalf("repair failed: %+v %v calls=%d", out, err, len(model.requests))
+	}
+	feedback := model.requests[1].Messages[1].Content
+	if !strings.Contains(feedback, "source_not_in_batch") || !strings.Contains(feedback, "invented-id") || !strings.Contains(feedback, "actual-message-id") {
+		t.Fatalf("repair missing validation feedback or batch: %s", feedback)
+	}
+	for _, req := range model.requests {
+		if !strings.Contains(string(req.Format), `"enum":["actual-message-id"]`) {
+			t.Fatalf("source IDs not constrained: %s", req.Format)
+		}
+	}
+}
+
+func TestModelExtractorRepairFailureDoesNotReturnPartialCandidates(t *testing.T) {
+	b := Batch{Messages: []Message{{ID: "new", Seq: 1, SenderID: "alice"}}}
+	good := Candidate{Kind: "fact", Subject: "alice", EventKey: "food", TemporalScope: "enduring", Content: "喜欢辣", SourceIDs: []string{"new"}}
+	bad := good
+	bad.SourceIDs = []string{"unknown"}
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{good, bad}})
+	unavailable := errors.New("model unavailable")
+	model := &correctingMemoryModel{results: []string{string(raw)}, err: unavailable}
+	out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+	if !errors.Is(err, unavailable) || out != nil || len(model.requests) != 2 {
+		t.Fatalf("partial result accepted: %+v %v", out, err)
+	}
+}
+
+func TestPostgresRepairedSourceCommitsMemoryAndProgress(t *testing.T) {
+	f := fixture(t)
+	message := f.send(t, f.alice, "周六去杭州")
+	candidate := Candidate{Kind: "plan", Subject: f.alice, EventKey: "trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{uuid.NewString()}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.SourceIDs = []string{message.ID}
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &correctingMemoryModel{results: []string{string(bad), string(good)}}
+	f.service.Extractor = ModelExtractor{Model: model, Config: testConfig().Extraction}
+	f.init(t)
+	f.process(t)
+	if len(model.requests) != 2 {
+		t.Fatalf("expected one correction, got %d calls", len(model.requests))
+	}
+	if cursor := f.scalar(t, "SELECT cursor_seq FROM memory_progress"); cursor != int(message.Seq) {
+		t.Fatalf("corrected batch did not advance: %d", cursor)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='plan'"); n != 1 {
+		t.Fatalf("corrected memory not committed: %d", n)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_document_sources WHERE message_id=$1", message.ID); n != 2 {
+		t.Fatalf("history and corrected memory missing evidence: %d", n)
+	}
+}
+
+func TestModelExtractorResolvesOnlyExactBatchSequences(t *testing.T) {
+	b := Batch{From: 216, To: 234, Messages: []Message{
+		{ID: "old-uuid", Seq: 216, SenderID: "alice"},
+		{ID: "trip-uuid", Seq: 218, SenderID: "alice"},
+		{ID: "confirm-uuid", Seq: 221, SenderID: "alice"},
+		{ID: "assistant-uuid", Seq: 222},
+	}}
+	for _, tc := range []struct {
+		name    string
+		sources []string
+		want    []string
+		valid   bool
+	}{
+		{"production_sequence_output", []string{"218", "221"}, []string{"trip-uuid", "confirm-uuid"}, true},
+		{"mixed_uuid_and_sequence", []string{"trip-uuid", "221"}, []string{"trip-uuid", "confirm-uuid"}, true},
+		{"old_only", []string{"216"}, nil, true},
+		{"unknown_sequence", []string{"219"}, nil, false},
+		{"assistant_sequence", []string{"222"}, nil, false},
+		{"noncanonical_sequence", []string{"0218"}, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := Candidate{Kind: "event", Subject: "alice", EventKey: "trip", TemporalScope: "event", Content: "去成都出差", SourceIDs: tc.sources}
+			raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+			model := &fixedChatModel{content: string(raw)}
+			out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+			if !tc.valid {
+				if !errors.Is(err, ErrInvalid) || out != nil {
+					t.Fatalf("invalid reference accepted: %+v %v", out, err)
+				}
+				return
+			}
+			if err != nil || model.calls != 1 {
+				t.Fatalf("sequence resolution retried: %v calls=%d", err, model.calls)
+			}
+			if tc.want == nil {
+				if len(out) != 0 {
+					t.Fatalf("context-only sequence retained: %+v", out)
+				}
+			} else if len(out) != 1 || strings.Join(out[0].SourceIDs, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("wrong evidence: %+v", out)
+			}
+		})
+	}
+}
+
+func TestPostgresSequenceSourcesCommitWithoutRetry(t *testing.T) {
+	f := fixture(t)
+	message := f.send(t, f.alice, "周六去杭州")
+	candidate := Candidate{Kind: "plan", Subject: f.alice, EventKey: "trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{strconv.FormatInt(message.Seq, 10)}}
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &fixedChatModel{content: string(raw)}
+	f.service.Extractor = ModelExtractor{Model: model, Config: testConfig().Extraction}
+	f.init(t)
+	f.process(t)
+	if model.calls != 1 {
+		t.Fatalf("sequence source required model retry: %d", model.calls)
+	}
+	if cursor := f.scalar(t, "SELECT cursor_seq FROM memory_progress"); cursor != int(message.Seq) {
+		t.Fatalf("batch stuck at %d", cursor)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_document_sources WHERE message_id=$1", message.ID); n != 2 {
+		t.Fatalf("canonical evidence missing: %d", n)
 	}
 }

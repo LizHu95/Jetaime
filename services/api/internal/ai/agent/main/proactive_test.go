@@ -24,8 +24,8 @@ type proactiveModel struct {
 func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 	// Replay the production failure: intent was correct, but objective was at
 	// the root, rather than in intent. Do not silently accept the invalid shape.
-	malformed := `{"action":"intervene","verification":null,"intent":{"type":"execute_request","evidenceMessageIds":["m6","m1"]},"objective":"根据用户提供的体检时间和地点创建提醒","reason":"用户明确请求创建提醒","breakdowns":[]}`
-	corrected := `{"action":"intervene","verification":null,"intent":{"type":"execute_request","objective":"根据用户提供的体检时间和地点创建提醒","evidenceMessageIds":["m6","m1"]},"reason":"用户明确请求创建提醒","breakdowns":[]}`
+	malformed := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"intent":{"type":"execute_request","evidenceMessageIds":["m6","m1"]},"objective":"根据用户提供的体检时间和地点创建提醒","reason":"用户明确请求创建提醒","breakdowns":[]}`
+	corrected := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"intent":{"type":"execute_request","objective":"根据用户提供的体检时间和地点创建提醒","evidenceMessageIds":["m6","m1"]},"reason":"用户明确请求创建提醒","breakdowns":[]}`
 	model := &proactiveModel{outputs: []string{malformed, corrected, `{"name":"save_item","arguments":{"mode":"save"}}`}}
 	writes := 0
 	save := tools.NewTyped(tools.Metadata{Name: "save_item", Description: "保存", Terminal: true}, func(context.Context, tools.Scope, saveInput) (saveOutput, error) {
@@ -55,7 +55,7 @@ func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 }
 
 func TestProactiveStopsAfterOneFormatRepair(t *testing.T) {
-	malformed := `{"action":"intervene","verification":null,"reason":"请求","breakdowns":[],"intent":{"type":"execute_request","evidenceMessageIds":["m6"]},"objective":"创建提醒"}`
+	malformed := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"请求","breakdowns":[],"intent":{"type":"execute_request","evidenceMessageIds":["m6"]},"objective":"创建提醒"}`
 	model := &proactiveModel{outputs: []string{malformed, malformed}}
 	a, _ := NewAgent(model, "test", 32768)
 	input := testContext()
@@ -81,14 +81,14 @@ func TestProactiveRecognitionAndExecution(t *testing.T) {
 		name, decision, next string
 		silent, invalid      bool
 	}{
-		{"silence", `{"action":"skip","verification":null,"reason":"正在推进","breakdowns":[],"intent":null}`, "", true, false},
-		{"respond", `{"action":"intervene","verification":null,"reason":"需要澄清","breakdowns":[{"type":"uncertainty","evidenceMessageIds":["m6"]}],"intent":{"type":"clarify","objective":"确认测试范围","evidenceMessageIds":["m6"]}}`, `{"name":"respond","arguments":{"status":"answered","answer":"先确认测试范围可以吗？","sourceMessageIds":["m6"]}}`, false, false},
-		{"abstain after recognition", `{"action":"intervene","verification":null,"reason":"可能需要澄清","breakdowns":[],"intent":{"type":"clarify","objective":"核实是否需要帮助","evidenceMessageIds":["m6"]}}`, `{"name":"remain_silent","arguments":{"reason":"无需补充"}}`, true, false},
-		{"foreign evidence", `{"action":"intervene","verification":null,"reason":"需要澄清","breakdowns":[],"intent":{"type":"clarify","objective":"询问","evidenceMessageIds":["foreign"]}}`, "", false, true},
+		{"silence", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"skip","verification":null,"reason":"正在推进","breakdowns":[],"intent":null}`, "", true, false},
+		{"respond", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"需要澄清","breakdowns":[{"type":"uncertainty","evidenceMessageIds":["m6"]}],"intent":{"type":"clarify","objective":"确认测试范围","evidenceMessageIds":["m6"]}}`, `{"name":"respond","arguments":{"status":"answered","answer":"先确认测试范围可以吗？","sourceMessageIds":["m6"]}}`, false, false},
+		{"abstain after recognition", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"可能需要澄清","breakdowns":[],"intent":{"type":"clarify","objective":"核实是否需要帮助","evidenceMessageIds":["m6"]}}`, `{"name":"remain_silent","arguments":{"reason":"无需补充"}}`, true, false},
+		{"foreign evidence", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"需要澄清","breakdowns":[],"intent":{"type":"clarify","objective":"询问","evidenceMessageIds":["foreign"]}}`, "", false, true},
 		{"missing decision", `{"reason":"漏字段","breakdowns":[],"intent":null}`, "", false, true},
-		{"unknown breakdown", `{"action":"skip","verification":null,"reason":"未知类别","breakdowns":[{"type":"other","evidenceMessageIds":["m6"]}],"intent":null}`, "", false, true},
-		{"null breakdowns", `{"action":"skip","verification":null,"reason":"错误结构","breakdowns":null,"intent":null}`, "", false, true},
-		{"write without current evidence", `{"action":"intervene","verification":null,"reason":"操作","breakdowns":[],"intent":{"type":"execute_request","objective":"设置提醒","evidenceMessageIds":["m1"]}}`, "", false, true},
+		{"unknown breakdown", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"skip","verification":null,"reason":"未知类别","breakdowns":[{"type":"other","evidenceMessageIds":["m6"]}],"intent":null}`, "", false, true},
+		{"null breakdowns", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"skip","verification":null,"reason":"错误结构","breakdowns":null,"intent":null}`, "", false, true},
+		{"write without current evidence", `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"操作","breakdowns":[],"intent":{"type":"execute_request","objective":"设置提醒","evidenceMessageIds":["m1"]}}`, "", false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			model := &proactiveModel{outputs: []string{tc.decision}}
@@ -125,7 +125,7 @@ func TestProactiveRecognitionAndExecution(t *testing.T) {
 
 func TestProactiveCanRemainSilentAfterReadTool(t *testing.T) {
 	model := &proactiveModel{outputs: []string{
-		`{"action":"intervene","verification":null,"reason":"需要查证","breakdowns":[],"intent":{"type":"remind","objective":"核实约束是否仍有效","evidenceMessageIds":["m6"]}}`,
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"需要查证","breakdowns":[],"intent":{"type":"remind","objective":"核实约束是否仍有效","evidenceMessageIds":["m6"]}}`,
 		`{"name":"lookup","arguments":{}}`,
 		`{"name":"remain_silent","arguments":{"reason":"已有人处理，无需重复"}}`,
 	}}
@@ -144,7 +144,7 @@ func TestProactiveCanRemainSilentAfterReadTool(t *testing.T) {
 func TestProactiveWriteRequiresExplicitRequestIntent(t *testing.T) {
 	for _, intent := range []string{"remind", "execute_request"} {
 		t.Run(intent, func(t *testing.T) {
-			decision := `{"action":"intervene","verification":null,"reason":"需要帮助","breakdowns":[],"intent":{"type":"` + intent + `","objective":"处理提醒","evidenceMessageIds":["m6"]}}`
+			decision := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"需要帮助","breakdowns":[],"intent":{"type":"` + intent + `","objective":"处理提醒","evidenceMessageIds":["m6"]}}`
 			model := &proactiveModel{outputs: []string{decision, `{"name":"save_item","arguments":{"mode":"save"}}`, `{"name":"remain_silent","arguments":{"reason":"没有操作授权"}}`}}
 			writes := 0
 			save := tools.NewTyped(tools.Metadata{Name: "save_item", Description: "保存", Terminal: true}, func(context.Context, tools.Scope, saveInput) (saveOutput, error) {

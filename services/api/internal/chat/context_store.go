@@ -65,7 +65,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 		if !windowed && bytes > budget {
 			return input, "", ErrContext
 		}
-		addRecentPlaces(&input, m.AgentResult)
+		addRecentPlaces(&input, m.AgentResult, m.ID)
 		sender := r.AssistantID
 		if m.SenderID != nil {
 			sender = *m.SenderID
@@ -118,7 +118,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 			if reference.SenderID != nil {
 				sender = *reference.SenderID
 			}
-			addRecentPlaces(&input, reference.AgentResult)
+			addRecentPlaces(&input, reference.AgentResult, reference.ID)
 			request.Snapshot.RecentPlaces = input.RecentPlaces
 			request.References = []ai.Message{{ID: reference.ID, GroupID: reference.GroupID, SenderID: sender, SentAt: reference.CreatedAt.In(time.FixedZone("Asia/Shanghai", 8*3600)), Text: reference.Content}}
 		}
@@ -165,7 +165,7 @@ func (s *Store) loadAgentContext(ctx context.Context, r Run, budget int, windowe
 
 // Bounded, newest-first display history; candidate searches never enter this list.
 // Rows are already authorized and fenced at the original trigger sequence.
-func addRecentPlaces(input *ai.Context, result *ai.Result) {
+func addRecentPlaces(input *ai.Context, result *ai.Result, sourceIDs ...string) {
 	if result == nil {
 		return
 	}
@@ -181,7 +181,14 @@ func addRecentPlaces(input *ai.Context, result *ai.Result) {
 			}
 		}
 		if !seen && len(input.RecentPlaces) < 20 {
-			input.RecentPlaces = append(input.RecentPlaces, ai.RecommendedPlace{ID: card.ID, Name: card.Place.Name})
+			input.RecentPlaces = append(input.RecentPlaces, ai.RecommendedPlace{ID: card.ID, Name: card.Place.Name, SourceMessageID: firstSourceID(sourceIDs)})
 		}
 	}
+}
+
+func firstSourceID(ids []string) string {
+	if len(ids) > 0 {
+		return ids[0]
+	}
+	return ""
 }

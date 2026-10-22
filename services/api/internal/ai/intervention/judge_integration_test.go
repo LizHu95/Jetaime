@@ -76,4 +76,73 @@ func TestRealModelProactiveRecognition(t *testing.T) {
 			t.Logf("model=%s valid=true action=%s attempts=%d", config.Model, decision.Action, len(steps))
 		})
 	}
+	for _, continuation := range []bool{false, true} {
+		name := "new trip topic after yesterday food"
+		if continuation {
+			name = "explicit continuation of yesterday food"
+		}
+		t.Run(name, func(t *testing.T) {
+			base := time.Date(2026, 10, 22, 21, 32, 0, 0, time.FixedZone("Asia/Shanghai", 8*3600))
+			messages := []ai.Message{
+				{ID: "food", SenderID: "alice", SenderType: "user", Text: "昨天想找附近宵夜，推荐餐厅", SentAt: base.Add(-24 * time.Hour)},
+				{ID: "trip", SenderID: "alice", SenderType: "user", Text: "下周一20点去成都出差", SentAt: base.Add(-10 * time.Minute)},
+				{ID: "peer", SenderID: "bob", SenderType: "user", Text: "那我要一起去成都吗", SentAt: base.Add(-9 * time.Minute)},
+				{ID: "cost", SenderID: "alice", SenderType: "user", Text: "你去要花钱，我公司报销", SentAt: base.Add(-8 * time.Minute)},
+				{ID: "current", SenderID: "alice", SenderType: "user", Text: "AI帮我对比权衡下是否去成都同行", SentAt: base},
+			}
+			if continuation {
+				messages[4].Text = "AI接着昨天的宵夜推荐，帮我对比餐厅"
+			}
+			result, err := a.Discover(context.Background(), ai.RecognitionInput{TriggerMode: "proactive", CurrentMessageID: "current", Messages: messages})
+			if err != nil {
+				t.Fatal(err)
+			}
+			topic := result.Decision.TopicContext
+			if result.Decision.Action != "intervene" || topic == nil {
+				t.Fatal("explicit request lost current topic", result.Decision)
+			}
+			selected, anchors := map[string]bool{}, map[string]bool{}
+			for _, id := range topic.MessageIDs {
+				selected[id] = true
+			}
+			for _, id := range topic.AnchorMessageIDs {
+				anchors[id] = true
+			}
+			if continuation {
+				if !selected["food"] || !anchors["food"] || selected["trip"] {
+					t.Fatal("explicit cross-day continuation misclassified", topic)
+				}
+			} else if selected["food"] || !anchors["trip"] {
+				t.Fatal("old food leaked or trip anchor missing", topic)
+			}
+		})
+	}
+
+	t.Run("implicit continuation across days", func(t *testing.T) {
+		base := time.Date(2026, 10, 22, 21, 32, 0, 0, time.FixedZone("Asia/Shanghai", 8*3600))
+		messages := []ai.Message{
+			{ID: "food", SenderID: "alice", SenderType: "user", Text: "晚上吃面吧", SentAt: base.Add(-25 * time.Hour)},
+			{ID: "trip", SenderID: "alice", SenderType: "user", Text: "下周一去成都出差，可以同行，不过你要自费", SentAt: base.Add(-24 * time.Hour)},
+			{ID: "current", SenderID: "bob", SenderType: "user", Text: "AI那我要同行吗，我下周安排还不确定，而且要学习和照顾猫咪", SentAt: base},
+		}
+		result, err := a.Discover(context.Background(), ai.RecognitionInput{TriggerMode: "proactive", CurrentMessageID: "current", Messages: messages})
+		if err != nil {
+			t.Fatal(err)
+		}
+		topic := result.Decision.TopicContext
+		if topic == nil {
+			t.Fatal("implicit follow-up lost topic", result.Decision)
+		}
+		anchors, selected := map[string]bool{}, map[string]bool{}
+		for _, id := range topic.MessageIDs {
+			selected[id] = true
+		}
+		for _, id := range topic.AnchorMessageIDs {
+			anchors[id] = true
+		}
+		if !anchors["trip"] || selected["food"] {
+			t.Fatal("date overrode semantic continuation", topic)
+		}
+	})
+
 }

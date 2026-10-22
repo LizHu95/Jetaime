@@ -4,7 +4,9 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestStartupProfilesAndValidation(t *testing.T) {
@@ -89,6 +91,40 @@ func TestAutomaticDefaultProfileAndOverrides(t *testing.T) {
 		c, err := f.Resolve(8192)
 		if err != nil || c.Model != tc.model || c.Profile != tc.profile {
 			t.Fatalf("wrong default/override %+v %v", c, err)
+		}
+	}
+}
+
+func TestFallbackProfiles(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "models.json")
+	data := `{"default_profile":"primary","fallback_profiles":["primary","backup","backup","local"],"models":{"primary":{"provider":"ollama","base_url":"http://localhost:11434","model":"first"},"backup":{"provider":"openai-compatible","base_url":"https://example.com/v1","model":"second","api_key_env":"FALLBACK_TEST_KEY"},"local":{"provider":"ollama","base_url":"http://localhost:11434","model":"last","context_tokens":4096}}}`
+	if err := os.WriteFile(p, []byte(data), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("test", flag.ContinueOnError)
+	f := RegisterFlags(fs)
+	f.File = p
+	c, err := f.Resolve(8192)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Fallbacks) != 2 || c.Fallbacks[0].Profile != "backup" || c.Fallbacks[0].ContextTokens != 8192 || c.Fallbacks[0].OutputMode != "json_schema" || c.Fallbacks[1].ContextTokens != 4096 {
+		t.Fatalf("fallbacks: %+v", c)
+	}
+	t.Setenv("FALLBACK_TEST_KEY", "")
+	if _, err := c.New(time.Second); err == nil {
+		t.Fatal("missing fallback key accepted")
+	}
+	t.Setenv("FALLBACK_TEST_KEY", "test")
+	if _, err := c.New(time.Second); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range []string{strings.Replace(data, `"backup","backup"`, `"missing","backup"`, 1), strings.Replace(data, `"context_tokens":4096`, `"context_tokens":1`, 1)} {
+		if err := os.WriteFile(p, []byte(invalid), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.Resolve(8192); err == nil {
+			t.Fatal("invalid fallback accepted")
 		}
 	}
 }

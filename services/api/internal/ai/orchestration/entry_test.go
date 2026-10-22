@@ -50,6 +50,13 @@ func (r *testRecognizer) Discover(_ context.Context, in ai.RecognitionInput) (ai
 	if r.candidate != nil {
 		candidate = *r.candidate
 	}
+	if candidate.TopicContext == nil && candidate.Action != "skip" {
+		ids := []string{}
+		for _, message := range in.Messages {
+			ids = append(ids, message.ID)
+		}
+		candidate.TopicContext = &ai.TopicContext{Topic: "当前测试事项", Continuity: "continuation", MessageIDs: ids, AnchorMessageIDs: []string{in.CurrentMessageID}}
+	}
 	return ai.CandidateResult{Decision: candidate, Steps: r.result.Steps, Model: r.result.Model, PromptVersion: r.result.PromptVersion}, r.err
 }
 func (r *testRecognizer) Decide(_ context.Context, in ai.VerificationInput) (ai.RecognitionResult, error) {

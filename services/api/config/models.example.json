@@ -15,6 +15,78 @@
       "output_mode": "json_object",
       "enable_thinking": false,
       "context_tokens": 32768
+    },
+    "cloud-qwen-max-2026-06-08": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-max-2026-06-08",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-plus-2026-05-26": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-plus-2026-05-26",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-max-2026-05-20": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-max-2026-05-20",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-flash-2026-07-15": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-flash-2026-07-15",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-max-2026-05-17": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-max-2026-05-17",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-flash": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-flash",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
+    },
+    "cloud-qwen-max": {
+      "provider": "openai-compatible",
+      "base_url": "https://YOUR_WORKSPACE.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+      "model": "qwen3.7-max",
+      "api_key_env": "DASHSCOPE_API_KEY",
+      "output_mode": "json_object",
+      "enable_thinking": false,
+      "context_tokens": 32768
     }
-  }
+  },
+  "fallback_profiles": [
+    "cloud-qwen-max-2026-06-08",
+    "cloud-qwen-plus-2026-05-26",
+    "cloud-qwen-max-2026-05-20",
+    "cloud-qwen-flash-2026-07-15",
+    "cloud-qwen-max-2026-05-17",
+    "cloud-qwen-flash",
+    "cloud-qwen-max"
+  ]
 }

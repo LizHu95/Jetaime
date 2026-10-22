@@ -154,6 +154,50 @@ func decodeDecision(content string, resolved *jsonschema.Resolved, output any) e
 
 func validateCandidate(d ai.InterventionCandidate, input ai.RecognitionInput) error {
 	invalid := func() error { return fmt.Errorf("%w: invalid intervention candidate", ai.ErrInvalidDecision) }
+	if d.TopicContext == nil {
+		if d.Action != "skip" {
+			return invalid()
+		}
+	} else {
+		topic := d.TopicContext
+		if !validText(topic.Topic, 500) || (topic.Continuity != "new_topic" && topic.Continuity != "continuation" && topic.Continuity != "uncertain") {
+			return invalid()
+		}
+		available, selected, anchors := map[string]bool{}, map[string]bool{}, map[string]bool{}
+		for _, m := range input.Messages {
+			available[m.ID] = true
+		}
+		for _, id := range topic.MessageIDs {
+			if !available[id] || selected[id] {
+				return invalid()
+			}
+			selected[id] = true
+		}
+		for _, id := range topic.AnchorMessageIDs {
+			if !selected[id] || anchors[id] {
+				return invalid()
+			}
+			anchors[id] = true
+		}
+		if !anchors[input.CurrentMessageID] {
+			return invalid()
+		}
+		evidence := []string{}
+		if d.Intent != nil {
+			evidence = append(evidence, d.Intent.EvidenceMessageIDs...)
+		}
+		if d.Verification != nil {
+			evidence = append(evidence, d.Verification.EvidenceMessageIDs...)
+		}
+		for _, breakdown := range d.Breakdowns {
+			evidence = append(evidence, breakdown.EvidenceMessageIDs...)
+		}
+		for _, id := range evidence {
+			if !selected[id] {
+				return invalid()
+			}
+		}
+	}
 	decision := ai.Recognition{ShouldIntervene: d.Action == "intervene", Reason: d.Reason, Breakdowns: d.Breakdowns, Intent: d.Intent}
 	if err := validateRecognition(decision, input); err != nil {
 		return err

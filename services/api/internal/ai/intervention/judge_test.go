@@ -29,14 +29,14 @@ func window() ai.RecognitionInput {
 	return ai.RecognitionInput{TriggerMode: "proactive", CurrentMessageID: "current", Messages: []ai.Message{{ID: "current", Text: "按之前预算订500元这家", SentAt: time.Now()}}}
 }
 func verification() ai.VerificationInput {
-	return ai.VerificationInput{Conversation: window(), Candidate: ai.InterventionCandidate{Action: "verify", Reason: "缺少此前预算", Breakdowns: []ai.Breakdown{}, Verification: &ai.VerificationQuestion{Topic: "本次聚餐", Query: "预算及后续变更", EvidenceMessageIDs: []string{"current"}}}, Evidence: ai.InterventionEvidence{Coverage: "partial", Messages: []ai.Message{{ID: "old", Text: "本次人均预算300", SentAt: time.Now().Add(-time.Hour)}}}}
+	return ai.VerificationInput{Conversation: window(), Candidate: ai.InterventionCandidate{TopicContext: &ai.TopicContext{Topic: "本次聚餐", Continuity: "continuation", MessageIDs: []string{"current"}, AnchorMessageIDs: []string{"current"}}, Action: "verify", Reason: "缺少此前预算", Breakdowns: []ai.Breakdown{}, Verification: &ai.VerificationQuestion{Topic: "本次聚餐", Query: "预算及后续变更", EvidenceMessageIDs: []string{"current"}}}, Evidence: ai.InterventionEvidence{Coverage: "partial", Messages: []ai.Message{{ID: "old", Text: "本次人均预算300", SentAt: time.Now().Add(-time.Hour)}}}}
 }
 func TestDiscoveryRejectsInvalidTransitionsAndEvidence(t *testing.T) {
 	for _, output := range []string{
-		`{"action":"verify","reason":"核验","breakdowns":[],"intent":null,"verification":null}`,
-		`{"action":"verify","reason":"核验","breakdowns":[],"intent":null,"verification":{"topic":"聚餐","query":"预算","evidenceMessageIds":["foreign"]}}`,
-		`{"action":"intervene","reason":"已知冲突","breakdowns":[{"type":"forgotten_constraint","evidenceMessageIds":["current"]}],"intent":{"type":"clarify","objective":"确认预算","evidenceMessageIds":["current"]},"verification":null}`,
-		`{"action":"skip","reason":"无需参与","breakdowns":[],"intent":{"type":"clarify","objective":"仍要参与","evidenceMessageIds":["current"]},"verification":null}`,
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["current"],"anchorMessageIds":["current"]},"action":"verify","reason":"核验","breakdowns":[],"intent":null,"verification":null}`,
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["current"],"anchorMessageIds":["current"]},"action":"verify","reason":"核验","breakdowns":[],"intent":null,"verification":{"topic":"聚餐","query":"预算","evidenceMessageIds":["foreign"]}}`,
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["current"],"anchorMessageIds":["current"]},"action":"intervene","reason":"已知冲突","breakdowns":[{"type":"forgotten_constraint","evidenceMessageIds":["current"]}],"intent":{"type":"clarify","objective":"确认预算","evidenceMessageIds":["current"]},"verification":null}`,
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["current"],"anchorMessageIds":["current"]},"action":"skip","reason":"无需参与","breakdowns":[],"intent":{"type":"clarify","objective":"仍要参与","evidenceMessageIds":["current"]},"verification":null}`,
 	} {
 		model := &sequenceModel{outputs: []string{output}}
 		judge, _ := New(model, "test", 32768)
@@ -91,5 +91,19 @@ func TestFinalDecisionBudgetFailsBeforeInference(t *testing.T) {
 	_, err := judge.Decide(context.Background(), input)
 	if !errors.Is(err, ai.ErrContext) || len(model.requests) != 0 {
 		t.Fatal("over-budget verification called model", err)
+	}
+}
+
+func TestDiscoveryRejectsInvalidTopicScope(t *testing.T) {
+	for _, topic := range []*ai.TopicContext{
+		nil,
+		{Topic: "出差", Continuity: "new_topic", MessageIDs: []string{"foreign"}, AnchorMessageIDs: []string{"foreign"}},
+		{Topic: "出差", Continuity: "new_topic", MessageIDs: []string{"current"}, AnchorMessageIDs: []string{}},
+		{Topic: "出差", Continuity: "new_topic", MessageIDs: []string{"current"}, AnchorMessageIDs: []string{"foreign", "current"}},
+	} {
+		candidate := ai.InterventionCandidate{TopicContext: topic, Action: "intervene", Reason: "需要帮助", Breakdowns: []ai.Breakdown{}, Intent: &ai.InterventionIntent{Type: "suggest", Objective: "权衡出差", EvidenceMessageIDs: []string{"current"}}}
+		if err := validateCandidate(candidate, window()); !errors.Is(err, ai.ErrInvalidDecision) {
+			t.Fatal("invalid topic anchors accepted", topic, err)
+		}
 	}
 }
