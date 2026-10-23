@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
@@ -62,7 +62,7 @@ func TestDateClarificationRepairsAssistantCitationWithoutInventingTime(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	executor, err := bootstrap.New(model, "test", 16384, registry)
+	executor, err := execution.New(model, "test", 16384, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

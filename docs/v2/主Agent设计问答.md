@@ -1,6 +1,6 @@
 # 主 Agent 核心设计问答
 
-更新日期：2026-10-22。
+更新日期：2026-10-23。
 
 本文记录仓库当前实现与扩展边界，不代表线上已部署。关联文档：[双人群聊接口](双人群聊接口.md)、[历史向量化与增量记忆](历史向量化与增量记忆.md)、[Workflow 评测说明](Workflow评测说明.md)。
 
@@ -12,7 +12,7 @@
 HTTP 保存消息与 AI 任务
   → jobs.Worker 领取任务、固定授权与原提问截止序号
   → 按入口加载上下文：主动请求的小窗口 / 被动监听的最近 N 条
-  → runtime → orchestration.Entry
+  → execution.Service（身份、Trace、入口编排）
       ├─ 主动：用户 @AI / 快捷提问 / 既有请求补全 → main
       └─ 被动：普通群聊 → intervention.Judge.Discover
           ├─ skip → 静默结束
@@ -32,7 +32,7 @@ HTTP 保存消息与 AI 任务
 
 这里的主动、被动以用户为视角：用户主动唤起直接进入主 Agent；AI 被动监听普通聊天时先判断是否干预。兼容现有接口与数据库，后者仍使用 `triggerMode=proactive`（AI 主动介入）。
 
-[`orchestration.Entry`](../../services/api/internal/ai/orchestration/entry.go) 负责入口分流、一次只读核验和判断结果交接；[`intervention.Judge`](../../services/api/internal/ai/intervention/judge.go) 以独立提示词执行候选发现和补证后的最终判断，不执行业务工具或调用主 Agent。N 当前为 30，由 `ai.InterventionMessageLimit` 统一约束读取与判断窗口。5 秒等待、群开关和新消息取消旧任务仍由聊天领域负责。候选输出 `skip / intervene / verify`。verify 必须提出当前事项、一个核验问题和近期疑点来源；编排层最多调用一次 [`HistoryEvidence`](../../services/api/internal/ai/intervention/history.go)，搜索当前群的活跃记忆与历史文档（最多 5 个），随后读取最多 20 个来源 ID 的原文及相邻消息，并补最多 40 条近期原文检查修订。摘要只用于定位来源，不直接作为事实输入模型。核验读取最多 15 秒，最终新增原文最多 50 条，保留完整消息，条数超限时标记截断；不再设置独立字节上限，整个最终判断请求仍受模型上下文预算约束，超限时在调用模型前拒绝；这些均是上限，不保证历史覆盖完整。
+[`execution.entry`](../../services/api/internal/ai/execution/entry.go) 负责入口分流、一次只读核验和判断结果交接；[`intervention.Judge`](../../services/api/internal/ai/intervention/judge.go) 以独立提示词执行候选发现和补证后的最终判断，不执行业务工具或调用主 Agent。N 当前为 30，由 `ai.InterventionMessageLimit` 统一约束读取与判断窗口。5 秒等待、群开关和新消息取消旧任务仍由聊天领域负责。候选输出 `skip / intervene / verify`。verify 必须提出当前事项、一个核验问题和近期疑点来源；编排层最多调用一次 [`HistoryEvidence`](../../services/api/internal/ai/intervention/history.go)，搜索当前群的活跃记忆与历史文档（最多 5 个），随后读取最多 20 个来源 ID 的原文及相邻消息，并补最多 40 条近期原文检查修订。摘要只用于定位来源，不直接作为事实输入模型。核验读取最多 15 秒，最终新增原文最多 50 条，保留完整消息，条数超限时标记截断；不再设置独立字节上限，整个最终判断请求仍受模型上下文预算约束，超限时在调用模型前拒绝；这些均是上限，不保证历史覆盖完整。
 
 检索全部使用服务端群 ID、请求人和 `context_end_seq`，不能由模型改变。最终判断只有原文，没有摘要；必须同时引用近期疑点和新增历史来源，且禁止 `execute_request`。约束、目标、风险障碍至少两条不同来源，避免用一条消息同时充当基准和偏离证据。核验能力未配置、缺少可信截止序号或未找到新增原文时静默；读取或模型失败时不进入主 Agent，不向群里发送错误。最终证据合并回执行上下文，并通过 RelatedMessageIDs 固定保留；判断通过后主 Agent 查证仍可静默。检索覆盖始终标记为 partial，不能宣称已排除所有历史修订。
 
@@ -133,13 +133,13 @@ QA 内部通过 `memory.Service.Search` 查询当前群的 `history` 文档：�
 
 ## Q12：能力路由在哪里声明？
 
-- [`bootstrap/service.go`](../../services/api/internal/ai/bootstrap/service.go)：装配判断器、共享主 Agent 和入口编排层，将入口以 main 身份注册到 runtime，使用调用方提供的工具注册表。
-- [`orchestration/entry.go`](../../services/api/internal/ai/orchestration/entry.go)：区分主动、被动入口；被动判断通过后交接目标、证据和写操作权限，合并判断与执行步骤。
+- [`execution/service.go`](../../services/api/internal/ai/execution/service.go)：装配判断器、共享主 Agent 和入口编排层，将入口装配为统一的 execution.Service，使用调用方提供的工具注册表。
+- [`execution/entry.go`](../../services/api/internal/ai/execution/entry.go)：区分主动、被动入口；被动判断通过后交接目标、证据和写操作权限，合并判断与执行步骤。
 - [`intervention/judge.go`](../../services/api/internal/ai/intervention/judge.go)：候选发现和核验后最终判断，每阶段最多一次结构修复与证据校验；正文分别维护在 recognition.md 和 verification.md。
 - [`tools/registry.go`](../../services/api/internal/ai/tools/registry.go)：统一工具定义、名称白名单、调用协议、超时、Trace 与执行。
 - [`qa/tool.go`](../../services/api/internal/ai/tools/qa/tool.go)：声明 `answer_question` 的描述、参数与处理函数。
 - [`main_agent.go`](../../services/api/internal/ai/agent/main/main_agent.go)：执行主 Agent 工具选择与受限循环。
-- [`runtime`](../../services/api/internal/ai/runtime/runtime.go)：按 Agent ID 调度，与工具注册表分工不同。
+- [`execution.Service`](../../services/api/internal/ai/execution/execute.go)：统一执行 main，校验执行身份与上下文，记录 invocation ID 和 Trace。
 
 添加工具时在装配处注册即可，不向聊天 Worker 添加意图分支。
 

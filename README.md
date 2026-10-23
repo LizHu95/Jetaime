@@ -108,9 +108,8 @@ services/api/
 ├── internal/chat/            消息、阅读进度与 PostgreSQL 适配
 ├── internal/reminder/        提醒领域的 Service、持久化、调度与 HTTP 接口
 ├── internal/ai/
-│   ├── service.go            共用执行入口与协议
-│   ├── bootstrap/            注册当前唯一的 main Agent
-│   ├── runtime/              按 Agent ID 调度与执行身份、Trace
+│   ├── protocol.go           执行协议与持久任务数据类型
+│   ├── execution/            main 装配、入口编排、执行身份与 Trace
 │   ├── agent/main/           主 Agent 工具选择与执行循环
 │   ├── context/              上下文选择、引用保留与预算
 │   ├── tools/                工具注册表及 qa、extract、reminder 等 AI 适配
@@ -123,11 +122,13 @@ services/api/
 └── internal/telemetry/       调用链
 ```
 
-当前只注册一个 `main` Agent，注册点为 `internal/ai/bootstrap/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 12 条/4 KiB 近期背景判断需求；追问丢失所指事项时可通过 `read_recent_messages` 补读有权限与序号截止的近期真人原文；需要历史证据时调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。所有入口显式注册完整能力，bootstrap 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v20-followup-advice`，QA 为 `answer-question-v2-hybrid`。
+当前只有一个 `main` Agent，装配入口为 `internal/ai/execution/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 6 条/4 KiB 近期背景判断需求；追问丢失所指事项时可通过 `read_recent_messages` 补读有权限与序号截止的近期真人原文；需要历史证据时调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。调用方显式注册完整能力，execution 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v20-followup-advice`，QA 为 `answer-question-v2-hybrid`。
 
-提示词按能力维护：被动干预的候选发现正文位于 [`intervention/recognition.md`](services/api/internal/ai/intervention/recognition.md)，补证后的最终判断位于 [`intervention/verification.md`](services/api/internal/ai/intervention/verification.md)，通过 `go:embed` 编译进程序，Schema、版本与结构修复提示位于 [`intervention/prompts.go`](services/api/internal/ai/intervention/prompts.go)；主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（上下文预算检查复用该子包）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
+提示词按能力维护：被动干预的候选发现正文位于 [`intervention/recognition.md`](services/api/internal/ai/intervention/recognition.md)，补证后的最终判断位于 [`intervention/verification.md`](services/api/internal/ai/intervention/verification.md)，通过 `go:embed` 编译进程序，Schema、版本与结构修复提示位于 [`intervention/prompts.go`](services/api/internal/ai/intervention/prompts.go)；主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（完整模型请求的预算在 Agent 内检查）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
 
-生产群聊调用 `ai.Service → runtime → orchestration.Entry → agent/main`。主动请求直接进入 main；被动消息由独立判断器发现 `skip / intervene / verify` 候选，verify 最多一轮只读补证后再判断。生产装配复用受群权限与消息序号截止约束的记忆/历史检索及原文回查。运行时只依赖 Agent 协议，具体 Agent 不依赖聊天或数据库；群共享记忆通过 QA 的函数式上下文提供器接入。尚未实现跨 Agent 委派与调用树恢复。
+生产群聊调用 `execution.Service → entry → agent/main`。主动请求直接进入 main；被动消息由独立判断器发现 `skip / intervene / verify` 候选，verify 最多一轮只读补证后再判断。生产装配复用受群权限与消息序号截止约束的记忆/历史检索及原文回查。执行边界使用 Agent 协议，具体 Agent 不依赖聊天或数据库；群共享记忆通过 QA 的函数式上下文提供器接入。尚未实现跨 Agent 委派与调用树恢复。
+
+原文读取统一由 `chat.Service` 提供，`chat/history` 只定义原文消息与读取契约；QA、干预核验和近期补读不再通过 memory Store 回查聊天。记忆提取及索引进度仍由 memory 的事务维护。`app/chat_tools.go` 将工具 Scope 转换为聊天领域的 `ExecutionScope`，聊天业务不依赖 `ai/tools`。初始上下文仅检查所选数据预算，各 Agent 在模型调用前检查包含提示词、Schema 与工具目录的完整请求。
 
 `ai.Job` 表示数据库排队与租约状态，`ai.Run` 表示一次执行记录，`ai.Result` 是允许保存并展示的回答或建议。每次运行带独立的 `agentId/invocationId`，原始模型响应和内部步骤不会进入消息 API 的结果对象。`chat` 的上下文适配器执行群权限与触发序号检查，`ai/context` 负责原文选择与预算。
 

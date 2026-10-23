@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
@@ -106,7 +106,7 @@ func TestMainRefreshReturnsOnlyNewPlaceCards(t *testing.T) {
 		t.Fatal(err)
 	}
 	model := &refreshModel{t: t}
-	service, err := bootstrap.New(model, "test", 32768, registry)
+	service, err := execution.New(model, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type reader struct {
-	messages []memory.Message
+	messages []history.Message
 	calls    int
 }
 
-func (r *reader) RecentMessages(_ context.Context, group, actor string, end int64, limit int) ([]memory.Message, error) {
+func (r *reader) RecentMessages(_ context.Context, group, actor string, end int64, limit int) ([]history.Message, error) {
 	r.calls++
 	if group != "g" || actor != "u" || end != 42 || limit != 30 {
 		return nil, errors.New("scope changed")
@@ -35,7 +35,7 @@ func TestRecentOriginalsPreserveScopeAndExcludeUnreferencedAI(t *testing.T) {
 		if explicitReply {
 			scope.Context.Messages[0].ReplyToID = &id
 		}
-		r := &reader{messages: []memory.Message{
+		r := &reader{messages: []history.Message{
 			{ID: "trip", Seq: 10, SenderID: "u", SenderType: "user", Text: "下周去成都出差", SentAt: time.Now().Add(-time.Hour)},
 			{ID: id, Seq: 11, SenderID: "assistant", SenderType: "assistant", Text: "之前答错的餐厅建议", SentAt: time.Now().Add(-time.Minute)},
 		}}
@@ -60,7 +60,7 @@ func TestRecentOriginalsRequireFenceAndRejectFuture(t *testing.T) {
 		t.Fatal("read without sequence fence")
 	}
 	scope = input()
-	r.messages = []memory.Message{{ID: "future", Seq: 43}}
+	r.messages = []history.Message{{ID: "future", Seq: 43}}
 	if _, err := New(r).Invoke(context.Background(), scope, json.RawMessage(`{}`)); !errors.Is(err, ai.ErrInvalidDecision) {
 		t.Fatal("future evidence accepted", err)
 	}

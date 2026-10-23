@@ -1,4 +1,4 @@
-package runtime_test
+package execution
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/runtime"
 )
 
 type agent struct {
@@ -26,17 +25,10 @@ func input(group string) ai.Invocation {
 func TestRegistrationAndExecutionBoundary(t *testing.T) {
 	calls := 0
 	a := agent{id: "main", call: func(context.Context, ai.Invocation) (ai.Run, error) { calls++; return ai.Run{}, nil }}
-	if _, err := runtime.New(a, a); err == nil {
-		t.Fatal("duplicate registration accepted")
-	}
-	if _, err := runtime.New(agent{}); err == nil {
+	if _, err := newService(agent{}); err == nil {
 		t.Fatal("empty identity accepted")
 	}
-	runner, err := runtime.New(a)
-	if err != nil {
-		t.Fatal(err)
-	}
-	service, err := ai.NewService(runner)
+	service, err := newService(a)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,8 +65,7 @@ func TestConcurrentInvocationsRetainIndependentIdentity(t *testing.T) {
 	a := agent{id: "main", call: func(_ context.Context, in ai.Invocation) (ai.Run, error) {
 		return ai.Run{ID: "capability-result", GroupID: in.Context.GroupID}, nil
 	}}
-	runner, _ := runtime.New(a)
-	service, _ := ai.NewService(runner)
+	service, _ := newService(a)
 	var wg sync.WaitGroup
 	ids := make(chan string, 2)
 	for _, group := range []string{"one", "two"} {

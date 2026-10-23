@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
@@ -143,7 +143,7 @@ func TestMainAgentCanComposeMCPQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	model := &sequenceModel{t: t}
-	service, err := bootstrap.New(model, "test", 65536, registry)
+	service, err := execution.New(model, "test", 65536, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

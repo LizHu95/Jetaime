@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
@@ -110,7 +110,7 @@ func TestRegisteredReminderUsesHistoricalTime(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err := bootstrap.New(model, "test", 16384, registry)
+			service, err := execution.New(model, "test", 16384, registry)
 			if err != nil {
 				t.Fatal(err)
 			}

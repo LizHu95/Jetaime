@@ -7,19 +7,17 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type Searcher interface {
 	Search(context.Context, string, string, memory.SearchInput) (memory.SearchResult, error)
 }
-type MessageReader interface {
-	RecentMessages(context.Context, string, string, int64, int) ([]memory.Message, error)
-	SourceMessages(context.Context, string, string, int64, []string) ([]memory.Message, error)
-}
+type MessageReader = history.Reader
 
 // HistoryEvidence searches active memories/history once and reads their original
 // sources plus neighbours and recent revisions. Summaries never become facts.
-// Every read is fenced and authorized by the existing memory services.
+// Searches use memory authorization; original reads use the chat history boundary.
 func HistoryEvidence(search Searcher, reader MessageReader) ai.InterventionEvidenceProvider {
 	return func(ctx context.Context, request ai.InterventionEvidenceRequest) (ai.InterventionEvidence, error) {
 		out := ai.InterventionEvidence{Messages: []ai.Message{}, Coverage: "partial"}
@@ -75,7 +73,7 @@ func HistoryEvidence(search Searcher, reader MessageReader) ai.InterventionEvide
 			existing[message.ID] = true
 		}
 		// Primary retrieved sources first; neighbours and recent originals follow.
-		candidates := []memory.Message{}
+		candidates := []history.Message{}
 		for _, id := range ids {
 			for _, message := range sources {
 				if message.ID == id {

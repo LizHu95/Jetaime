@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main/prompts"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/google/uuid"
 )
@@ -177,12 +176,17 @@ func sameContextMessage(left, right ai.Message) bool {
 	return left.ID == right.ID && left.GroupID == right.GroupID && left.SenderID == right.SenderID && left.Text == right.Text && left.SentAt.Equal(right.SentAt)
 }
 
+// checkInitialBudget admits the selected data only. The executing agent checks
+// its complete prompt, schemas and tool observations before every model call.
 func checkInitialBudget(input ai.Context, question string, tokens int) error {
-	request, err := prompts.MainRequest("", input, question, tokens)
+	payload, err := json.Marshal(struct {
+		Context  ai.Context `json:"context"`
+		Question string     `json:"question"`
+	}{input, question})
 	if err != nil {
 		return err
 	}
-	return llm.CheckContextBudget(request, tokens)
+	return llm.CheckContextBudget(llm.Request{Messages: []llm.Message{{Role: "user", Content: string(payload)}}, Options: llm.Options{NumCtx: tokens, NumPredict: 2048}}, tokens)
 }
 
 // ForQuestion adapts local console/evaluation snapshots with a separate question.

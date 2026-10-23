@@ -1,5 +1,4 @@
-// Package runtime dispatches registered agents without importing their implementations.
-package runtime
+package execution
 
 import (
 	"context"
@@ -12,29 +11,24 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-// Runtime is immutable after construction and safe for concurrent requests.
-type Runtime struct{ agents map[string]ai.Agent }
+// Service owns one immutable execution entry and is safe for concurrent calls.
+type Service struct{ agent ai.Agent }
 
-func New(agents ...ai.Agent) (*Runtime, error) {
-	r := &Runtime{agents: map[string]ai.Agent{}}
-	for _, agent := range agents {
-		if agent == nil || agent.ID() == "" {
-			return nil, fmt.Errorf("agent ID is required")
-		}
-		if _, exists := r.agents[agent.ID()]; exists {
-			return nil, fmt.Errorf("duplicate agent %q", agent.ID())
-		}
-		r.agents[agent.ID()] = agent
+func newService(agent ai.Agent) (*Service, error) {
+	if agent == nil || agent.ID() == "" {
+		return nil, fmt.Errorf("agent ID is required")
 	}
-	return r, nil
+	return &Service{agent: agent}, nil
 }
 
-func (r *Runtime) Execute(ctx context.Context, in ai.Invocation) (out ai.Run, err error) {
+func (r *Service) Execute(ctx context.Context, in ai.Invocation) (out ai.Run, err error) {
 	if err = ctx.Err(); err != nil {
 		return
 	}
-	agent, ok := r.agents[in.AgentID]
-	if !ok {
+	if in.AgentID == "" {
+		in.AgentID = r.agent.ID()
+	}
+	if in.AgentID != r.agent.ID() {
 		return out, fmt.Errorf("agent %q is unavailable", in.AgentID)
 	}
 	if err = ai.ValidateContext(in.Context); err != nil {
@@ -50,7 +44,7 @@ func (r *Runtime) Execute(ctx context.Context, in ai.Invocation) (out ai.Run, er
 		}
 		telemetry.End(span, traceErr)
 	}()
-	out, err = agent.Invoke(ctx, in)
+	out, err = r.agent.Invoke(ctx, in)
 	out.InvocationID = id
 	out.AgentID = in.AgentID
 	// Do not replace capability IDs: suggestion confirmation keys refer to them.

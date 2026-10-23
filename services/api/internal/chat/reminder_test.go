@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
@@ -27,7 +27,7 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	store := reminder.NewService(reminder.NewStore(f.store.pool))
-	adapter := remindertool.New(store, ReminderOperation)
+	adapter := remindertool.New(store, reminderOperation)
 	delivery := reminder.NewWorker(store)
 	scopeFor := func(actor string) reminder.Scope { return reminder.Scope{GroupID: f.group, UserID: actor} }
 	apply := func(scope tools.Scope, args remindertool.Arguments) (tools.Result, error) {
@@ -76,7 +76,7 @@ func TestReminderClarificationAndDurableDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executor, err := bootstrap.New(model, "test", 16384, registry)
+	executor, err := execution.New(model, "test", 16384, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestReminderRecoveryCancellationAndClosedGroup(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	store := reminder.NewService(reminder.NewStore(f.store.pool))
-	adapter := remindertool.New(store, ReminderOperation)
+	adapter := remindertool.New(store, reminderOperation)
 	delivery := reminder.NewWorker(store)
 	scopeFor := func(actor string) reminder.Scope { return reminder.Scope{GroupID: f.group, UserID: actor} }
 	apply := func(scope tools.Scope, args remindertool.Arguments) (tools.Result, error) {
@@ -362,4 +362,17 @@ func TestReminderBusinessAPIWithoutAI(t *testing.T) {
 	if _, err = f.store.Claim(ctx, time.Minute); err == nil {
 		t.Fatal("business writes invoked AI")
 	}
+}
+
+// chatExecutionScope adapts tool protocol to backend-owned chat authorization.
+func chatExecutionScope(scope tools.Scope) ExecutionScope {
+	out := ExecutionScope{GroupID: scope.Context.GroupID, ActorID: scope.Context.ActorID, ContextEndSeq: scope.ContextEndSeq}
+	if r := scope.Context.Request; r != nil {
+		out.SenderID, out.MessageID, out.JobID, out.JobAttempt = r.SenderID, r.MessageID, r.JobID, r.JobAttempt
+	}
+	return out
+}
+
+func reminderOperation(scope tools.Scope) (reminder.Operation, error) {
+	return ReminderOperation(chatExecutionScope(scope))
 }

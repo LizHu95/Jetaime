@@ -1,4 +1,4 @@
-package orchestration
+package execution
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func TestActiveRequestsBypassRecognition(t *testing.T) {
 	for _, mode := range []string{"", "mention"} {
 		t.Run(mode, func(t *testing.T) {
 			main, judge := &testAgent{}, &testRecognizer{err: errors.New("must not judge")}
-			entry, err := New(main, judge)
+			entry, err := newEntry(main, judge)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func TestPassiveSilenceAndFailureNeverInvokeMain(t *testing.T) {
 	for _, failure := range []error{nil, failed} {
 		main := &testAgent{}
 		judge := &testRecognizer{result: ai.RecognitionResult{Model: "judge-model", PromptVersion: "judge-v1", Steps: []ai.Step{{Name: "recognize_intent"}}}, err: failure}
-		entry, _ := New(main, judge)
+		entry, _ := newEntry(main, judge)
 		out, err := entry.Invoke(context.Background(), passiveInput())
 		if !errors.Is(err, failure) || main.calls != 0 || judge.calls != 1 || out.Model != "judge-model" || len(out.Steps) != 1 || out.StartedAt.IsZero() {
 			t.Fatalf("passive gate failed: %+v err=%v calls=%d", out, err, main.calls)
@@ -116,7 +116,7 @@ func TestPassiveInterventionUsesSharedMainWithEvidence(t *testing.T) {
 			ShouldIntervene: true, Intent: &ai.InterventionIntent{Type: intent, Objective: "确认地点", EvidenceMessageIDs: []string{"m2"}},
 			Breakdowns: []ai.Breakdown{{Type: "uncertainty", EvidenceMessageIDs: []string{"m1"}}},
 		}, Steps: []ai.Step{{Name: "recognize_intent"}}}}
-		entry, _ := New(main, judge)
+		entry, _ := newEntry(main, judge)
 		in := passiveInput()
 		in.Mode = "help" // Passive execution must still enter the shared main loop.
 		in.LoadExtraction = func(context.Context) (ai.Context, error) { return in.Context, nil }
@@ -154,7 +154,7 @@ func TestCommunicationHelpRespectsPrimaryGoalAndExplicitOperations(t *testing.T)
 			}
 			main := &testAgent{}
 			judge := &testRecognizer{result: ai.RecognitionResult{Decision: ai.Recognition{ShouldIntervene: true, Reason: "当前目标明确", Breakdowns: breakdowns, Intent: &ai.InterventionIntent{Type: tc.intent, Objective: "处理当前目标", EvidenceMessageIDs: []string{"m1", "m2"}}}}}
-			entry, _ := New(main, judge)
+			entry, _ := newEntry(main, judge)
 			_, err := entry.Invoke(context.Background(), passiveInput())
 			if err != nil || main.calls != 1 {
 				t.Fatalf("main not invoked: %v", err)
@@ -170,7 +170,7 @@ func TestCancellationAfterRecognitionDoesNotInvokeMain(t *testing.T) {
 	defer cancel()
 	main := &testAgent{}
 	judge := &testRecognizer{cancel: cancel, result: ai.RecognitionResult{Decision: ai.Recognition{ShouldIntervene: true, Intent: &ai.InterventionIntent{Type: "clarify"}}}}
-	entry, _ := New(main, judge)
+	entry, _ := newEntry(main, judge)
 	_, err := entry.Invoke(ctx, passiveInput())
 	if !errors.Is(err, context.Canceled) || main.calls != 0 {
 		t.Fatal("cancelled passive request entered main", err)
@@ -184,7 +184,7 @@ func TestInvalidPassiveWindowDoesNotReachRecognizer(t *testing.T) {
 		func(in *ai.Invocation) { in.Context.Messages[1].SenderType = "assistant" },
 	} {
 		main, judge := &testAgent{}, &testRecognizer{}
-		entry, _ := New(main, judge)
+		entry, _ := newEntry(main, judge)
 		in := passiveInput()
 		mutate(&in)
 		_, err := entry.Invoke(context.Background(), in)
@@ -255,7 +255,7 @@ func TestVerificationCannotBypassEvidenceGate(t *testing.T) {
 			if tc.noFence {
 				in.ContextEndSeq = 0
 			}
-			entry, _ := New(main, judge, provider)
+			entry, _ := newEntry(main, judge, provider)
 			out, err := entry.Invoke(ctx, in)
 			if (err != nil) != tc.wantErr || main.calls != 0 {
 				t.Fatalf("verification gate failed: err=%v main=%d", err, main.calls)

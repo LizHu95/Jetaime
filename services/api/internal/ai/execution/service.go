@@ -1,5 +1,5 @@
-// Package bootstrap assembles agents and their runtime using an explicit tool registry.
-package bootstrap
+// Package execution assembles and executes the shared main agent.
+package execution
 
 import (
 	"fmt"
@@ -8,14 +8,12 @@ import (
 	mainagent "github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/orchestration"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/runtime"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 
 // New does not select, create or add tools. Each application entry point owns
 // its complete capability list and passes an already validated registry here.
-func New(model llm.ChatModel, name string, tokens int, registry *tools.Registry, evidence ...ai.InterventionEvidenceProvider) (*ai.Service, error) {
+func New(model llm.ChatModel, name string, tokens int, registry *tools.Registry, evidence ...ai.InterventionEvidenceProvider) (*Service, error) {
 	if registry == nil {
 		return nil, fmt.Errorf("tool registry is required")
 	}
@@ -28,13 +26,9 @@ func New(model llm.ChatModel, name string, tokens int, registry *tools.Registry,
 	if err != nil {
 		return nil, err
 	}
-	entry, err := orchestration.New(main, judge, evidence...)
+	entry, err := newEntry(main, judge, evidence...)
 	if err != nil {
 		return nil, err
 	}
-	runner, err := runtime.New(entry)
-	if err != nil {
-		return nil, err
-	}
-	return ai.NewService(runner)
+	return newService(entry)
 }

@@ -1,5 +1,5 @@
-// Package orchestration separates user-initiated requests from passive listening.
-package orchestration
+// Entry separates user-initiated requests from passive listening.
+package execution
 
 import (
 	"context"
@@ -11,29 +11,29 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 
-// Entry is registered in the runtime in front of the shared main agent.
+// entry runs recognition before the main agent only for passive listening.
 // The persisted trigger mode "proactive" denotes AI initiative (passive from
 // the user's perspective); mentions and request follow-ups bypass recognition.
-type Entry struct {
+type entry struct {
 	main       ai.Agent
 	recognizer ai.Recognizer
 	evidence   ai.InterventionEvidenceProvider
 }
 
-func New(main ai.Agent, recognizer ai.Recognizer, providers ...ai.InterventionEvidenceProvider) (*Entry, error) {
+func newEntry(main ai.Agent, recognizer ai.Recognizer, providers ...ai.InterventionEvidenceProvider) (*entry, error) {
 	if main == nil || recognizer == nil {
 		return nil, fmt.Errorf("main agent and intervention recognizer are required")
 	}
-	entry := &Entry{main: main, recognizer: recognizer}
+	entry := &entry{main: main, recognizer: recognizer}
 	if len(providers) > 0 {
 		entry.evidence = providers[0]
 	}
 	return entry, nil
 }
 
-func (e *Entry) ID() string { return e.main.ID() }
+func (e *entry) ID() string { return e.main.ID() }
 
-func (e *Entry) Invoke(ctx context.Context, in ai.Invocation) (ai.Run, error) {
+func (e *entry) Invoke(ctx context.Context, in ai.Invocation) (ai.Run, error) {
 	if err := ctx.Err(); err != nil {
 		return ai.Run{}, err
 	}
@@ -43,7 +43,7 @@ func (e *Entry) Invoke(ctx context.Context, in ai.Invocation) (ai.Run, error) {
 	return e.invokePassive(ctx, in)
 }
 
-func (e *Entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, error) {
+func (e *entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, error) {
 	started := time.Now()
 	run := ai.Run{Kind: "main", GroupID: in.Context.GroupID, ActorID: in.Context.ActorID, StartedAt: started, Status: "failed"}
 	if err := ai.ValidateContext(in.Context); err != nil {
@@ -175,7 +175,7 @@ func (e *Entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 }
 
 // verify performs exactly one bounded read and at most one final decision stage.
-func (e *Entry) verify(ctx context.Context, in ai.Invocation, input ai.RecognitionInput, candidate ai.InterventionCandidate) (ai.Recognition, []ai.Step, []ai.Message, error) {
+func (e *entry) verify(ctx context.Context, in ai.Invocation, input ai.RecognitionInput, candidate ai.InterventionCandidate) (ai.Recognition, []ai.Step, []ai.Message, error) {
 	silent := ai.Recognition{Reason: "核验能力不可用，无法确认疑点", Breakdowns: []ai.Breakdown{}}
 	if candidate.Verification == nil {
 		return silent, nil, nil, ai.ErrInvalidDecision

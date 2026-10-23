@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type initialHistory struct {
@@ -32,15 +33,15 @@ func (h *initialHistory) Search(_ context.Context, group, actor string, in memor
 	h.request = in
 	return memory.SearchResult{Documents: []memory.Document{{SourceIDs: []string{"old"}}}}, h.err
 }
-func (h *initialHistory) RecentMessages(_ context.Context, _, _ string, fence int64, _ int) ([]memory.Message, error) {
+func (h *initialHistory) RecentMessages(_ context.Context, _, _ string, fence int64, _ int) ([]history.Message, error) {
 	h.fence = fence
 	return nil, nil
 }
-func (h *initialHistory) SourceMessages(_ context.Context, _, _ string, fence int64, ids []string) ([]memory.Message, error) {
+func (h *initialHistory) SourceMessages(_ context.Context, _, _ string, fence int64, ids []string) ([]history.Message, error) {
 	if fence != h.fence || len(ids) != 1 || ids[0] != "old" {
 		return nil, errors.New("wrong evidence fence")
 	}
-	return []memory.Message{{ID: "old", Seq: 1, SenderID: "u", Text: "历史中约定周五面试", SentAt: snapshot().Messages[0].SentAt.Add(-time.Hour)}}, nil
+	return []history.Message{{ID: "old", Seq: 1, SenderID: "u", Text: "历史中约定周五面试", SentAt: snapshot().Messages[0].SentAt.Add(-time.Hour)}}, nil
 }
 func initialRequest() aicontext.ContextRequest {
 	return aicontext.ContextRequest{Snapshot: snapshot(), TriggerID: "current", Question: "面试是哪天？", Tokens: 16384, MaxSeq: 99}
@@ -93,7 +94,7 @@ func TestHistoryRetrievalOnlyAfterQAToolSelected(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err := bootstrap.New(model, "test", 16384, registry)
+			service, err := execution.New(model, "test", 16384, registry)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -1,4 +1,4 @@
-package bootstrap
+package execution
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type disabledExtractionModel struct {
@@ -67,12 +67,12 @@ func (m customCatalogModel) Call(_ context.Context, request llm.Request) (llm.Re
 		return llm.Result{}, err
 	}
 	if len(payload.Tools) != 1 || payload.Tools[0].Name != "echo" {
-		m.t.Fatalf("bootstrap added an implicit capability: %+v", payload.Tools)
+		m.t.Fatalf("execution added an implicit capability: %+v", payload.Tools)
 	}
 	return llm.Result{Content: `{"name":"echo","arguments":{"text":"ready"}}`}, nil
 }
 
-func TestBootstrapUsesOnlySuppliedRegistry(t *testing.T) {
+func TestExecutionUsesOnlySuppliedRegistry(t *testing.T) {
 	type input struct {
 		Text string `json:"text"`
 	}
@@ -100,7 +100,7 @@ func TestBootstrapUsesOnlySuppliedRegistry(t *testing.T) {
 	}
 }
 
-func TestBootstrapRequiresExplicitRegistry(t *testing.T) {
+func TestExecutionRequiresExplicitRegistry(t *testing.T) {
 	if _, err := New(customCatalogModel{t: t}, "test", 16384, nil); err == nil {
 		t.Fatal("missing registry silently replaced with defaults")
 	}
@@ -120,7 +120,7 @@ func (m *entryModel) Call(_ context.Context, request llm.Request) (llm.Result, e
 	m.outputs = m.outputs[1:]
 	return llm.Result{Content: output}, nil
 }
-func TestBootstrapRoutesActiveAndPassiveToSameMain(t *testing.T) {
+func TestExecutionRoutesActiveAndPassiveToSameMain(t *testing.T) {
 	const answer = `{"name":"respond","arguments":{"status":"answered","answer":"确认一下地点？","sourceMessageIds":["m"]}}`
 	for _, tc := range []struct {
 		name, trigger string
@@ -157,7 +157,7 @@ func TestBootstrapRoutesActiveAndPassiveToSameMain(t *testing.T) {
 	}
 }
 
-func TestBootstrapVerificationHandoffKeepsHistoricalEvidence(t *testing.T) {
+func TestExecutionVerificationHandoffKeepsHistoricalEvidence(t *testing.T) {
 	const discovery = `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"verify","reason":"需核实此前预算","breakdowns":[],"intent":null,"verification":{"topic":"本次周末聚餐","query":"此前预算及后续修改是什么","evidenceMessageIds":["m"]}}`
 	for _, intervene := range []bool{true, false} {
 		t.Run(fmt.Sprint("intervene=", intervene), func(t *testing.T) {
@@ -287,11 +287,11 @@ func TestPassiveTopicScopePreservesTripAnchorAndSeparatesOldPlaces(t *testing.T)
 
 type followupReader struct {
 	t        *testing.T
-	messages []memory.Message
+	messages []history.Message
 	calls    int
 }
 
-func (r *followupReader) RecentMessages(_ context.Context, group, actor string, end int64, limit int) ([]memory.Message, error) {
+func (r *followupReader) RecentMessages(_ context.Context, group, actor string, end int64, limit int) ([]history.Message, error) {
 	r.calls++
 	if group != "g" || actor != "u" || end != 42 || limit != 30 {
 		r.t.Fatal("follow-up scope changed")
@@ -302,7 +302,7 @@ func TestActiveFollowupReadsOriginalTripBeforeResponding(t *testing.T) {
 	now := time.Now()
 	for _, question := range []string{"我要去吗", "我考虑的是不确定下周有没有事，其次要学习，还有家里有猫咪"} {
 		t.Run(question, func(t *testing.T) {
-			reader := &followupReader{t: t, messages: []memory.Message{
+			reader := &followupReader{t: t, messages: []history.Message{
 				{ID: "trip", Seq: 10, SenderID: "other", SenderType: "user", Text: "下周一去成都出差，我公司报销，你同行需自费", SentAt: now.Add(-24 * time.Hour)},
 				{ID: "concerns", Seq: 11, SenderID: "u", SenderType: "user", Text: "我下周日程没确定，还要学习和照顾猫咪", SentAt: now.Add(-time.Hour)},
 			}}

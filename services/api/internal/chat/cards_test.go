@@ -101,6 +101,10 @@ func TestPostgresRefreshContextCarriesDisplayedPlacesAtOriginalFence(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Finish this attempt before claiming another job in the same group.
+	if err := f.store.Complete(ctx, job, "正在更新推荐", ""); err != nil {
+		t.Fatal(err)
+	}
 	// Later recommendations must never change a replay of this original request.
 	complete("amap:place:B002")
 	input, _, err := f.store.AgentContext(ctx, job, 32768)

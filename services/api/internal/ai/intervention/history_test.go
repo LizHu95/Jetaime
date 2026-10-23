@@ -10,12 +10,13 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type historyStub struct {
 	t                                     *testing.T
 	documents                             []memory.Document
-	sources, recent                       []memory.Message
+	sources, recent                       []history.Message
 	searchCalls, sourceCalls, recentCalls int
 	sourceIDs                             []string
 	searchErr                             error
@@ -39,13 +40,13 @@ func (h *historyStub) Search(_ context.Context, group, actor string, in memory.S
 	}
 	return memory.SearchResult{Documents: h.documents}, h.searchErr
 }
-func (h *historyStub) SourceMessages(_ context.Context, group, actor string, fence int64, ids []string) ([]memory.Message, error) {
+func (h *historyStub) SourceMessages(_ context.Context, group, actor string, fence int64, ids []string) ([]history.Message, error) {
 	h.scope(group, actor, fence)
 	h.sourceCalls++
 	h.sourceIDs = ids
 	return h.sources, nil
 }
-func (h *historyStub) RecentMessages(_ context.Context, group, actor string, fence int64, limit int) ([]memory.Message, error) {
+func (h *historyStub) RecentMessages(_ context.Context, group, actor string, fence int64, limit int) ([]history.Message, error) {
 	h.scope(group, actor, fence)
 	h.recentCalls++
 	if limit != 40 {
@@ -61,8 +62,8 @@ func TestHistoryEvidenceUsesScopedOriginalsAndRecentRevisions(t *testing.T) {
 	now := time.Now().Add(-time.Hour)
 	stub := &historyStub{t: t,
 		documents: []memory.Document{{Content: "This summary must not become evidence", SourceIDs: []string{"old"}}},
-		sources:   []memory.Message{{ID: "old", Seq: 3, SenderID: "u", SenderType: "user", Text: "本次预算300", SentAt: now}, {ID: "neighbour", Seq: 4, SenderID: "u", SenderType: "user", Text: "确认", SentAt: now.Add(time.Second)}},
-		recent:    []memory.Message{{ID: "update", Seq: 40, SenderID: "u", SenderType: "user", Text: "本次预算改成500", SentAt: now.Add(time.Minute)}},
+		sources:   []history.Message{{ID: "old", Seq: 3, SenderID: "u", SenderType: "user", Text: "本次预算300", SentAt: now}, {ID: "neighbour", Seq: 4, SenderID: "u", SenderType: "user", Text: "确认", SentAt: now.Add(time.Second)}},
+		recent:    []history.Message{{ID: "update", Seq: 40, SenderID: "u", SenderType: "user", Text: "本次预算改成500", SentAt: now.Add(time.Minute)}},
 	}
 	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
 	if err != nil || len(out.Messages) != 3 || out.Coverage != "partial" || stub.searchCalls != 1 || stub.sourceCalls != 1 || stub.recentCalls != 1 || len(stub.sourceIDs) != 1 || stub.sourceIDs[0] != "old" {
@@ -79,7 +80,7 @@ func TestHistoryEvidenceBoundsSourceFanoutAndWholeMessages(t *testing.T) {
 	for i := 0; i < 60; i++ {
 		id := fmt.Sprint("source-", i)
 		stub.documents[0].SourceIDs = append(stub.documents[0].SourceIDs, id)
-		stub.sources = append(stub.sources, memory.Message{ID: id, Seq: 1, SenderID: "u", Text: strings.Repeat("x", 500), SentAt: time.Now().Add(-time.Hour)})
+		stub.sources = append(stub.sources, history.Message{ID: id, Seq: 1, SenderID: "u", Text: strings.Repeat("x", 500), SentAt: time.Now().Add(-time.Hour)})
 	}
 	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
 	if err != nil || !out.Truncated || len(stub.sourceIDs) > 20 || len(out.Messages) != ai.MaxInterventionEvidenceMessages {
@@ -92,7 +93,7 @@ func TestHistoryEvidenceBoundsSourceFanoutAndWholeMessages(t *testing.T) {
 	}
 }
 func TestHistoryEvidenceRejectsFutureSequenceAndStopsAfterFailure(t *testing.T) {
-	stub := &historyStub{t: t, sources: []memory.Message{{ID: "future", Seq: 43}}}
+	stub := &historyStub{t: t, sources: []history.Message{{ID: "future", Seq: 43}}}
 	if _, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest()); err == nil {
 		t.Fatal("future sequence accepted")
 	}
@@ -111,7 +112,7 @@ func TestHistoryEvidenceRejectsFutureSequenceAndStopsAfterFailure(t *testing.T) 
 
 func TestHistoryEvidenceRetainsSourceBeyondFormerByteLimit(t *testing.T) {
 	text := strings.Repeat("原文", 4096)
-	stub := &historyStub{t: t, documents: []memory.Document{{SourceIDs: []string{"old"}}}, sources: []memory.Message{{ID: "old", Seq: 3, SenderID: "u", Text: text, SentAt: time.Now().Add(-time.Hour)}}}
+	stub := &historyStub{t: t, documents: []memory.Document{{SourceIDs: []string{"old"}}}, sources: []history.Message{{ID: "old", Seq: 3, SenderID: "u", Text: text, SentAt: time.Now().Add(-time.Hour)}}}
 	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
 	if err != nil || out.Truncated || len(out.Messages) != 1 || out.Messages[0].Text != text {
 		t.Fatal("long source dropped or truncated before model budget check", err)

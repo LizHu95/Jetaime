@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
@@ -44,7 +44,7 @@ func TestReminderHistoryLive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, err := bootstrap.New(model, config.Model, config.ContextTokens, registry)
+			service, err := execution.New(model, config.Model, config.ContextTokens, registry)
 			if err != nil {
 				t.Fatal(err)
 			}

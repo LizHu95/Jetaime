@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
@@ -41,6 +41,8 @@ type modules struct {
 	database        *pgxpool.Pool
 	memoryService   *memory.Service
 	reminderService *reminder.Service
+	chatStore       *chat.Store
+	chatService     *chat.Service
 	background      []func(context.Context)
 	workers         sync.WaitGroup
 }
@@ -61,6 +63,10 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		}
 	}
 	if cfg.EnableAccountAPI {
+		m.chatStore = chat.NewStore(m.database)
+		m.chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
+		m.chatService = chat.NewService(m.chatStore, cfg.EnableChatAI)
+		m.background = append(m.background, m.chatStore.CleanLocations)
 		m.reminderService = reminder.NewService(reminder.NewStore(m.database))
 		memoryStore := memory.NewStore(m.database, cfg.Memory)
 		memoryService, err := cfg.Memory.Build()
@@ -76,7 +82,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
 	}
 	var model llm.ChatModel
-	var executor *ai.Service
+	var executor *execution.Service
 	if cfg.EnableChatAI {
 		var modelErr error
 		model, modelErr = cfg.Model.New(cfg.ModelTimeout)
@@ -92,29 +98,31 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		var provider qa.ContextProvider
 		var interventionEvidence ai.InterventionEvidenceProvider
 		if m.memoryService != nil {
-			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
-			interventionEvidence = intervention.HistoryEvidence(m.memoryService, m.memoryService.Store)
+			provider = qa.HistoryContext(m.memoryService, m.chatService)
+			interventionEvidence = intervention.HistoryEvidence(m.memoryService, m.chatService)
 		}
 		// Complete production chat capability list, including its domain dependencies.
 		entries := []tools.Tool{
 			respond.New(),
 			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
-			recent.New(memory.NewStore(m.database, cfg.Memory)),
-			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
-			remindertool.New(m.reminderService, chat.ReminderOperation),
+			recent.New(m.chatService),
+			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, m.chatService),
+			remindertool.New(m.reminderService, reminderOperation),
 		}
 		if key := strings.TrimSpace(cfg.GaodeAPIKey); key != "" {
 			endpoint := "https://mcp.amap.com/mcp?" + url.Values{"key": {key}}.Encode()
 			client := mcpclient.New(endpoint)
-			guard := chat.NewService(chat.NewStore(m.database), true).AuthorizeExternalTool
+			guard := func(ctx context.Context, scope tools.Scope) error {
+				return m.chatService.AuthorizeExternalTool(ctx, chatExecutionScope(scope))
+			}
 			entries = append(entries, amap.New(client, guard)...)
 		}
 		registry, e := tools.New(entries...)
 		if e != nil {
 			return nil, e
 		}
-		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry, interventionEvidence)
+		executor, err = execution.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry, interventionEvidence)
 		if err != nil {
 			return nil, err
 		}
@@ -128,7 +136,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 	return m, nil
 }
 
-func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, executor *ai.Service) error {
+func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, executor *execution.Service) error {
 	accounts, err := auth.NewService(auth.NewPostgresStore(m.database))
 	if err != nil {
 		return fmt.Errorf("initialize authentication: %w", err)
@@ -139,10 +147,7 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 		return err
 	}
 
-	chatStore := chat.NewStore(m.database)
-	chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
-	m.background = append(m.background, chatStore.CleanLocations)
-	chatService := chat.NewService(chatStore, cfg.EnableChatAI)
+	chatStore, chatService := m.chatStore, m.chatService
 	events := realtime.New(ctx, chatStore, accounts)
 	m.handlers.Auth = authentication
 	m.handlers.Collaboration = collaboration.NewHandler(collaboration.NewService(collaboration.NewPostgresStore(m.database)), authentication)
@@ -157,7 +162,7 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 		m.background = append(m.background, webpush.NewWorker(m.database, pushConfig).Work)
 	}
 	if cfg.EnableChatAI {
-		inject := remindertool.New(reminders, chat.ReminderOperation).Inject
+		inject := remindertool.New(reminders, reminderOperation).Inject
 		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, inject)
 		m.background = append(m.background, worker.Work, worker.Work)
 	}

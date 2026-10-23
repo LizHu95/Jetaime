@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/google/uuid"
 )
 
@@ -23,12 +22,12 @@ func TestExternalToolAuthorization(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	scope := tools.Scope{Context: input, ContextEndSeq: run.ContextEnd}
+	scope := ExecutionScope{GroupID: input.GroupID, ActorID: input.ActorID, SenderID: input.Request.SenderID, MessageID: input.Request.MessageID, ContextEndSeq: run.ContextEnd, JobID: run.ID, JobAttempt: run.Attempt}
 	if err := f.service.AuthorizeExternalTool(ctx, scope); err != nil {
 		t.Fatal(err)
 	}
 	wrong := scope
-	wrong.Context.ActorID = f.users[2].ID
+	wrong.ActorID = f.users[2].ID
 	if err := f.service.AuthorizeExternalTool(ctx, wrong); err == nil {
 		t.Fatal("nonmember authorized")
 	}
@@ -37,11 +36,11 @@ func TestExternalToolAuthorization(t *testing.T) {
 	if err := f.service.AuthorizeExternalTool(ctx, wrong); err == nil {
 		t.Fatal("wrong fence authorized")
 	}
-	input.Request.JobAttempt++
+	scope.JobAttempt++
 	if err := f.service.AuthorizeExternalTool(ctx, scope); err == nil {
 		t.Fatal("stale attempt authorized")
 	}
-	input.Request.JobAttempt--
+	scope.JobAttempt--
 	if _, err := f.store.pool.Exec(ctx, `UPDATE agent_runs SET lease_expires_at=now()-interval '1 second' WHERE id=$1`, run.ID); err != nil {
 		t.Fatal(err)
 	}

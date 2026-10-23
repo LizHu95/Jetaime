@@ -1,19 +1,22 @@
-package mainagent
+package execution
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	mainagent "github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/orchestration"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
+	"github.com/google/jsonschema-go/jsonschema"
+	"time"
 )
 
 type proactiveModel struct {
@@ -32,7 +35,7 @@ func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 		writes++
 		return saveOutput{Status: "saved"}, nil
 	}, saveContractOptions())
-	a, _ := NewAgent(model, "test", 32768)
+	a, _ := mainagent.NewAgent(model, "test", 32768)
 	a.Tools, _ = tools.New(save)
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
@@ -57,7 +60,7 @@ func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 func TestProactiveStopsAfterOneFormatRepair(t *testing.T) {
 	malformed := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"请求","breakdowns":[],"intent":{"type":"execute_request","evidenceMessageIds":["m6"]},"objective":"创建提醒"}`
 	model := &proactiveModel{outputs: []string{malformed, malformed}}
-	a, _ := NewAgent(model, "test", 32768)
+	a, _ := mainagent.NewAgent(model, "test", 32768)
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 	run, err := invokePassiveEntry(t, a, input)
@@ -98,7 +101,7 @@ func TestProactiveRecognitionAndExecution(t *testing.T) {
 			if tc.next != "" {
 				model.outputs = append(model.outputs, tc.next)
 			}
-			a, _ := NewAgent(model, "test", 16384)
+			a, _ := mainagent.NewAgent(model, "test", 16384)
 			a.Tools, _ = tools.New(respond.New(), silence.New())
 			input := testContext()
 			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
@@ -131,7 +134,7 @@ func TestProactiveCanRemainSilentAfterReadTool(t *testing.T) {
 	}}
 	reads := 0
 	lookup := tools.NewTyped(tools.Metadata{Name: "lookup", Description: "查证", ReadOnly: true, Terminal: true}, func(context.Context, tools.Scope, struct{}) (struct{}, error) { reads++; return struct{}{}, nil })
-	a, _ := NewAgent(model, "test", 16384)
+	a, _ := mainagent.NewAgent(model, "test", 16384)
 	a.Tools, _ = tools.New(lookup, respond.New(), silence.New())
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
@@ -151,7 +154,7 @@ func TestProactiveWriteRequiresExplicitRequestIntent(t *testing.T) {
 				writes++
 				return saveOutput{Status: "saved"}, nil
 			}, saveContractOptions())
-			a, _ := NewAgent(model, "test", 16384)
+			a, _ := mainagent.NewAgent(model, "test", 16384)
 			a.Tools, _ = tools.New(save, silence.New(), respond.New())
 			input := testContext()
 			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
@@ -170,13 +173,13 @@ func TestProactiveWriteRequiresExplicitRequestIntent(t *testing.T) {
 }
 
 // These integration tests compose the independent entry, judge, and main agent.
-func invokePassiveEntry(t *testing.T, main *Agent, input ai.Context) (ai.Run, error) {
+func invokePassiveEntry(t *testing.T, main *mainagent.Agent, input ai.Context) (ai.Run, error) {
 	t.Helper()
 	judge, err := intervention.New(main.ChatModel, main.DefaultModel, main.Tokens)
 	if err != nil {
 		t.Fatal(err)
 	}
-	entry, err := orchestration.New(main, judge)
+	entry, err := newEntry(main, judge)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +209,7 @@ func TestCommunicationInterventionDirectResponse(t *testing.T) {
 				t.Fatal(err)
 			}
 			model := &proactiveModel{outputs: []string{string(decision), string(reply)}}
-			agent, _ := NewAgent(model, "test", 32768)
+			agent, _ := mainagent.NewAgent(model, "test", 32768)
 			agent.Tools, _ = tools.New(respond.New(), silence.New())
 			input := testContext()
 			input.Messages[0].Text = tc.previous
@@ -242,7 +245,7 @@ func TestRejectedCommunicationCandidateEndsSuccessfullyWithoutMain(t *testing.T)
 	}
 	raw, _ := json.Marshal(candidate)
 	model := &proactiveModel{outputs: []string{string(raw)}}
-	agent, _ := NewAgent(model, "test", 32768)
+	agent, _ := mainagent.NewAgent(model, "test", 32768)
 	agent.Tools, _ = tools.New(respond.New(), silence.New())
 	input := testContext()
 	input.Messages[0].Text = "你把我的手办弄坏了"
@@ -257,5 +260,81 @@ func TestRejectedCommunicationCandidateEndsSuccessfullyWithoutMain(t *testing.T)
 	}
 	if diagnostic := run.Steps[0].Output.(map[string]any); diagnostic["outcome"] != "candidate_rejected" || diagnostic["reasonCode"] != "insufficient_participant_evidence" {
 		t.Fatalf("missing quality diagnostic: %+v", diagnostic)
+	}
+}
+
+func testContext() ai.Context {
+	at := time.Date(2026, 10, 10, 10, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*3600))
+	return ai.Context{GroupID: "daily", ActorID: "lin", Users: []ai.User{{ID: "lin", Nickname: "测试用户 A"}, {ID: "xia", Nickname: "测试用户 B"}}, Tasks: []ai.Task{}, Messages: []ai.Message{
+		{ID: "m1", GroupID: "daily", SenderID: "lin", SentAt: at, Text: "测试消息"},
+		{ID: "m6", GroupID: "daily", SenderID: "lin", SentAt: at.Add(time.Minute), Text: "我明天负责测试任务"},
+	}}
+}
+
+type saveInput struct {
+	Mode string `json:"mode"`
+}
+type saveOutput struct {
+	Status string `json:"status"`
+}
+
+func saveContractOptions() tools.Options[saveOutput] {
+	return tools.Options[saveOutput]{Input: func(s *jsonschema.Schema) { s.Properties["mode"].Enum = []any{"save"} }, Output: func(s *jsonschema.Schema) { s.Properties["status"].Enum = []any{"saved"} }, Present: func(saveOutput) tools.Completion {
+		return tools.Completion{Answer: &ai.Answer{Status: "answered", Answer: "已保存", SourceMessageIDs: []string{}}}
+	}}
+}
+
+func thirtyMessageContext() ai.Context {
+	input := testContext()
+	seed := input.Messages[0]
+	input.Messages = nil
+	for i := 0; i < 30; i++ {
+		message := seed
+		message.ID = fmt.Sprintf("m%d", i)
+		message.SentAt = seed.SentAt.Add(time.Duration(i) * time.Second)
+		message.Text = strings.Repeat("background", 20)
+		input.Messages = append(input.Messages, message)
+	}
+	input.Request = &ai.RequestContext{MessageID: "m29", SenderID: input.ActorID, SentAt: input.Messages[29].SentAt, CurrentTime: time.Now(), Timezone: "Asia/Shanghai", TriggerMode: "proactive"}
+	return input
+}
+
+func TestProactiveRecognizesThirtyButExecutesWithEvidenceAndSixRecent(t *testing.T) {
+	model := &proactiveModel{outputs: []string{
+		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m0","m1","m2","m3","m4","m5","m6","m7","m8","m9","m10","m11","m12","m13","m14","m15","m16","m17","m18","m19","m20","m21","m22","m23","m24","m25","m26","m27","m28","m29"],"anchorMessageIds":["m29"]},"action":"intervene","verification":null,"reason":"需要补充地点","breakdowns":[{"type":"underspecified_plan","evidenceMessageIds":["m2"]}],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m0"]}}`,
+		`{"name":"remain_silent","arguments":{"reason":"先等待成员补充"}}`,
+	}}
+	agent, err := mainagent.NewAgent(model, "test", 32768)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent.Tools, err = tools.New(silence.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := thirtyMessageContext()
+	run, err := invokePassiveEntry(t, agent, input)
+	if err != nil || !run.Silent || len(model.requests) != 2 {
+		t.Fatal("proactive execution failed", err)
+	}
+	var recognition ai.RecognitionInput
+	if err = json.Unmarshal([]byte(model.requests[0].Messages[1].Content), &recognition); err != nil || len(recognition.Messages) != 30 {
+		t.Fatal("recognition lost its thirty-message window", err)
+	}
+	var execution struct {
+		Context ai.Context `json:"context"`
+	}
+	if err = json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &execution); err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, message := range execution.Context.Messages {
+		ids[message.ID] = true
+	}
+	if len(ids) != 9 || !ids["m0"] || !ids["m2"] || !ids["m29"] || ids["m22"] || !ids["m23"] {
+		t.Fatal("execution did not retain exactly its evidence and six recent originals")
+	}
+	if len(input.Messages) != 30 || len(input.Request.RelatedMessageIDs) != 0 {
+		t.Fatal("recognition snapshot mutated")
 	}
 }

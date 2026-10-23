@@ -3,7 +3,6 @@ package ai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
@@ -37,24 +36,6 @@ type Agent interface {
 
 type Executor interface {
 	Execute(context.Context, Invocation) (Run, error)
-}
-
-// Service is the common entry point for production, console and evaluation.
-// Assembly supplies the runtime; this package has no concrete agent dependency.
-type Service struct{ executor Executor }
-
-func NewService(executor Executor) (*Service, error) {
-	if executor == nil {
-		return nil, fmt.Errorf("AI executor is required")
-	}
-	return &Service{executor: executor}, nil
-}
-
-func (s *Service) Execute(ctx context.Context, in Invocation) (Run, error) {
-	if in.AgentID == "" {
-		in.AgentID = "main"
-	}
-	return s.executor.Execute(ctx, in)
 }
 
 // Job is durable scheduling state, independent from an agent's execution Run.

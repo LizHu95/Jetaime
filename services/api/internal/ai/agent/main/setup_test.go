@@ -1,12 +1,15 @@
 package mainagent
 
 import (
+	"context"
+	"errors"
+	"time"
+
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
-	"time"
 )
 
 func testContext() ai.Context {
@@ -24,4 +27,19 @@ func newTestAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) 
 	}
 	a.Tools, err = tools.New(respond.New(), qa.New(model, name, tokens, nil))
 	return a, err
+}
+
+type proactiveModel struct {
+	outputs  []string
+	requests []llm.Request
+}
+
+func (m *proactiveModel) Call(_ context.Context, req llm.Request) (llm.Result, error) {
+	m.requests = append(m.requests, req)
+	if len(m.outputs) == 0 {
+		return llm.Result{}, errors.New("unexpected model call")
+	}
+	out := m.outputs[0]
+	m.outputs = m.outputs[1:]
+	return llm.Result{Content: out}, nil
 }

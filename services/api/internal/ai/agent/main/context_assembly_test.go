@@ -31,46 +31,6 @@ func thirtyMessageContext() ai.Context {
 	return input
 }
 
-func TestProactiveRecognizesThirtyButExecutesWithEvidenceAndSixRecent(t *testing.T) {
-	model := &proactiveModel{outputs: []string{
-		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m0","m1","m2","m3","m4","m5","m6","m7","m8","m9","m10","m11","m12","m13","m14","m15","m16","m17","m18","m19","m20","m21","m22","m23","m24","m25","m26","m27","m28","m29"],"anchorMessageIds":["m29"]},"action":"intervene","verification":null,"reason":"需要补充地点","breakdowns":[{"type":"underspecified_plan","evidenceMessageIds":["m2"]}],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m0"]}}`,
-		`{"name":"remain_silent","arguments":{"reason":"先等待成员补充"}}`,
-	}}
-	agent, err := NewAgent(model, "test", 32768)
-	if err != nil {
-		t.Fatal(err)
-	}
-	agent.Tools, err = tools.New(silence.New())
-	if err != nil {
-		t.Fatal(err)
-	}
-	input := thirtyMessageContext()
-	run, err := invokePassiveEntry(t, agent, input)
-	if err != nil || !run.Silent || len(model.requests) != 2 {
-		t.Fatal("proactive execution failed", err)
-	}
-	var recognition ai.RecognitionInput
-	if err = json.Unmarshal([]byte(model.requests[0].Messages[1].Content), &recognition); err != nil || len(recognition.Messages) != 30 {
-		t.Fatal("recognition lost its thirty-message window", err)
-	}
-	var execution struct {
-		Context ai.Context `json:"context"`
-	}
-	if err = json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &execution); err != nil {
-		t.Fatal(err)
-	}
-	ids := map[string]bool{}
-	for _, message := range execution.Context.Messages {
-		ids[message.ID] = true
-	}
-	if len(ids) != 9 || !ids["m0"] || !ids["m2"] || !ids["m29"] || ids["m22"] || !ids["m23"] {
-		t.Fatal("execution did not retain exactly its evidence and six recent originals")
-	}
-	if len(input.Messages) != 30 || len(input.Request.RelatedMessageIDs) != 0 {
-		t.Fatal("recognition snapshot mutated")
-	}
-}
-
 func TestMainReservesToolSpaceBeforeOptionalBackground(t *testing.T) {
 	for _, mcp := range []bool{false, true} {
 		t.Run(fmt.Sprint("mcp=", mcp), func(t *testing.T) {

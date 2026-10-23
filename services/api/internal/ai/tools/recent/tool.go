@@ -7,15 +7,15 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 const Name = "read_recent_messages"
 const MessageLimit = 30
 
 type Reader interface {
-	RecentMessages(context.Context, string, string, int64, int) ([]memory.Message, error)
+	RecentMessages(context.Context, string, string, int64, int) ([]history.Message, error)
 }
 type Output struct {
 	OmittedAssistantMessages int          `json:"omittedAssistantMessages"`

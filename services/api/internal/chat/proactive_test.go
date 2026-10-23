@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
@@ -83,7 +83,8 @@ func TestPostgresProactiveDebounceWindowAndSilence(t *testing.T) {
 			t.Fatal("speaker attribution missing")
 		}
 	}
-	f.capacity = 16384
+	// The full thirty-message recognition request also includes its schema.
+	f.capacity = 32768
 	f.model = testModel{func(_ context.Context, req llm.Request) (llm.Result, error) {
 		var in ai.RecognitionInput
 		if err := json.Unmarshal([]byte(req.Messages[1].Content), &in); err != nil || len(in.Messages) != 30 || in.CurrentMessageID != last.ID {
@@ -217,7 +218,7 @@ func TestPostgresProactiveReplyAndConcurrentActivity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			executor, err := bootstrap.New(model, "test", 16384, registry)
+			executor, err := execution.New(model, "test", 16384, registry)
 			if err != nil {
 				t.Fatal(err)
 			}

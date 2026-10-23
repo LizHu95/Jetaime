@@ -10,15 +10,13 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
+	"github.com/LizHu95/Jetaime/services/api/internal/chat/history"
 )
 
 type Searcher interface {
 	Search(context.Context, string, string, memory.SearchInput) (memory.SearchResult, error)
 }
-type MessageReader interface {
-	RecentMessages(context.Context, string, string, int64, int) ([]memory.Message, error)
-	SourceMessages(context.Context, string, string, int64, []string) ([]memory.Message, error)
-}
+type MessageReader = history.Reader
 
 // HistoryContext returns a function provider, not an Agent or an HTTP client.
 // Retrieved summaries only locate source IDs. The QA model sees original text.
@@ -55,7 +53,7 @@ func HistoryContext(search Searcher, reader MessageReader) ContextProvider {
 		for _, m := range input.Messages {
 			seen[m.ID] = true
 		}
-		for _, list := range [][]memory.Message{recent, extra} {
+		for _, list := range [][]history.Message{recent, extra} {
 			for _, m := range list {
 				if seen[m.ID] {
 					continue
