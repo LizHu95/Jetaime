@@ -34,32 +34,18 @@ def load_env(path, environment, inherited):
 
 def command(action, args, environment):
     go = ROOT / "services/api"
-    uv = environment.get("JETAIME_UV", "uv")
-    if action in ["api", "assistant", "feishu", "model-check"]:
-        program = action
-        flags = []
-        if action == "assistant":
-            program = "api"
-            flags = ["-auth=false", "-debug-console"]
-        elif action == "model-check":
-            program = "workflow-eval"
-            flags = ["-print-model-config"]
-        return go, ["go", "run", "./cmd/" + program, *flags, *args]
-    if action in ["eval", "eval-check", "eval-services"]:
-        flags = {"eval": [], "eval-check": ["--check-only"], "eval-services": ["--check-services"]}[action]
-        return ROOT, [uv, "run", "--project", "evals", "--locked", "python", "evals/runner.py", *flags, *args]
-    if action == "assistant-check":
-        return ROOT, ["python3", "scripts/check-assistant.py", *args]
+    if action in ["api", "feishu", "model-check"]:
+        return go, ["go", "run", "./cmd/" + action, *args]
     if action == "feishu-build":
         return ROOT, ["bash", "deploy/feishu/build.sh", *args]
-    raise ValueError("unknown service; choose api, assistant, feishu, eval, eval-check, eval-services, assistant-check, model-check or feishu-build")
+    raise ValueError("unknown service; choose api, feishu, model-check or feishu-build")
 
 
 def main():
     action = sys.argv[1] if len(sys.argv) > 1 else "api"
     args = sys.argv[2:]
     if action in ["-h", "--help", "help"]:
-        print("python3 scripts/dev.py [api|assistant|feishu|eval|eval-check|eval-services|assistant-check|model-check|feishu-build] [arguments]")
+        print("python3 scripts/dev.py [api|feishu|model-check|feishu-build] [arguments]")
         return
     environment = os.environ.copy()
     inherited = set(environment)

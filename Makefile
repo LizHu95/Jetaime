@@ -23,16 +23,14 @@ web-check:
 	cd apps/web && npm test && npm run test:e2e && npm run build
 
 GO_DIR := services/api
-UV ?= uv
-EVAL_ARGS ?=
 FEISHU_ARGS ?=
 API_ARGS ?=
-ASSISTANT_ARGS ?=
+MODEL_CHECK_ARGS ?=
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: dev api-build feishu feishu-build model-check eval eval-check eval-services eval-test assistant assistant-check help tools fmt fmt-check build test vet lint check \
+.PHONY: dev api-build feishu feishu-build model-check scripts-test help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
@@ -48,12 +46,6 @@ help:
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make feishu-build Build the private Feishu deployment package"
-	@echo "make eval       Run local V2 evaluation (EVAL_ARGS)"
-	@echo "make eval-check Validate case schema offline"
-	@echo "make eval-services Check model configuration and installed Ollama models"
-	@echo "make eval-test  Run isolated evaluator tests"
-	@echo "make assistant  Start debug console with imported chat history at http://127.0.0.1:8081"
-	@echo "make assistant-check Verify real model, confirmation and persistence with imported history"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -79,9 +71,6 @@ db-test:
 memory-backfill:
 	python3 scripts/dev.py api -memory-backfill -memory-config ../../local/memory.json $(API_ARGS)
 
-assistant:
-	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)
-
 feishu:
 	python3 scripts/dev.py feishu $(FEISHU_ARGS)
 
@@ -89,19 +78,16 @@ feishu-build:
 	python3 scripts/dev.py feishu-build
 
 model-check:
-	python3 scripts/dev.py model-check $(ASSISTANT_ARGS)
-
-assistant-check:
-	python3 scripts/dev.py assistant-check
+	python3 scripts/dev.py model-check $(MODEL_CHECK_ARGS)
 
 tools: go-tools
 fmt: go-fmt
 fmt-check: go-fmt-check
 build: go-build
-test: go-test eval-test
+test: go-test scripts-test
 vet: go-vet
 lint: go-lint
-check: go-check eval-test
+check: go-check scripts-test
 
 go-tools: $(GOLANGCI_LINT)
 
@@ -138,14 +124,5 @@ go-lint: go-tools
 
 go-check: go-fmt-check go-build go-vet go-test go-lint
 
-eval:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval $(EVAL_ARGS)
-
-eval-check:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-check $(EVAL_ARGS)
-
-eval-services:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-services $(EVAL_ARGS)
-
-eval-test:
-	$(UV) run --project evals --locked python -m unittest discover -s evals/tests -p 'test_*.py'
+scripts-test:
+	python3 -m unittest discover -s scripts/tests -p 'test_*.py'

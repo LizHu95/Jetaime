@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
@@ -21,20 +20,11 @@ type Config struct {
 	EnableAccountAPI bool // Accounts, collaboration, chat and device notifications.
 	EnableChatAI     bool // Background main Agent for authenticated group chat.
 	MigrateOnly      bool
-	DebugConsole     DebugConsole
 	Model            llm.Config
 	ModelTimeout     time.Duration
 	GaodeAPIKey      string `json:"-"` // Server-only credential for the official Amap MCP.
 	Memory           memory.Config
 	MemoryBackfill   bool
-}
-
-// DebugConsole is the local simulation UI, separate from the production main Agent.
-type DebugConsole struct {
-	Enabled     bool
-	HistoryFile string
-	StateFile   string
-	RunLogFile  string
 }
 
 func Parse(args []string) (Config, error) {
@@ -48,10 +38,6 @@ func Parse(args []string) (Config, error) {
 	commandLine.StringVar(&memoryConfig, "memory-config", os.Getenv("JETAIME_MEMORY_CONFIG"), "memory JSON configuration; defaults to memory.json or ../../local/memory.json")
 	commandLine.BoolVar(&cfg.MemoryBackfill, "memory-backfill", false, "resume historical memory backfill and exit; never reset progress")
 	commandLine.BoolVar(&cfg.EnableChatAI, "chat-ai", true, "enable the main Agent for authenticated group chat")
-	commandLine.BoolVar(&cfg.DebugConsole.Enabled, "debug-console", false, "enable the local simulation UI at /page/assistant/; loopback only")
-	commandLine.StringVar(&cfg.DebugConsole.HistoryFile, "fixture", "../../local/data/chat-history/history.fixture.json", "debug console history JSON")
-	commandLine.StringVar(&cfg.DebugConsole.StateFile, "state", "../../local/data/assistant/state.json", "debug console persisted messages and tasks")
-	commandLine.StringVar(&cfg.DebugConsole.RunLogFile, "log", "../../local/data/assistant/runs.jsonl", "debug console execution log")
 	commandLine.DurationVar(&cfg.ModelTimeout, "model-timeout", 5*time.Minute, "maximum model execution time")
 	contextTokens := commandLine.Int("context-tokens", 98304, "model context capacity")
 	modelOptions := llm.RegisterFlags(commandLine)
@@ -77,11 +63,6 @@ func Parse(args []string) (Config, error) {
 	if err := cfg.validateAddress(); err != nil {
 		return cfg, err
 	}
-	if cfg.DebugConsole.Enabled {
-		if err := cfg.DebugConsole.resolvePaths(); err != nil {
-			return cfg, err
-		}
-	}
 	if cfg.MigrateOnly && cfg.MemoryBackfill {
 		return cfg, fmt.Errorf("migrate and memory-backfill must run separately")
 	}
@@ -92,7 +73,7 @@ func Parse(args []string) (Config, error) {
 			return cfg, err
 		}
 	}
-	if (cfg.EnableChatAI || cfg.DebugConsole.Enabled) && !cfg.MigrateOnly && !cfg.MemoryBackfill {
+	if cfg.EnableChatAI && !cfg.MigrateOnly && !cfg.MemoryBackfill {
 		var err error
 		cfg.Model, err = modelOptions.Resolve(*contextTokens)
 		if err != nil {
@@ -106,25 +87,6 @@ func (c Config) validateAddress() error {
 	host, _, err := net.SplitHostPort(c.Address)
 	if err != nil || net.ParseIP(host) == nil {
 		return fmt.Errorf("addr must use an IP and port")
-	}
-	if c.DebugConsole.Enabled && !net.ParseIP(host).IsLoopback() {
-		return fmt.Errorf("debug console requires a loopback listen IP")
-	}
-	return nil
-}
-
-func (c *DebugConsole) resolvePaths() error {
-	seen := map[string]bool{}
-	for _, path := range []*string{&c.HistoryFile, &c.StateFile, &c.RunLogFile} {
-		absolute, err := filepath.Abs(*path)
-		if err != nil {
-			return err
-		}
-		if seen[absolute] {
-			return fmt.Errorf("fixture, state and log must be separate files")
-		}
-		seen[absolute] = true
-		*path = absolute
 	}
 	return nil
 }

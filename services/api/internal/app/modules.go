@@ -28,7 +28,6 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
-	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
 	"github.com/LizHu95/Jetaime/services/api/internal/location"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
@@ -78,7 +77,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 	}
 	var model llm.ChatModel
 	var executor *ai.Service
-	if cfg.EnableChatAI || cfg.DebugConsole.Enabled {
+	if cfg.EnableChatAI {
 		var modelErr error
 		model, modelErr = cfg.Model.New(cfg.ModelTimeout)
 		if modelErr != nil {
@@ -125,25 +124,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			return nil, err
 		}
 	}
-	if cfg.DebugConsole.Enabled {
-		// The local console has no production write capabilities or database history.
-		registry, e := tools.New(
-			respond.New(),
-			silence.New(),
-			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, nil),
-		)
-		if e != nil {
-			return nil, e
-		}
-		debugExecutor, e := bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
-		if e != nil {
-			return nil, e
-		}
-		m.handlers.Assistant, err = buildDebugConsole(cfg, debugExecutor)
-		if err != nil {
-			return nil, err
-		}
-	}
+
 	return m, nil
 }
 
@@ -181,19 +162,6 @@ func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, exec
 		m.background = append(m.background, worker.Work, worker.Work)
 	}
 	return nil
-}
-
-func buildDebugConsole(cfg config.Config, executor ai.Executor) (*debugconsole.Server, error) {
-	console := cfg.DebugConsole
-	store, err := debugconsole.OpenStore(console.HistoryFile, console.StateFile)
-	if err != nil {
-		return nil, err
-	}
-	workflow, err := debugconsole.NewWorkflow(store, executor, cfg.Model.Model, console.RunLogFile, cfg.Model.ContextTokens)
-	if err != nil {
-		return nil, err
-	}
-	return debugconsole.NewServer(workflow), nil
 }
 
 func (m *modules) startWorkers(ctx context.Context) {

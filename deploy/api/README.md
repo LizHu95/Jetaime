@@ -33,7 +33,7 @@ chmod +x api-linux-amd64
 curl http://127.0.0.1:8081/test/healthz
 ```
 
-`-auth=false` 仅启用 `/test/healthz`。Assistant 模块需显式用 `-assistant` 开启；独立运行 JSON 调试台时同时传 `-auth=false`。
+`-auth=false` 仅启用 `/test/healthz`。旧 JSON 调试台已退役，不再提供相关参数和路由。
 
 默认认证模块自动开启 PostgreSQL；连接地址从 `JETAIME_DATABASE_URL` 环境变量读取。`start.sh`（默认 restart）、`start.sh start` 和 `start.sh migrate` 自动加载同目录 `.env` 并导出变量，文件中的同名配置优先于现有环境变量。`.env` 使用 Bash 赋值语法，特殊字符或空格使用单引号包裹；二进制本身不自动读取该文件。先创建空数据库和有建表权限的账号，再执行自动迁移与启动：
 
@@ -47,7 +47,7 @@ curl http://127.0.0.1:8081/test/healthz
 
 `-migrate` 执行后退出，不启动 HTTP 服务，也不调用模型；使用 `bash start.sh migrate` 加载配置并前台执行迁移，成功后再运行 `bash start.sh start`。`restart`（含默认动作）会先执行增量迁移，成功后再停止旧进程并启动新 API；迁移失败时退出并保留旧进程。显式 `start` 或直接运行二进制只检查连接和版本，不自动建表，未迁移或版本不匹配时启动失败。可用 `-auth=false -database` 仅检查数据库并提供健康检查。曾用 psql 手工建表但未记录版本的库不能自动接管，应使用新空库，保留旧库供核对或另行制定迁移方案。
 
-`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。认证、好友请求、双人群聊、阅读进度、WebSocket 实时通知和共享 AI 已实现；assistant 调试台仍独立使用 JSON 存储。群 AI 默认开启，需有效模型配置，可用 `-chat-ai=false` 显式关闭；代理需转发 `/api/chat/events` 的 WebSocket 升级。
+`/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。认证、好友请求、双人群聊、阅读进度、WebSocket 实时通知和共享 AI 已实现。群 AI 默认开启，需有效模型配置，可用 `-chat-ai=false` 显式关闭；代理需转发 `/api/chat/events` 的 WebSocket 升级。
 
 共享 AI 的部署配置：在 `local/models.json` 选择可用的云模型 profile，并在 `local/.env` 配置对应密钥，再构建上传。群聊 AI 默认开启，无需启用环境变量或启动参数。`start.sh` 自动读取同目录 `models.json`（可用 `JETAIME_MODEL_CONFIG` 指定其他路径），普通重启默认开启 AI。服务器上已有部署可补充这两个文件后运行 `bash start.sh restart`。启动日志应出现 `Group AI: ...`。显式参数优先，例如 `bash start.sh restart -chat-ai=false` 可临时关闭；仅健康检查时使用 `bash start.sh start -auth=false`，无需数据库迁移，不启动群聊 AI。启用后，聊天里失败的旧请求可点击“重试 AI 回复”，不会自动重新执行。
 
@@ -71,21 +71,9 @@ tail -f runtime/api.log
 
 脚本使用部署目录内的 `runtime/` 保存 PID 和服务输出，不设置开机自启。
 脚本默认监听 `0.0.0.0:8081`；与 Nginx 同机部署时按上面的示例设置 `API_ADDR=127.0.0.1:8081`，通过 Nginx 转发 `/api/` 请求。
-`start` 后可追加下方的 assistant 参数；启用 assistant 时必须使用回环地址，例如 `bash start.sh start -addr 127.0.0.1:8081 -assistant ...`。模型密钥可放在打包的 `.env` 中。
+`start` 后可追加 API 参数。实际模型配置可参考包内 `models.example.json`，模型密钥可放在打包的 `.env` 中。`start.sh` 自动加载 `.env`；直接运行二进制时需自行导出环境变量。直接运行二进制默认监听本机回环 IP，可用 `-addr 0.0.0.0:8081` 对外监听。
 
-启动 assistant 时，提供实际模型配置与历史文件，并显式指定持久数据路径：
-
-```sh
-./api-linux-amd64 -auth=false -assistant \
-  -model-config /etc/jetaime/models.json \
-  -fixture /var/lib/jetaime/history.fixture.json \
-  -state /var/lib/jetaime/assistant/state.json \
-  -log /var/lib/jetaime/assistant/runs.jsonl
-```
-
-实际模型配置可参考包内 `models.example.json`。`start.sh` 自动加载 `.env`；直接运行二进制时需自行导出环境变量。直接运行二进制默认监听本机回环 IP，基础 API 可用 `-addr 0.0.0.0:8081` 对外监听；启用 assistant 时仅允许本机回环监听。
-
-页面为 `/page/assistant/`；API 使用 `/api/assistant/`。assistant 保留本机 Host 访问限制。`GET /test/healthz` 测试 HTTP 连通性。飞书仍使用独立长连接程序，此包只包含统一 HTTP API。
+`GET /test/healthz` 测试 HTTP 连通性。飞书仍使用独立长连接程序，此包只包含统一 HTTP API。
 
 ## Trace 上报
 
@@ -95,7 +83,7 @@ tail -f runtime/api.log
 
 配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 和主 Agent 对话均使用 `qwen3.7-plus`；模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
 
-新增 `000008_memory.up.sql` 需要数据库主机提供 pgvector，并在 `public` schema 安装扩展（迁移账号无权限时由 DBA 预先安装）。更新后执行 `bash start.sh restart`，自动增量迁移并重启。模型配置和密钥有效时，启动自动继续历史回填与增量处理；缺失配置或密钥则启动失败，不静默跳过。仅健康检查、本地 JSON 调试台与迁移模式不运行记忆 Worker。
+新增 `000008_memory.up.sql` 需要数据库主机提供 pgvector，并在 `public` schema 安装扩展（迁移账号无权限时由 DBA 预先安装）。更新后执行 `bash start.sh restart`，自动增量迁移并重启。模型配置和密钥有效时，启动自动继续历史回填与增量处理；缺失配置或密钥则启动失败，不静默跳过。仅健康检查与迁移模式不运行记忆 Worker。
 
 可前台执行 `bash start.sh memory-backfill` 继续处理尚未完成的消息；重复运行不清空数据库、不重置水位，不重复计算已完成向量。普通部署和重启同样复用持久化结果。模型调用成功但保存前崩溃的步骤可能重试，不承诺外部调用严格一次。完整配置、内部检索方法、权限、恢复机制见 `docs/v2/历史向量化与增量记忆.md`。
 

@@ -52,18 +52,5 @@ func NewRouter(handlers Handlers) http.Handler {
 		mux.HandleFunc("DELETE /api/push/subscriptions", h.Authenticate(h.Unsubscribe))
 		mux.HandleFunc("POST /api/push/test", h.Authenticate(h.SendTest))
 	}
-	if h := handlers.Assistant; h != nil {
-		mux.Handle("GET /api/assistant/catalog", h.LocalOnly(http.HandlerFunc(h.GetCatalog)))
-		mux.Handle("GET /api/assistant/state", h.LocalOnly(http.HandlerFunc(h.GetState)))
-		mux.Handle("POST /api/assistant/run", h.LocalOnly(http.HandlerFunc(h.Run)))
-		mux.Handle("POST /api/assistant/messages", h.LocalOnly(http.HandlerFunc(h.SendMessage)))
-		mux.Handle("POST /api/assistant/reload", h.LocalOnly(http.HandlerFunc(h.Reload)))
-		mux.Handle("POST /api/assistant/dismiss", h.LocalOnly(http.HandlerFunc(h.Dismiss)))
-		mux.Handle("POST /api/assistant/confirm", h.LocalOnly(http.HandlerFunc(h.Confirm)))
-		mux.Handle("POST /api/assistant/complete", h.LocalOnly(http.HandlerFunc(h.Complete)))
-		mux.Handle("GET /page/assistant/{$}", h.LocalOnly(http.HandlerFunc(h.Page)))
-		mux.Handle("GET /page/assistant/style.css", h.LocalOnly(http.HandlerFunc(h.Page)))
-		mux.Handle("GET /page/assistant/app.js", h.LocalOnly(http.HandlerFunc(h.Page)))
-	}
 	return mux
 }

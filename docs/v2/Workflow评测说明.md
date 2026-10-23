@@ -1,5 +1,8 @@
 # Workflow 本地评测
 
+> 2026-10-23：旧 JSON 调试台与离线 Workflow 评测已退役，相关代码、脚本、依赖与 Make 入口已移除。下文相关设计、命令、路径和结果仅作历史记录，不代表当前产品能力。历史数据与快照保留原样；当前运行方式见 [项目说明](../../README.md)。
+
+
 业务 AI Trace 使用 [Phoenix](../../deploy/phoenix/README.md)。批量评测独立执行，结果保存在本地 JSONL 和汇总 JSON，不需要 Trace 平台或额外数据库。
 
 ## 运行

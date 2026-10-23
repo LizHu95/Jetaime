@@ -59,9 +59,6 @@ func serveHTTP(ctx context.Context, cfg config.Config, handler http.Handler) err
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
 	defer func() { _ = server.Close() }()
 	fmt.Printf("HTTP API: http://%s\n", listener.Addr())
-	if cfg.DebugConsole.Enabled {
-		fmt.Printf("Debug console: http://%s/page/assistant/\n", listener.Addr())
-	}
 	serveError := make(chan error, 1)
 	go func() { serveError <- server.Serve(listener) }()
 	select {

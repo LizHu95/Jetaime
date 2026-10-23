@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dev import command, load_env
 
 
@@ -37,11 +37,13 @@ class StartupTests(unittest.TestCase):
             self.assertNotIn("secret-value", str(caught.exception))
 
     def test_command_forwarding(self):
-        cwd, argv = command("assistant", ["-model-profile","local-qwen"], {})
+        cwd, argv = command("api", ["-addr", "127.0.0.1:8082"], {})
         self.assertEqual(cwd.name, "api")
-        self.assertEqual(argv, ["go","run","./cmd/api","-auth=false","-debug-console","-model-profile","local-qwen"])
-        _, argv = command("model-check", [], {})
-        self.assertIn("-print-model-config", argv)
-        _, argv = command("eval-check", [], {"JETAIME_UV":"custom-uv"})
-        self.assertEqual(argv[0], "custom-uv")
-        self.assertIn("--check-only", argv)
+        self.assertEqual(argv, ["go", "run", "./cmd/api", "-addr", "127.0.0.1:8082"])
+        _, argv = command("model-check", ["-model-profile", "local-qwen"], {})
+        self.assertEqual(argv, ["go", "run", "./cmd/model-check", "-model-profile", "local-qwen"])
+
+    def test_retired_commands_are_rejected(self):
+        for action in ["assistant", "assistant-check", "eval", "eval-check", "eval-services"]:
+            with self.subTest(action=action), self.assertRaises(ValueError):
+                command(action, [], {})

@@ -11,7 +11,6 @@ type Handlers struct {
 	Chat          ChatHandler
 	Reminders     ReminderHandler
 	Push          PushHandler
-	Assistant     AssistantHandler
 }
 
 // Authenticated supplies the session middleware used explicitly in the route table.
@@ -56,19 +55,6 @@ type PushHandler interface {
 	Subscribe(http.ResponseWriter, *http.Request)
 	Unsubscribe(http.ResponseWriter, *http.Request)
 	SendTest(http.ResponseWriter, *http.Request)
-}
-
-type AssistantHandler interface {
-	LocalOnly(http.Handler) http.Handler
-	GetCatalog(http.ResponseWriter, *http.Request)
-	GetState(http.ResponseWriter, *http.Request)
-	Run(http.ResponseWriter, *http.Request)
-	SendMessage(http.ResponseWriter, *http.Request)
-	Reload(http.ResponseWriter, *http.Request)
-	Dismiss(http.ResponseWriter, *http.Request)
-	Confirm(http.ResponseWriter, *http.Request)
-	Complete(http.ResponseWriter, *http.Request)
-	Page(http.ResponseWriter, *http.Request)
 }
 
 type ReminderHandler interface {
