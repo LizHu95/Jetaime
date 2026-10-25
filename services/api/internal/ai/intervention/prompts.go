@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v7-communication-help"
+const recognitionVersion = "proactive-v8-communication-repair"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.

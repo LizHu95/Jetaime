@@ -1,5 +1,5 @@
 {
-  "default_profile": "cloud-qwen",
+  "default_profile": "cloud-qwen-max-2026-06-08",
   "models": {
     "local-qwen": {
       "provider": "ollama",

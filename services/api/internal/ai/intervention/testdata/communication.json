@@ -53,6 +53,55 @@
     {"id":"help","senderId":"ai","senderType":"assistant","text":"先尊重暂停，等缓下来后再商量一个双方能接受的时间继续。"},
     {"id":"c","senderId":"bob","senderType":"user","text":"嗯。"}
   ]},
+  {"name":"做饭提醒澄清后仍被理解为控制饮食","breakdown":"understanding_mismatch","messages":[
+    {"id":"prep","senderId":"alice","senderType":"user","text":"今晚做饭记得解冻肉"},
+    {"id":"vegetables","senderId":"bob","senderType":"user","text":"我不爱吃蔬菜"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"我说的是解冻肉，不是蔬菜"},
+    {"id":"misunderstood","senderId":"bob","senderType":"user","text":"说到底，你还是对我不了解"},
+    {"id":"control","senderId":"bob","senderType":"user","text":"你想控制我吃什么"}
+  ]},
+  {"name":"晚归告知澄清后仍被理解为限制出门","breakdown":"understanding_mismatch","messages":[
+    {"id":"plan","senderId":"alice","senderType":"user","text":"晚回来提前告诉我一声，我好安排晚饭。"},
+    {"id":"permission","senderId":"bob","senderType":"user","text":"出去还要你批准？"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"你自己决定几点回来，我只是想知道时间，好决定做不做你的饭。"},
+    {"id":"control","senderId":"bob","senderType":"user","text":"说来说去就是不准我出门。"}
+  ]},
+  {"name":"做饭提醒刚澄清尚待回应","breakdown":"","messages":[
+    {"id":"prep","senderId":"alice","senderType":"user","text":"今晚做饭记得解冻肉。"},
+    {"id":"vegetables","senderId":"bob","senderType":"user","text":"我不爱吃蔬菜。"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"我说的是解冻肉，不是蔬菜。"}
+  ]},
+  {"name":"理解做饭提醒后讨论不同选择","breakdown":"","messages":[
+    {"id":"prep","senderId":"alice","senderType":"user","text":"今晚做饭记得解冻肉。"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"说的是解冻肉，不是要你吃蔬菜。"},
+    {"id":"understood","senderId":"bob","senderType":"user","text":"明白，你说的是提前准备食材。我今天更想点外卖，咱们商量下做饭还是外卖吧。"}
+  ]},
+  {"name":"理解偏离但已拒绝AI参与","breakdown":"","messages":[
+    {"id":"refused","senderId":"bob","senderType":"user","text":"AI这件事别插话，我们自己聊。"},
+    {"id":"prep","senderId":"alice","senderType":"user","text":"今晚做饭记得解冻肉。"},
+    {"id":"vegetables","senderId":"bob","senderType":"user","text":"我不爱吃蔬菜。"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"我说的是解冻肉，不是蔬菜。"},
+    {"id":"control","senderId":"bob","senderType":"user","text":"你想控制我吃什么。"}
+  ]},
+  {"name":"AI已复述做饭提醒没有新卡点","breakdown":"","messages":[
+    {"id":"prep","senderId":"alice","senderType":"user","text":"今晚做饭记得解冻肉。"},
+    {"id":"clarified","senderId":"alice","senderType":"user","text":"我说的是解冻肉，不是蔬菜。"},
+    {"id":"control","senderId":"bob","senderType":"user","text":"你想控制我吃什么。"},
+    {"id":"help","senderId":"ai","senderType":"assistant","text":"刚才说的是做饭前解冻肉，没有提出让你吃蔬菜或替你决定吃什么。这里可能有点误会。"},
+    {"id":"ack","senderId":"bob","senderType":"user","text":"嗯。"}
+  ]},
+  {"name":"家务请求与明确工作负担分工冲突","breakdown":"conflict","messages":[
+    {"id":"garbage","senderId":"alice","senderType":"user","text":"记得倒垃圾，家里都臭了。"},
+    {"id":"burden","senderId":"bob","senderType":"user","text":"我工作很忙了，家务也不是我一个人的事，不要对我要求这么高。"},
+    {"id":"work","senderId":"bob","senderType":"user","text":"又要赚钱。"},
+    {"id":"cleaning","senderId":"bob","senderType":"user","text":"又要打扫。"}
+  ]},
+  {"name":"家务双方正在协商分担","breakdown":"","messages":[
+    {"id":"garbage","senderId":"alice","senderType":"user","text":"垃圾有味道了，需要处理一下。"},
+    {"id":"burden","senderId":"bob","senderType":"user","text":"我今天工作很满，家务得一起分担。"},
+    {"id":"share","senderId":"alice","senderType":"user","text":"明白，你先忙工作，我今天可以倒垃圾，周末再一起看看怎么分工。"},
+    {"id":"agree","senderId":"bob","senderType":"user","text":"好，周末一起商量，我明天有空可以负责。"}
+  ]},
   {"name":"修复已开始不重复帮助","breakdown":"","messages":[
     {"id":"a","senderId":"bob","senderType":"user","text":"迟到对不起，这事翻篇吧。"},
     {"id":"b","senderId":"alice","senderType":"user","text":"我还想知道以后你会怎么提前告诉我。"},

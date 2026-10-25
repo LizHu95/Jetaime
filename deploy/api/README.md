@@ -81,7 +81,7 @@ tail -f runtime/api.log
 
 ## 历史向量化与增量记忆
 
-配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 和主 Agent 对话均使用 `qwen3.7-plus`；模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
+配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 默认使用 `qwen3.7-plus`，独立于主 Agent 默认模型配置；模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
 
 新增 `000008_memory.up.sql` 需要数据库主机提供 pgvector，并在 `public` schema 安装扩展（迁移账号无权限时由 DBA 预先安装）。更新后执行 `bash start.sh restart`，自动增量迁移并重启。模型配置和密钥有效时，启动自动继续历史回填与增量处理；缺失配置或密钥则启动失败，不静默跳过。仅健康检查与迁移模式不运行记忆 Worker。
 

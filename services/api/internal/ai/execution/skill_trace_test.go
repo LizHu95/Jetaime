@@ -60,7 +60,7 @@ func TestSkillVersionTracedOnMainModelAndToolWithoutContentCapture(t *testing.T)
 		for _, attr := range span.Attributes {
 			attrs[string(attr.Key)] = attr.Value
 		}
-		if attrs["skill.id"].AsString() != "clarify-support" || attrs["skill.version"].AsString() != "v2" || attrs["skill.breakdown"].AsString() != "support_mismatch" || attrs["skill.selection_reason"].AsString() != "primary_breakdown" {
+		if attrs["skill.id"].AsString() != "clarify-support" || attrs["skill.version"].AsString() != run.Skill.Version || attrs["skill.breakdown"].AsString() != "support_mismatch" || attrs["skill.selection_reason"].AsString() != "primary_breakdown" {
 			t.Fatalf("skill identity lost on %s: %v", span.Name, attrs)
 		}
 		if _, ok := attrs["input.value"]; ok {

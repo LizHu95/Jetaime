@@ -38,7 +38,7 @@ HTTP 保存消息与 AI 任务
 
 ## Q2：主 Agent 当前负责什么？
 
-[`ExecuteMain`](../../services/api/internal/ai/agent/main/main_agent.go) 负责工具选择、执行和受限循环，不承担入口分流或前置干预判断，不再包含 QA 提示词、答案生成、历史召回或引用校验。主提示词版本为 `main-v23-standard-skills`。
+[`ExecuteMain`](../../services/api/internal/ai/agent/main/main_agent.go) 负责工具选择、执行和受限循环，不承担入口分流或前置干预判断，不再包含 QA 提示词、答案生成、历史召回或引用校验。主提示词版本为 `main-v24-communication-repair`。
 
 模型只返回工具调用：
 
@@ -201,6 +201,10 @@ HTTP 发送、读取和重试；数据库保存权威状态与任务；后台执
 
 在原八类协作障碍之外，识别器支持理解错位、支持错配、表达升级、节奏冲突、修复受阻，对应 `understanding_mismatch/support_mismatch/communication_escalation/pacing_conflict/repair_blocked`。群主动开关开启后，充分证据和具体帮助价值即可触发直接发言，无需成员先向AI求助或点击确认。每类要求至少两位不同真人的原文；程序校验说话人和来源，具体语义仍由模型判断。
 
+理解对齐以最新回应为准：首次澄清尚待回应、对方已开始理解或只是理解后不同意时不插话；原意已明确、对方在澄清后仍明显曲解时，可以直接介入，不要求表达者再重复一次，也不要求双方互相攻击。证据保留原始表达、必要澄清和后续偏离回应，Skill先温和复述原话与解读之间的差异；原意清楚时无需追问为什么这样想，不推断“只是关心你”等未表达动机。仅有“不了解我”“想控制我”等指责不自动追加表达升级标签，避免无充分证据的次要障碍干扰本轮目标。
+
+具体家务请求与另一方明确表达的工作负担、分工边界冲突归入既有 `conflict`，不因出现情绪就强套 `support_mismatch`；后者限于明确的倾听、安慰或共同解决问题需要与回应不匹配。介入目标须接住双方已表达的关注点，再提出一个共同协商的下一步，不能预设某方先执行任务，也不将一方认为分工不均当作已核实事实。
+
 主要沟通障碍放在 `breakdowns` 首位。识别、必要补证及冷却去重通过后，由后端选择一个 Skill：
 
 | 主要障碍 | Skill ID | 独立策略正文 |
@@ -225,21 +229,23 @@ metadata:
 
 `metadata.version` 与 `metadata.jetaime-breakdown` 是项目要求，放在标准允许的自定义 metadata 中，不是 Agent Skills 的通用必填字段。加载器从这些字段构建路由，不在 Go 中重复维护名称、版本或障碍映射。启动时只保留发现的元数据，选中后才加载正文；元数据非法、目录与名称不匹配或障碍路由重复时启动失败。当前五份策略均短小且自包含，无需创建可选 scripts、references、assets 或 UI 文件。每份正文保留目标、证据、工作方法和停止条件，具体章节是项目组织方式，不是标准强制格式。
 
-标准化后的版本均为 `v2`（此前策略文件格式为 `v1`），以 `go:embed` 随二进制发布；修改正文或路由须更新其 `metadata.version` 并重新构建。其余八类协作障碍保持现有目标驱动执行；沟通障碍不是首位时不附加其他 Skill，不混装多个策略。`intent` 协议保持不变，不另建 Agent 或业务工具。
+标准化版本为 `v2`（此前策略文件格式为 `v1`）；理解对齐和支持需要确认当前为 `v3`，其余三份仍为 `v2`。策略以 `go:embed` 随二进制发布；修改正文或路由须更新其 `metadata.version` 并重新构建。其余八类协作障碍保持现有目标驱动执行；沟通障碍不是首位时不附加其他 Skill，不混装多个策略。`intent` 协议保持不变，不另建 Agent 或业务工具。
 
 编排层将 `SkillRef{ID,Version,Breakdown}` 放入后端拥有的 `RequestContext.Skill`（不参与 JSON 编解码），ID 使用 Skill 的标准 name，不再将工作指令拼入用户问题。主 Agent 请求构造器按该身份读取正文并剥离 YAML 头部，连同通用沟通约束加入系统消息，所有工具回合、参数修复、上下文裁剪和最终收尾均保留该 Skill，并在每次模型调用前计入完整请求预算；预算不足时拒绝调用，不丢掉策略或必要证据。未知身份、错误版本和路径伪造被拒绝。Skill 只指导工作方法，不改变工具注册表、引用验证、群权限或写操作授权。@AI、既有请求补全及 `execute_request` 不加载沟通 Skill。
 
 运行记录包含所选 Skill 元数据，Trace 用 `select_skill` 步骤记录选择，并以 `ai.skill.execute` 包裹主 Agent。其模型、工具及预算子节点携带 `skill.id`、`skill.version`、`skill.breakdown` 和 `skill.selection_reason=primary_breakdown`，关闭正文采集时也可查询；策略正文不作为聊天消息或消息 API 结果返回。不支持动态发现、模型生成 Skill 正文或文件系统热加载。
 
-主 Agent 通常用1至3个短句直接回应，最多一个问题或建议，不输出分类标签，不猜测心理，不要求立即原谅或双方各退一步。成员自行修复、拒绝介入或AI已给同样帮助且没有新卡点时保持沉默；不因无人回应而追问。拒绝与语义修复判断仍限于识别窗口；群级2分钟冷却及24小时规范化话题去重已经持久化，边界见[群级主动 Agent](双人群聊接口.md#群级主动-agent)。暂停恢复时间由成员确认，不自动创建提醒；明确暴力或胁迫优先人身安全。
+主 Agent 通常用1至3个短句直接回应，最多一个问题或建议，不输出分类标签、消息ID，不猜测心理，不要求立即原谅或双方各退一步。通用沟通约束对所有只读主动介入生效，包括没有加载沟通Skill的 `conflict`；涉及双方负担时并列接住各自明确关注点，避免只提两人名字却单方面要求一个人改变。成员自行修复、拒绝介入或AI已给同样帮助且没有新卡点时保持沉默；不因无人回应而追问。拒绝与语义修复判断仍限于识别窗口；群级2分钟冷却及24小时规范化话题去重已经持久化，边界见[群级主动 Agent](双人群聊接口.md#群级主动-agent)。暂停恢复时间由成员确认，不自动创建提醒；明确暴力或胁迫优先人身安全。
 
 当模型提出沟通介入，但合法证据仅来自同一位真人时，证据门禁将其转换为成功静默：候选返回 `skip`，核验后判断返回 `shouldIntervene=false`，清空障碍和意图，不进入主 Agent，不重试模型。识别步骤以 `succeeded` 记录，输出中保留 `outcome=candidate_rejected`、`reasonCode=insufficient_participant_evidence`、拒绝原因和模型原始输出，区分于模型主动选择skip；内容采集开启时也可在Phoenix查看这些诊断。这是候选未通过门禁，不是工作流故障。未知或越界消息引用、AI冒充真人证据、格式修复失败、模型调用失败及操作越权仍为错误；先校验全部硬约束，不允许证据不足掩盖其他错误。既有历史Trace不回写。
 
-案例位于 `services/api/internal/ai/intervention/testdata/communication.json`，覆盖5个正例和8个无需介入的反例。脚本模型测试验证Schema、两位真人证据及识别到直接respond的执行链路；不代表真实模型识别质量。真实识别测试可使用：
+案例位于 `services/api/internal/ai/intervention/testdata/communication.json`，覆盖7个沟通正例、1个分工冲突正例和13个无需介入的反例。脚本模型测试验证Schema、两位真人证据及识别到直接respond的执行链路；不代表真实模型识别质量。真实识别测试可使用：
 
 ```sh
 cd services/api
 JETAIME_PROACTIVE_MODEL_CONFIG=/absolute/path/to/models.json go test ./internal/ai/intervention -run '^TestRealModelCommunicationRecognition$' -v -count=1
+# 真实识别 → 服务端路由 → 主Agent回复；仅注册回复/静默工具，不发送消息或执行业务写操作。
+JETAIME_PROACTIVE_MODEL_CONFIG=/absolute/path/to/models.json go test ./internal/ai/execution -run '^TestRealModel(UnderstandingIntervention|BalancedHouseholdIntervention)$' -v -count=1
 ```
 
 可用 `JETAIME_PROACTIVE_MODEL_PROFILE` 指定配置中的模型。此功能为仓库实现，不代表已经部署。

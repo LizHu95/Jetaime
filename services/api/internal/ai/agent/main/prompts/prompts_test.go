@@ -72,6 +72,21 @@ func TestMainRequestLoadsOnlyTheSelectedCommunicationSkill(t *testing.T) {
 	}
 }
 
+func TestMainRequestCommunicationBoundariesAlsoApplyWithoutASkill(t *testing.T) {
+	for _, mode := range []string{"proactive", "mention"} {
+		for _, writes := range []bool{false, true} {
+			req, err := MainRequest("test", ai.Context{Request: &ai.RequestContext{TriggerMode: mode, AllowWrites: writes}}, "帮助双方协商家务负担", 32768)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := mode == "proactive" && !writes
+			if strings.Contains(req.Messages[0].Content, communicationHelp) != want {
+				t.Fatalf("shared communication boundaries: mode=%s writes=%v", mode, writes)
+			}
+		}
+	}
+}
+
 func TestMainRequestRejectsSkillOutsideProactiveReadOnlyExecution(t *testing.T) {
 	ref, _ := skills.Route("pacing_conflict")
 	for _, request := range []ai.RequestContext{
