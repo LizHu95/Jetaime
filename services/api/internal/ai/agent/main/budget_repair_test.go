@@ -12,6 +12,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/agent/main/prompts"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/skills"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
 )
@@ -29,7 +30,8 @@ func TestMainRebudgetsAfterToolFeedback(t *testing.T) {
 			background.ID = "optional"
 			background.Text = strings.Repeat("optional-background", 200)
 			input.Messages = append([]ai.Message{background}, input.Messages...)
-			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[2].SentAt, CurrentTime: time.Now(), Timezone: "Asia/Shanghai", TriggerMode: "proactive", RelatedMessageIDs: []string{"m1"}}
+			ref, _ := skills.Route("pacing_conflict")
+			input.Request = &ai.RequestContext{Skill: &ref, MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[2].SentAt, CurrentTime: time.Now(), Timezone: "Asia/Shanghai", TriggerMode: "proactive", RelatedMessageIDs: []string{"m1"}}
 			lookup := tools.NewTyped(tools.Metadata{Name: "maps_around_search", Description: "查询周边", ReadOnly: true}, func(context.Context, tools.Scope, budgetLookupInput) (budgetLookupOutput, error) {
 				if rejected {
 					return budgetLookupOutput{}, tools.InvalidArguments("invalid_amap_arguments", strings.Repeat("位置不可用，请提供地点。", 150))
@@ -60,6 +62,10 @@ func TestMainRebudgetsAfterToolFeedback(t *testing.T) {
 				t.Fatalf("repair failed: silent=%t requests=%d err=%v", run.Silent, len(model.requests), err)
 			}
 			for _, request := range model.requests {
+				body, err := skills.Load(ref)
+				if err != nil || !strings.Contains(request.Messages[0].Content, body) {
+					t.Fatal("compaction or repair discarded the selected skill", err)
+				}
 				if err := llm.CheckContextBudget(request, capacity); err != nil {
 					t.Fatal("over-budget provider call", err)
 				}
@@ -98,6 +104,32 @@ func TestMainRebudgetsAfterToolFeedback(t *testing.T) {
 				t.Fatal("missing budget compaction diagnostics")
 			}
 		})
+	}
+}
+
+func TestSkillBudgetCannotDropStrategyOrPinnedEvidence(t *testing.T) {
+	input := testContext()
+	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, TriggerMode: "proactive", RelatedMessageIDs: []string{"m1"}}
+	registry, err := tools.New(silence.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, err := prompts.MainRequest("test", input, "协调暂停", 65536, registry.Definitions()...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	capacity := llm.InputTokenUpperBound(base) + base.Options.NumPredict + 16
+	ref, _ := skills.Route("pacing_conflict")
+	input.Request.Skill = &ref
+	model := &proactiveModel{}
+	agent, err := NewAgent(model, "test", capacity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent.Tools = registry
+	run, err := agent.ExecuteMain(context.Background(), input, "协调暂停", nil)
+	if !errors.Is(err, ai.ErrContext) || len(model.requests) != 0 || run.Status != "failed" {
+		t.Fatalf("over-budget strategy reached provider: calls=%d err=%v", len(model.requests), err)
 	}
 }
 

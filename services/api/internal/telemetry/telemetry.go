@@ -75,7 +75,7 @@ func StartAt(ctx context.Context, name, kind string, started time.Time, attrs ..
 	}
 	for _, attr := range attrs {
 		switch attr.Key {
-		case "session.id", "user.id", "chat.run_id", "chat.trigger_mode", "chat.trigger_source", "chat.trigger_mentions_ai":
+		case "session.id", "user.id", "chat.run_id", "chat.trigger_mode", "chat.trigger_source", "chat.trigger_mentions_ai", "skill.id", "skill.version", "skill.breakdown", "skill.selection_reason":
 			fields[attr.Key] = attr
 		}
 	}

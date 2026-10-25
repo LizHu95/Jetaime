@@ -112,6 +112,7 @@ services/api/
 │   ├── execution/            main 装配、入口编排、执行身份与 Trace
 │   ├── agent/main/           主 Agent 工具选择与执行循环
 │   ├── context/              上下文选择、引用保留与预算
+│   ├── skills/               五类沟通障碍的版本化策略、路由与按需加载
 │   ├── tools/                工具注册表及 qa、extract、reminder 等 AI 适配
 │   ├── llm/                  模型配置与 Eino 供应商适配
 │   ├── memory/               AI 记忆提取、检索、向量与索引存储
@@ -122,11 +123,15 @@ services/api/
 └── internal/telemetry/       调用链
 ```
 
-当前只有一个 `main` Agent，装配入口为 `internal/ai/execution/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 6 条/4 KiB 近期背景判断需求；追问丢失所指事项时可通过 `read_recent_messages` 补读有权限与序号截止的近期真人原文；需要历史证据时调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。调用方显式注册完整能力，execution 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v20-followup-advice`，QA 为 `answer-question-v2-hybrid`。
+当前只有一个 `main` Agent，装配入口为 `internal/ai/execution/service.go`。普通知识、建议、写作、澄清及当前上下文足够的问题由主 Agent 直接生成，通过只校验、不调用模型的 `respond` 终结响应返回，通常只需一次模型调用。正式群聊每次 AI 提问先用当前问题、直接引用和最多 6 条/4 KiB 近期背景判断需求；追问丢失所指事项时可通过 `read_recent_messages` 补读有权限与序号截止的近期真人原文；需要历史证据时调用 `answer_question` 检索后回答，时间回顾使用 `summarize_history`，提醒使用 `set_reminder` 调用领域 Service。工具目录只向模型提供名称、描述和输入 Schema，输出 Schema 保留在后端校验。调用方显式注册完整能力，execution 不添加默认工具。`extract_todos` 已移除默认注册，提取实现暂留；行动事项只作文字总结，不生成结构化待办建议。`qa/help` 旧模式仍兼容 QA。主提示词版本为 `main-v23-standard-skills`，QA 为 `answer-question-v2-hybrid`。
 
 提示词按能力维护：被动干预的候选发现正文位于 [`intervention/recognition.md`](services/api/internal/ai/intervention/recognition.md)，补证后的最终判断位于 [`intervention/verification.md`](services/api/internal/ai/intervention/verification.md)，通过 `go:embed` 编译进程序，Schema、版本与结构修复提示位于 [`intervention/prompts.go`](services/api/internal/ai/intervention/prompts.go)；主 Agent 的提示词、Schema、版本和请求构造位于 [`agent/main/prompts/`](services/api/internal/ai/agent/main/prompts/prompts.go)（完整模型请求的预算在 Agent 内检查）；问答位于 [`tools/qa/prompts.go`](services/api/internal/ai/tools/qa/prompts.go)；待办提取、接受识别和行动复核统一位于 [`tools/extract/prompts.go`](services/api/internal/ai/tools/extract/prompts.go)；记忆提取与合并位于 [`memory/prompts.go`](services/api/internal/ai/memory/prompts.go)。各能力的提示词、模型输出 Schema 与版本标识集中维护，执行和校验逻辑保留在原模块文件中。
 
 生产群聊调用 `execution.Service → entry → agent/main`。主动请求直接进入 main；被动消息由独立判断器发现 `skip / intervene / verify` 候选，verify 最多一轮只读补证后再判断。生产装配复用受群权限与消息序号截止约束的记忆/历史检索及原文回查。执行边界使用 Agent 协议，具体 Agent 不依赖聊天或数据库；群共享记忆通过 QA 的函数式上下文提供器接入。尚未实现跨 Agent 委派与调用树恢复。
+
+五类沟通障碍使用 [Agent Skills 标准](https://agentskills.io/specification) 的 `skill-name/SKILL.md` 包，入口包含 YAML `name`、`description` 与 Markdown 正文。启动时 [`skills/communication.go`](services/api/internal/ai/skills/communication.go) 从 frontmatter 发现元数据与路由：`metadata.version` 和 `metadata.jetaime-breakdown` 是本项目约定，名称与父目录保持 kebab-case 一致。识别与冷却去重通过后，后端按主要障碍只选择一份，将 ID、版本与障碍类型保存在内部执行元数据中；主 Agent 按需从 `go:embed` 读取正文，在每轮系统上下文中保留、计入完整请求预算，不注入 YAML 头部。Skill 不扩张工具或写操作权限；明确操作请求和 @AI 路径不加载沟通 Skill。Trace 的 `ai.skill.execute` 及其模型、工具子节点记录 `skill.id/version/breakdown/selection_reason`，内容采集关闭时仍可查看元数据。修改策略须更新对应 `metadata.version` 并重新构建；不支持用户指定路径、任意 Skill 文本或运行时热加载。详见[沟通 Skill 设计](docs/v2/主Agent设计问答.md#q19五类情感沟通障碍如何主动帮助)。
+
+主动建议实际发出后，群级冷却 2 分钟；规范化话题、障碍类型集合与帮助意图相同的建议在 24 小时内去重。记录持久化在 `agent_runs`，跨最近30条识别窗口与进程重启有效；主 Agent 执行前检查一次，保存回复时在群锁事务内再次检查。静默、失败、取消不会延长限制；@AI、既有请求补全与识别成立的明确操作请求不受该限制。话题只进行空白与大小写规范化，不提供语义改写去重或跨窗口拒绝记忆。部署需先应用 `000015_intervention_policy` 迁移；历史去重状态从新版本成功发送的建议开始累积。
 
 原文读取统一由 `chat.Service` 提供，`chat/history` 只定义原文消息与读取契约；QA、干预核验和近期补读不再通过 memory Store 回查聊天。记忆提取及索引进度仍由 memory 的事务维护。`app/chat_tools.go` 将工具 Scope 转换为聊天领域的 `ExecutionScope`，聊天业务不依赖 `ai/tools`。初始上下文仅检查所选数据预算，各 Agent 在模型调用前检查包含提示词、Schema 与工具目录的完整请求。
 

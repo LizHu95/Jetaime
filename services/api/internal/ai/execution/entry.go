@@ -8,7 +8,10 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/skills"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // entry runs recognition before the main agent only for passive listening.
@@ -38,6 +41,11 @@ func (e *entry) Invoke(ctx context.Context, in ai.Invocation) (ai.Run, error) {
 		return ai.Run{}, err
 	}
 	if in.TriggerMode != "proactive" {
+		if in.Context.Request != nil && in.Context.Request.Skill != nil {
+			request := *in.Context.Request
+			request.Skill = nil
+			in.Context.Request = &request
+		}
 		return e.main.Invoke(ctx, in)
 	}
 	return e.invokePassive(ctx, in)
@@ -141,10 +149,32 @@ func (e *entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 	if err := ctx.Err(); err != nil {
 		return run, err
 	}
+	run.InterventionTopic = candidate.TopicContext.Topic
+	if in.CheckIntervention != nil && decision.Intent.Type != "execute_request" {
+		checkStarted := time.Now()
+		reason, checkErr := in.CheckIntervention(ctx, run.InterventionTopic, decision)
+		step := ai.Step{Name: "check_intervention_policy", StartedAt: checkStarted, DurationMS: time.Since(checkStarted).Milliseconds(), Status: "succeeded", Output: map[string]any{"allowed": reason == "" && checkErr == nil, "reason": reason}}
+		if checkErr != nil {
+			step.Status, step.Error = "failed", "intervention policy unavailable"
+		}
+		tools.TraceStep(ctx, step)
+		run.Steps = append(run.Steps, step)
+		run.DurationMS = time.Since(started).Milliseconds()
+		if checkErr != nil {
+			return run, checkErr
+		}
+		if reason != "" {
+			suppressed := ai.SuppressIntervention(decision, reason)
+			run.Recognition = &suppressed
+			run.Silent, run.Status = true, "succeeded"
+			return run, nil
+		}
+	}
 	request := *in.Context.Request
 	in.Context.Request = &request
 	request.TriggerMode = "proactive"
 	request.AllowWrites = decision.Intent.Type == "execute_request"
+	request.Skill = nil
 	// Preserve all recognition evidence when the main agent selects its smaller
 	// execution context. Copy the request so the recognition snapshot stays intact.
 	ids := append(append([]string{}, request.RelatedMessageIDs...), decision.Intent.EvidenceMessageIDs...)
@@ -162,15 +192,37 @@ func (e *entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 	in.Mode = "main"
 	in.Question = "当前话题：" + candidate.TopicContext.Topic + "。主动介入目标：" + decision.Intent.Objective + "。依据对话简短、中立地帮助大家，不展示诊断标签或内部推理，不重复已解决的问题。"
 	if len(decision.Breakdowns) > 0 && decision.Intent.Type != "execute_request" {
-		if help, ok := ai.HelpForCommunication(decision.Breakdowns[0].Type); ok {
-			in.Question += "\n本次沟通帮助动作：" + help.Action + "。" + help.Instruction + "直接完成这一步帮助，不先询问是否需要AI介入；最多一个问题或建议，然后把对话交回成员。"
+		if ref, ok := skills.Route(decision.Breakdowns[0].Type); ok {
+			request.Skill = &ref
+			step := ai.Step{Name: "select_skill", StartedAt: time.Now(), Status: "succeeded", Output: map[string]any{"skill": ref, "reason": "primary_breakdown"}}
+			tools.TraceStep(ctx, step)
+			run.Steps = append(run.Steps, step)
 		}
 	}
-	output, err := e.main.Invoke(ctx, in)
+	output, err := e.invokeMain(ctx, in)
+	output.InterventionTopic = run.InterventionTopic
 	output.StartedAt = started
 	output.DurationMS = time.Since(started).Milliseconds()
 	output.Recognition = &decision
 	output.Steps = append(run.Steps, output.Steps...)
+	return output, err
+}
+
+// The selected strategy wraps main execution so its identity is visible on
+// model, tool and budget spans without enabling content capture.
+func (e *entry) invokeMain(ctx context.Context, in ai.Invocation) (ai.Run, error) {
+	if in.Context.Request == nil || in.Context.Request.Skill == nil {
+		return e.main.Invoke(ctx, in)
+	}
+	ref := *in.Context.Request.Skill
+	ctx, span := telemetry.Start(ctx, "ai.skill.execute", "CHAIN", attribute.String("skill.id", ref.ID), attribute.String("skill.version", ref.Version), attribute.String("skill.breakdown", ref.Breakdown), attribute.String("skill.selection_reason", "primary_breakdown"))
+	output, err := e.main.Invoke(ctx, in)
+	output.Skill = &ref
+	var traceErr error
+	if err != nil {
+		traceErr = fmt.Errorf("skill execution failed")
+	}
+	telemetry.End(span, traceErr)
 	return output, err
 }
 

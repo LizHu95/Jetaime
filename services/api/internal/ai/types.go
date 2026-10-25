@@ -61,6 +61,7 @@ type Context struct {
 
 // RequestContext is execution metadata, separate from untrusted chat content.
 type RequestContext struct {
+	Skill             *SkillRef     `json:"-"` // Server-selected identity, never decoded from model/chat data.
 	Location          *location.Fix `json:"-"`
 	LocationStatus    string        `json:"locationStatus,omitempty"`
 	TriggerMode       string        `json:"triggerMode,omitempty"`
@@ -110,31 +111,33 @@ type Step struct {
 	Error      string    `json:"error,omitempty"`
 }
 type Run struct {
-	Cards         []Card         `json:"cards,omitempty"`
-	Silent        bool           `json:"silent,omitempty"`
-	Recognition   *Recognition   `json:"recognition,omitempty"`
-	AgentID       string         `json:"agentId,omitempty"`
-	InvocationID  string         `json:"invocationId,omitempty"`
-	Basis         string         `json:"basis,omitempty"`
-	Route         *RouteDecision `json:"route,omitempty"`
-	HistoryScope  *HistoryScope  `json:"historyScope,omitempty"`
-	ModelIdentity *llm.Identity  `json:"modelIdentity,omitempty"`
-	ID            string         `json:"id"`
-	GroupID       string         `json:"groupId"`
-	ActorID       string         `json:"actorId"`
-	Kind          string         `json:"kind"`
-	Question      string         `json:"question,omitempty"`
-	Model         string         `json:"model"`
-	PromptVersion string         `json:"promptVersion"`
-	StartedAt     time.Time      `json:"startedAt"`
-	DurationMS    int64          `json:"durationMs"`
-	Status        string         `json:"status"`
-	Steps         []Step         `json:"steps"`
-	Answer        *Answer        `json:"answer,omitempty"`
-	Suggestions   []Suggestion   `json:"suggestions,omitempty"`
-	Sources       []Message      `json:"sources,omitempty"`
-	Error         string         `json:"error,omitempty"`
-	Warning       string         `json:"warning,omitempty"`
+	Skill             *SkillRef      `json:"skill,omitempty"`
+	InterventionTopic string         `json:"-"`
+	Cards             []Card         `json:"cards,omitempty"`
+	Silent            bool           `json:"silent,omitempty"`
+	Recognition       *Recognition   `json:"recognition,omitempty"`
+	AgentID           string         `json:"agentId,omitempty"`
+	InvocationID      string         `json:"invocationId,omitempty"`
+	Basis             string         `json:"basis,omitempty"`
+	Route             *RouteDecision `json:"route,omitempty"`
+	HistoryScope      *HistoryScope  `json:"historyScope,omitempty"`
+	ModelIdentity     *llm.Identity  `json:"modelIdentity,omitempty"`
+	ID                string         `json:"id"`
+	GroupID           string         `json:"groupId"`
+	ActorID           string         `json:"actorId"`
+	Kind              string         `json:"kind"`
+	Question          string         `json:"question,omitempty"`
+	Model             string         `json:"model"`
+	PromptVersion     string         `json:"promptVersion"`
+	StartedAt         time.Time      `json:"startedAt"`
+	DurationMS        int64          `json:"durationMs"`
+	Status            string         `json:"status"`
+	Steps             []Step         `json:"steps"`
+	Answer            *Answer        `json:"answer,omitempty"`
+	Suggestions       []Suggestion   `json:"suggestions,omitempty"`
+	Sources           []Message      `json:"sources,omitempty"`
+	Error             string         `json:"error,omitempty"`
+	Warning           string         `json:"warning,omitempty"`
 }
 
 type RouteDecision struct {

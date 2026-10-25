@@ -10,6 +10,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/skills"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
@@ -52,7 +53,8 @@ func TestToolBudgetReservesRestrictedFinalResponse(t *testing.T) {
 			agent.Tools = registry
 			input := testContext()
 			if tc.proactive {
-				input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt, CurrentTime: time.Now(), Timezone: "Asia/Shanghai", TriggerMode: "proactive"}
+				ref, _ := skills.Route("pacing_conflict")
+				input.Request = &ai.RequestContext{Skill: &ref, MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt, CurrentTime: time.Now(), Timezone: "Asia/Shanghai", TriggerMode: "proactive"}
 			}
 			run, err := agent.ExecuteMain(context.Background(), input, "查询后回复", nil)
 			if tc.fail {
@@ -87,6 +89,12 @@ func TestToolBudgetReservesRestrictedFinalResponse(t *testing.T) {
 				t.Fatal("final response lost evidence")
 			}
 			for _, r := range model.requests {
+				if tc.proactive {
+					body, err := skills.Load(*input.Request.Skill)
+					if err != nil || !strings.Contains(r.Messages[0].Content, body) {
+						t.Fatal("skill lost during tool loop or final response", err)
+					}
+				}
 				if err := llm.CheckContextBudget(r, 32768); err != nil {
 					t.Fatal(err)
 				}

@@ -78,6 +78,9 @@ func TestWorkerTracesDurableTriggerSourceOnEveryNode(t *testing.T) {
 func (*failureStore) Claim(context.Context, time.Duration) (ai.Job, error) {
 	return ai.Job{}, ai.ErrNotFound
 }
+func (*failureStore) CheckIntervention(context.Context, ai.Job, string, ai.Recognition) (string, error) {
+	return "", nil
+}
 func (*failureStore) AgentContext(context.Context, ai.Job, int, ...aicontext.ContextInjector) (ai.Context, string, error) {
 	return ai.Context{}, "明天", nil
 }

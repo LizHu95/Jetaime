@@ -11,6 +11,20 @@ type Recognizer interface {
 	Decide(context.Context, VerificationInput) (RecognitionResult, error)
 }
 
+// InterventionCheck is supplied by the caller after recognition and before
+// unsolicited assistance. It returns a stable suppression reason, or empty to
+// proceed; persistence and authorization remain in the chat domain.
+type InterventionCheck func(context.Context, string, Recognition) (string, error)
+
+// SuppressIntervention preserves a successful, silent policy decision.
+func SuppressIntervention(decision Recognition, reason string) Recognition {
+	decision.ShouldIntervene = false
+	decision.Intent = nil
+	decision.Breakdowns = []Breakdown{}
+	decision.Reason = "主动介入已抑制：" + reason
+	return decision
+}
+
 type RecognitionResult struct {
 	Decision      Recognition
 	Steps         []Step

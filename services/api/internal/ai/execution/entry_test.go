@@ -137,7 +137,7 @@ func TestPassiveInterventionUsesSharedMainWithEvidence(t *testing.T) {
 	}
 }
 
-func TestCommunicationHelpRespectsPrimaryGoalAndExplicitOperations(t *testing.T) {
+func TestCommunicationSkillRespectsPrimaryGoalAndExplicitOperations(t *testing.T) {
 	for _, tc := range []struct {
 		name, intent string
 		kinds        []string
@@ -155,12 +155,16 @@ func TestCommunicationHelpRespectsPrimaryGoalAndExplicitOperations(t *testing.T)
 			main := &testAgent{}
 			judge := &testRecognizer{result: ai.RecognitionResult{Decision: ai.Recognition{ShouldIntervene: true, Reason: "当前目标明确", Breakdowns: breakdowns, Intent: &ai.InterventionIntent{Type: tc.intent, Objective: "处理当前目标", EvidenceMessageIDs: []string{"m1", "m2"}}}}}
 			entry, _ := newEntry(main, judge)
-			_, err := entry.Invoke(context.Background(), passiveInput())
+			out, err := entry.Invoke(context.Background(), passiveInput())
 			if err != nil || main.calls != 1 {
 				t.Fatalf("main not invoked: %v", err)
 			}
-			if got := strings.Contains(main.input.Question, "negotiate_pause"); got != tc.wantHelp {
-				t.Fatalf("help overrode primary goal: %s", main.input.Question)
+			ref := main.input.Context.Request.Skill
+			if (ref != nil) != tc.wantHelp || (ref != nil && (ref.ID != "negotiate-pause" || out.Skill == nil || *out.Skill != *ref)) {
+				t.Fatalf("skill overrode primary goal: %+v", ref)
+			}
+			if strings.Contains(main.input.Question, "negotiate-pause") {
+				t.Fatal("skill instructions leaked into the user question")
 			}
 		})
 	}

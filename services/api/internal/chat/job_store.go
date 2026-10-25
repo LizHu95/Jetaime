@@ -6,6 +6,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -81,6 +82,22 @@ func (s *Store) Complete(ctx context.Context, run Run, answer, code string, resu
 			return tx.Commit(ctx)
 		}
 	}
+	key := ""
+	if code == "" && answer != "" && run.TriggerMode == "proactive" {
+		key = interventionKey(run.InterventionTopic, run.Recognition)
+		if run.Recognition != nil && run.Recognition.ShouldIntervene && run.Recognition.Intent != nil && run.Recognition.Intent.Type != "execute_request" {
+			reason, err := interventionSuppression(ctx, tx, run.GroupID, key)
+			if err != nil {
+				return err
+			}
+			if reason != "" {
+				answer, key = "", ""
+				suppressed := ai.SuppressIntervention(*run.Recognition, reason)
+				run.Recognition = &suppressed
+				trace.SpanFromContext(ctx).SetAttributes(attribute.String("chat.intervention_suppression", reason))
+			}
+		}
+	}
 	var responseID *string
 	status := "failed"
 	if code == "" {
@@ -107,7 +124,7 @@ func (s *Store) Complete(ctx context.Context, run Run, answer, code string, resu
 	}
 	// Use the actual execution context, including recovered jobs with no enqueue context.
 	traceID := recordedTraceID(ctx)
-	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,trace_id=$5,recognition=$6,finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode, traceID, run.Recognition); err != nil {
+	if _, err = tx.Exec(ctx, `UPDATE agent_runs SET status=$2,response_message_id=$3,error_code=$4,trace_id=$5,recognition=$6,intervention_key=NULLIF($7,''),finished_at=now(),lease_expires_at=NULL WHERE id=$1`, run.ID, status, responseID, errorCode, traceID, run.Recognition, key); err != nil {
 		return err
 	}
 	eventType := "ai"

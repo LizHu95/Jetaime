@@ -11,6 +11,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/skills"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/google/jsonschema-go/jsonschema"
 )
@@ -25,6 +26,9 @@ type Judge struct {
 func New(model llm.ChatModel, name string, tokens int) (*Judge, error) {
 	if model == nil || strings.TrimSpace(name) == "" || tokens < 4096 {
 		return nil, fmt.Errorf("intervention judge requires model and context >=4096")
+	}
+	if err := skills.Validate(); err != nil {
+		return nil, err
 	}
 	return &Judge{model: model, name: name, tokens: tokens}, nil
 }
@@ -298,7 +302,7 @@ func validateRecognition(d ai.Recognition, input ai.RecognitionInput) error {
 		if !check(b.EvidenceMessageIDs) {
 			return invalid()
 		}
-		if _, communication := ai.HelpForCommunication(b.Type); communication {
+		if _, communication := skills.Route(b.Type); communication {
 			// A relational breakdown needs actual interaction evidence. AI replies,
 			// one person's repeated messages and missing identities cannot supply it.
 			speakers := map[string]bool{}

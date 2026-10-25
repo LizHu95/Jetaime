@@ -188,11 +188,11 @@ func invokePassiveEntry(t *testing.T, main *mainagent.Agent, input ai.Context) (
 
 func TestCommunicationInterventionDirectResponse(t *testing.T) {
 	for _, tc := range []struct{ kind, action, previous, current, answer string }{
-		{"understanding_mismatch", "check_understanding", "我在意的是你答应之前没有和我商量，不是不让你去。", "说到底你就是不让我去，你说几次都一样。", "刚才说的是希望提前商量，你理解的重点也是这个吗？"},
-		{"support_mismatch", "clarify_support", "我想让你先听我说，不想现在听建议。", "你就应该按我说的方法改，不然有什么好说的。", "她已经说了现在想先被听一听，可以先听完再一起想办法。"},
-		{"communication_escalation", "focus_on_event", "这次迟到我等了很久，心里很难受。", "你就是个自私又讨厌的人。", "先聚焦这次迟到：你希望下次对方具体怎么做？"},
-		{"pacing_conflict", "negotiate_pause", "我需要暂停一下，缓过来再聊。", "不行，现在必须继续说清楚。", "先尊重暂停，等缓下来后再商量一个双方能接受的时间继续。"},
-		{"repair_blocked", "clarify_unresolved_need", "我已经道歉了，就翻篇吧。", "我在意的还有你没提前通知，你还没回应下次怎么办。", "还有下次怎样提前通知没有回应，可以先把这个安排说具体。"},
+		{"understanding_mismatch", "check-understanding", "我在意的是你答应之前没有和我商量，不是不让你去。", "说到底你就是不让我去，你说几次都一样。", "刚才说的是希望提前商量，你理解的重点也是这个吗？"},
+		{"support_mismatch", "clarify-support", "我想让你先听我说，不想现在听建议。", "你就应该按我说的方法改，不然有什么好说的。", "她已经说了现在想先被听一听，可以先听完再一起想办法。"},
+		{"communication_escalation", "focus-on-event", "这次迟到我等了很久，心里很难受。", "你就是个自私又讨厌的人。", "先聚焦这次迟到：你希望下次对方具体怎么做？"},
+		{"pacing_conflict", "negotiate-pause", "我需要暂停一下，缓过来再聊。", "不行，现在必须继续说清楚。", "先尊重暂停，等缓下来后再商量一个双方能接受的时间继续。"},
+		{"repair_blocked", "clarify-unresolved-need", "我已经道歉了，就翻篇吧。", "我在意的还有你没提前通知，你还没回应下次怎么办。", "还有下次怎样提前通知没有回应，可以先把这个安排说具体。"},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			candidate := ai.InterventionCandidate{
@@ -228,8 +228,11 @@ func TestCommunicationInterventionDirectResponse(t *testing.T) {
 			if err := json.Unmarshal([]byte(model.requests[1].Messages[1].Content), &payload); err != nil {
 				t.Fatal(err)
 			}
-			if !strings.Contains(payload.Question, tc.action) || payload.Context.Request.AllowWrites || len(payload.Context.Request.RelatedMessageIDs) != 2 {
-				t.Fatalf("lost help action, evidence, or write boundary: %+v", payload)
+			if run.Skill == nil || run.Skill.ID != tc.action || run.Skill.Breakdown != tc.kind || !strings.Contains(model.requests[1].Messages[0].Content, "Skill ID: "+tc.action) || payload.Context.Request.AllowWrites || len(payload.Context.Request.RelatedMessageIDs) != 2 {
+				t.Fatalf("lost skill, evidence, or write boundary: skill=%+v payload=%+v", run.Skill, payload)
+			}
+			if payload.Context.Request.Skill != nil || strings.Contains(payload.Question, tc.action) {
+				t.Fatal("server skill escaped into model-controlled conversation data")
 			}
 		})
 	}

@@ -14,6 +14,7 @@ import (
 )
 
 type Store interface {
+	CheckIntervention(context.Context, ai.Job, string, ai.Recognition) (string, error)
 	Claim(context.Context, time.Duration) (ai.Job, error)
 	AgentContext(context.Context, ai.Job, int, ...aicontext.ContextInjector) (ai.Context, string, error)
 	ExtractionContext(context.Context, ai.Job, int) (ai.Context, error)
@@ -82,10 +83,13 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 			// Drain/retry previously persisted jobs through the current main entry.
 			mode = "auto"
 		}
-		output, e := s.executor.Execute(call, ai.Invocation{TriggerMode: run.TriggerMode, AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
+		output, e := s.executor.Execute(call, ai.Invocation{TriggerMode: run.TriggerMode, AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, CheckIntervention: func(ctx context.Context, topic string, decision ai.Recognition) (string, error) {
+			return s.store.CheckIntervention(ctx, run, topic, decision)
+		}, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
 			return s.store.ExtractionContext(ctx, run, s.tokens)
 		}})
 		run.Recognition = output.Recognition
+		run.InterventionTopic = output.InterventionTopic
 		if e != nil {
 			log.Printf("chat agent run=%s kind=%s failed: %v", run.ID, run.Kind, e)
 			code = "agent_failed"

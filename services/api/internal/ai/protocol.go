@@ -20,13 +20,14 @@ type ExtractContextLoader func(context.Context) (Context, error)
 // Invocation separates the registered agent from its requested capability.
 // Mode retains compatibility with explicit qa/help requests.
 type Invocation struct {
-	TriggerMode    string
-	ContextEndSeq  int64
-	AgentID        string
-	Context        Context
-	Mode           string
-	Question       string
-	LoadExtraction ExtractContextLoader
+	CheckIntervention InterventionCheck
+	TriggerMode       string
+	ContextEndSeq     int64
+	AgentID           string
+	Context           Context
+	Mode              string
+	Question          string
+	LoadExtraction    ExtractContextLoader
 }
 
 type Agent interface {
@@ -40,6 +41,7 @@ type Executor interface {
 
 // Job is durable scheduling state, independent from an agent's execution Run.
 type Job struct {
+	InterventionTopic string       `json:"-"`
 	TriggerMentionsAI bool         `json:"-"`
 	TriggerMode       string       `json:"triggerMode"`
 	Recognition       *Recognition `json:"recognition,omitempty"`
