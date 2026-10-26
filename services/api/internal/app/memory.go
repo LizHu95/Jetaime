@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
@@ -46,5 +47,24 @@ func backfillMemory(ctx context.Context, cfg config.Config) error {
 		return errors.New("memory backfill has leased or retrying batches; resume later")
 	}
 	fmt.Println("Memory backfill complete; persisted progress retained")
+	return nil
+}
+
+// checkMemory performs no inference or database writes.
+func checkMemory(ctx context.Context, cfg config.Config) error {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	pool, err := openDatabase(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	if _, err = cfg.Memory.Build(); err != nil {
+		return err
+	}
+	if err = memory.NewStore(pool, cfg.Memory).CheckPipeline(ctx); err != nil {
+		return fmt.Errorf("memory configuration incompatible (extraction=%s, pipeline=%s): %w; restore the previous memory configuration or explicitly rebuild and validate the index before switching", cfg.Memory.Extraction.Model, cfg.Memory.Pipeline(), err)
+	}
+	fmt.Printf("Memory configuration compatible: extraction=%s, pipeline=%s\n", cfg.Memory.Extraction.Model, cfg.Memory.Pipeline())
 	return nil
 }

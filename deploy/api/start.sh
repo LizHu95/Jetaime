@@ -16,7 +16,7 @@ action=${1:-restart}
 if (($#)); then shift; fi
 
 # Only actions that launch the binary need runtime configuration.
-if [[ "$action" == start || "$action" == restart || "$action" == migrate || "$action" == memory-backfill ]]; then
+if [[ "$action" == start || "$action" == restart || "$action" == migrate || "$action" == memory-backfill || "$action" == check ]]; then
   if [[ -f "$api_dir/.env" ]]; then
     set -a
     source "$api_dir/.env"
@@ -103,10 +103,13 @@ restart_api() {
 }
 
 case "$action" in
-  migrate|memory-backfill)
+  check|migrate|memory-backfill)
     [[ -f "$binary" ]] || { echo "缺少程序：$binary" >&2; exit 1; }
     chmod +x "$binary"
     cd "$api_dir"
+    if [[ "$action" == check ]]; then
+      exec "$binary" -memory-check -memory-config "${JETAIME_MEMORY_CONFIG:-$api_dir/memory.json}" "$@"
+    fi
     if [[ "$action" == migrate ]]; then
       exec "$binary" -migrate "$@"
     fi
@@ -120,6 +123,10 @@ case "$action" in
       echo '执行数据库增量迁移...'
       if ! (cd "$api_dir" && "$binary" -migrate "$@"); then
         echo '数据库迁移失败，未重启 API' >&2
+        exit 1
+      fi
+      if ! bash "$api_dir/start.sh" check "$@"; then
+        echo '记忆配置预检失败，未停止 API。请恢复原 memory.json，或完成显式索引重建后再切换模型。' >&2
         exit 1
       fi
       restart_api "$@"
@@ -160,5 +167,5 @@ case "$action" in
   status)
     if running; then echo "API 运行中，PID：$pid"; else echo "API 未运行"; exit 1; fi
     ;;
-  *) echo "用法：bash start.sh {restart [API 参数...]|start [API 参数...]|migrate|memory-backfill|stop|status}（默认 restart）" >&2; exit 2 ;;
+  *) echo "用法：bash start.sh {restart [API 参数...]|start [API 参数...]|check|migrate|memory-backfill|stop|status}（默认 restart）" >&2; exit 2 ;;
 esac

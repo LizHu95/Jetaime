@@ -81,7 +81,7 @@ tail -f runtime/api.log
 
 ## 历史向量化与增量记忆
 
-配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 默认使用 `qwen3.7-max-2026-06-08`，与主 Agent 默认模型一致；配置仍独立，后续切换主 Agent 的默认模型时需同步更新 `extraction`。模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
+配置模板为 `services/api/config/memory.example.json`，Embedding 为 `qwen3.7-text-embedding-flash`（1024 维），extraction 默认使用 `qwen3.7-flash`，主 Agent 使用独立的聊天模型配置；两者可以使用不同模型，切换聊天模型不要求同步修改 extraction。模板的区域 URL 仍占位。正式 API 启动时自动启动记忆与向量 Worker，没有 enabled 配置开关（旧配置需删除该字段）。构建要求 `local/memory.json` 存在并一并打包；`start.sh` 自动加载部署目录的 `memory.json`，可用 `JETAIME_MEMORY_CONFIG` 指定路径。配置文件不承载游标、向量或聊天数据，这些状态全部保存在 PostgreSQL。
 
 新增 `000008_memory.up.sql` 需要数据库主机提供 pgvector，并在 `public` schema 安装扩展（迁移账号无权限时由 DBA 预先安装）。更新后执行 `bash start.sh restart`，自动增量迁移并重启。模型配置和密钥有效时，启动自动继续历史回填与增量处理；缺失配置或密钥则启动失败，不静默跳过。仅健康检查与迁移模式不运行记忆 Worker。
 
@@ -94,3 +94,11 @@ tail -f runtime/api.log
 ## Phoenix 随包部署
 
 `make deploy` 同时打包并上传 `api/phoenix/` 部署定义，应用 `/page/phoenix/` 的 Nginx 反代和独立访问认证。配置同机 `JETAIME_PHOENIX_TRACES_ENDPOINT=http://127.0.0.1:6006/v1/traces` 后，`bash api/start.sh restart` 会先安装/启动 Phoenix，等待其数据库迁移和就绪，再迁移业务 PostgreSQL 并重启 API。首次安装需要包源网络及 root / `sudo -n`；已安装同版本不会重复下载依赖。访问账号和详细步骤见 [Phoenix 说明](../phoenix/README.md)。
+
+## 部署时的记忆版本预检
+
+`make deploy` 在服务器的临时上传目录执行新程序的数据库迁移和记忆版本检查，通过后才替换已安装的 API 与配置，再更新 Web/Nginx。若记忆版本不一致，部署失败会保留旧程序、配置及运行中的进程；数据库增量迁移可能已执行。请不要手动删除游标或修改 pipeline 标记来绕过保护。
+
+可运行 `bash start.sh check` 单独检查部署目录里的记忆配置和目标数据库是否兼容；也可直接执行 `./api-linux-amd64 -memory-check -memory-config /path/to/memory.json`。检查验证模型配置、所需密钥环境变量、数据库 schema 和记忆 pipeline，不发起模型推理、不创建或重置记忆进度。它不验证模型服务权限或输出质量。`restart` 在停止旧进程前也会执行同样的检查。
+
+如果仅更换聊天模型，保持 `memory.json` 不变；如果更换 extraction、Embedding 或其他影响记忆 pipeline 的配置，应先在独立副本中显式重建并验证，再切换生产索引与配置。普通部署不自动清空或重建记忆。

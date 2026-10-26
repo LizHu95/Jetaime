@@ -24,13 +24,22 @@ func rollback(tx pgx.Tx) {
 	defer cancel()
 	_ = tx.Rollback(ctx)
 }
-func (s *Store) Initialize(ctx context.Context) error {
+
+// CheckPipeline validates compatibility without creating or resetting progress.
+func (s *Store) CheckPipeline(ctx context.Context) error {
 	var mismatch bool
 	if err := s.Pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM memory_progress WHERE pipeline<>$1)`, s.Config.Pipeline()).Scan(&mismatch); err != nil {
 		return err
 	}
 	if mismatch {
 		return ErrPipeline
+	}
+	return nil
+}
+
+func (s *Store) Initialize(ctx context.Context) error {
+	if err := s.CheckPipeline(ctx); err != nil {
+		return err
 	}
 	_, err := s.Pool.Exec(ctx, `INSERT INTO memory_progress(group_id,pipeline,backfill_end_seq)
  SELECT g.id,$1,g.last_message_seq FROM chat_groups g JOIN group_assistants a ON a.group_id=g.id

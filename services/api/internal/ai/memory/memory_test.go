@@ -227,6 +227,9 @@ func TestPostgresRestartSkipsCompletedDataAndOnlyProcessesNewMessages(t *testing
 	}
 	cfg := testConfig()
 	cfg.Embedding.Revision = "v2"
+	if err = NewStore(f.pool, cfg).CheckPipeline(ctx); !errors.Is(err, ErrPipeline) {
+		t.Fatal("read-only preflight accepted incompatible pipeline", err)
+	}
 	if err = NewStore(f.pool, cfg).Initialize(ctx); !errors.Is(err, ErrPipeline) {
 		t.Fatal("model change silently reset or mixed pipeline", err)
 	}
@@ -837,5 +840,37 @@ func TestPostgresSequenceSourcesCommitWithoutRetry(t *testing.T) {
 	}
 	if n := f.scalar(t, "SELECT count(*) FROM memory_document_sources WHERE message_id=$1", message.ID); n != 2 {
 		t.Fatalf("canonical evidence missing: %d", n)
+	}
+}
+
+func TestModelExtractorRepairsSubjectWithoutGuessingIdentity(t *testing.T) {
+	b := Batch{Members: []Person{{ID: "user-alice", Nickname: "Alice"}}, Messages: []Message{{ID: "msg", Seq: 1, SenderID: "user-alice", Text: "喜欢辣"}}}
+	candidate := Candidate{Kind: "preference", Subject: "Alice", EventKey: "food", TemporalScope: "enduring", Content: "Alice喜欢辣", SourceIDs: []string{"msg"}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.Subject = "user-alice"
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	for _, repaired := range []bool{true, false} {
+		second := string(bad)
+		if repaired {
+			second = string(good)
+		}
+		model := &correctingMemoryModel{results: []string{string(bad), second}}
+		out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+		if repaired {
+			if err != nil || len(out) != 1 || out[0].Subject != "user-alice" {
+				t.Fatalf("subject correction failed: %+v %v", out, err)
+			}
+		} else if !errors.Is(err, ErrInvalid) || out != nil {
+			t.Fatalf("invented subject accepted: %+v %v", out, err)
+		}
+		if len(model.requests) != 2 {
+			t.Fatalf("unexpected calls: %d", len(model.requests))
+		}
+		if !strings.Contains(string(model.requests[0].Format), `"subject":{"type":"string","enum":["shared","user-alice"]}`) {
+			t.Fatalf("missing subject constraint: %s", model.requests[0].Format)
+		}
+		if !strings.Contains(model.requests[1].Messages[1].Content, "invalid_subject") {
+			t.Fatal("missing feedback")
+		}
 	}
 }

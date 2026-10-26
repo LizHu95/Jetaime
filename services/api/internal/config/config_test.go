@@ -94,3 +94,16 @@ func writeMemoryConfig(t *testing.T) string {
 	}
 	return path
 }
+
+func TestMemoryCheckMode(t *testing.T) {
+	t.Setenv("JETAIME_MEMORY_CONFIG", writeMemoryConfig(t))
+	cfg, err := Parse([]string{"-memory-check", "-model-config", "missing.json"})
+	if err != nil || !cfg.MemoryCheck || cfg.Model.Model != "" {
+		t.Fatalf("check mode: %+v %v", cfg, err)
+	}
+	for _, args := range [][]string{{"-memory-check", "-migrate"}, {"-memory-check", "-memory-backfill"}, {"-memory-check", "-memory-config", "missing.json"}} {
+		if _, err := Parse(args); err == nil {
+			t.Fatalf("accepted invalid check: %v", args)
+		}
+	}
+}

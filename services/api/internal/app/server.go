@@ -24,6 +24,9 @@ func Run(ctx context.Context, cfg config.Config) error {
 	if cfg.MigrateOnly {
 		return migrateDatabase(ctx, cfg.DatabaseURL)
 	}
+	if cfg.MemoryCheck {
+		return checkMemory(ctx, cfg)
+	}
 	if cfg.MemoryBackfill {
 		return backfillMemory(ctx, cfg)
 	}

@@ -68,23 +68,38 @@ func (m ModelExtractor) Extract(ctx context.Context, b Batch) (candidates []Cand
 			Rejected   []Candidate `json:"rejectedCandidates"`
 			Error      string      `json:"validationError"`
 			Correction string      `json:"correction"`
-		}{b, out.Candidates, err.Error(), "上次结果未通过校验。请重新核对batch.messages，返回完整的修正结果。sourceMessageIds必须逐字复制本批次支持结论的用户消息id，不能使用seq、人物ID或自行生成ID；没有真实来源支持的结论应省略。"}
+		}{b, out.Candidates, err.Error(), "上次结果未通过校验。请重新核对batch.messages，返回完整的修正结果。subject必须逐字复制batch.members中的id或使用shared，不能使用昵称、我/他或自行生成ID。sourceMessageIds必须逐字复制本批次支持结论的用户消息id，不能使用seq、人物ID或自行生成ID；没有真实来源支持的结论应省略。"}
 	}
 	return nil, err
 }
 
 func extractionSchema(b Batch) string {
+	schema := candidateSchema
+	subjects := []string{"shared"}
+	seen := map[string]bool{"shared": true}
+	addSubject := func(id string) {
+		if id != "" && !seen[id] {
+			subjects = append(subjects, id)
+			seen[id] = true
+		}
+	}
+	for _, member := range b.Members {
+		addSubject(member.ID)
+	}
 	ids := make([]string, 0, len(b.Messages))
 	for _, message := range b.Messages {
 		if message.SenderID != "" {
 			ids = append(ids, message.ID)
+			addSubject(message.SenderID)
 		}
 	}
-	if len(ids) == 0 {
-		return candidateSchema
+	rawSubjects, _ := json.Marshal(subjects)
+	schema = strings.Replace(schema, `"subject":{"type":"string"}`, `"subject":{"type":"string","enum":`+string(rawSubjects)+`}`, 1)
+	if len(ids) > 0 {
+		raw, _ := json.Marshal(ids)
+		schema = strings.Replace(schema, `"items":{"type":"string"}`, `"items":{"type":"string","enum":`+string(raw)+`}`, 1)
 	}
-	raw, _ := json.Marshal(ids)
-	return strings.Replace(candidateSchema, `"items":{"type":"string"}`, `"items":{"type":"string","enum":`+string(raw)+`}`, 1)
+	return schema
 }
 
 func normalizeExtractionCandidates(b Batch, input []Candidate) []Candidate {

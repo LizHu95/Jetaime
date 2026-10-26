@@ -25,6 +25,7 @@ type Config struct {
 	GaodeAPIKey      string `json:"-"` // Server-only credential for the official Amap MCP.
 	Memory           memory.Config
 	MemoryBackfill   bool
+	MemoryCheck      bool
 }
 
 func Parse(args []string) (Config, error) {
@@ -36,6 +37,7 @@ func Parse(args []string) (Config, error) {
 	commandLine.BoolVar(&cfg.EnableAccountAPI, "auth", true, "enable account, collaboration, chat and notification APIs")
 	commandLine.BoolVar(&cfg.MigrateOnly, "migrate", false, "apply PostgreSQL migrations and exit")
 	commandLine.StringVar(&memoryConfig, "memory-config", os.Getenv("JETAIME_MEMORY_CONFIG"), "memory JSON configuration; defaults to memory.json or ../../local/memory.json")
+	commandLine.BoolVar(&cfg.MemoryCheck, "memory-check", false, "check memory configuration against the database without changing memory or running workers")
 	commandLine.BoolVar(&cfg.MemoryBackfill, "memory-backfill", false, "resume historical memory backfill and exit; never reset progress")
 	commandLine.BoolVar(&cfg.EnableChatAI, "chat-ai", true, "enable the main Agent for authenticated group chat")
 	commandLine.DurationVar(&cfg.ModelTimeout, "model-timeout", 5*time.Minute, "maximum model execution time")
@@ -63,17 +65,17 @@ func Parse(args []string) (Config, error) {
 	if err := cfg.validateAddress(); err != nil {
 		return cfg, err
 	}
-	if cfg.MigrateOnly && cfg.MemoryBackfill {
-		return cfg, fmt.Errorf("migrate and memory-backfill must run separately")
+	if (cfg.MigrateOnly && (cfg.MemoryBackfill || cfg.MemoryCheck)) || (cfg.MemoryCheck && cfg.MemoryBackfill) {
+		return cfg, fmt.Errorf("migrate, memory-check and memory-backfill must run separately")
 	}
-	if !cfg.MigrateOnly && (cfg.EnableAccountAPI || cfg.MemoryBackfill) {
+	if !cfg.MigrateOnly && (cfg.EnableAccountAPI || cfg.MemoryBackfill || cfg.MemoryCheck) {
 		var err error
 		cfg.Memory, err = memory.LoadConfig(memoryConfig)
 		if err != nil {
 			return cfg, err
 		}
 	}
-	if cfg.EnableChatAI && !cfg.MigrateOnly && !cfg.MemoryBackfill {
+	if cfg.EnableChatAI && !cfg.MigrateOnly && !cfg.MemoryBackfill && !cfg.MemoryCheck {
 		var err error
 		cfg.Model, err = modelOptions.Resolve(*contextTokens)
 		if err != nil {
