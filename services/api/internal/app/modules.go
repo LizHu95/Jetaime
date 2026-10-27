@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
@@ -56,31 +55,27 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			m.database.Close()
 		}
 	}()
-	if cfg.EnableAccountAPI || cfg.EnableDatabase {
-		m.database, err = openDatabase(ctx, cfg.DatabaseURL)
-		if err != nil {
-			return nil, err
-		}
+	m.database, err = openDatabase(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.EnableAccountAPI {
-		m.chatStore = chat.NewStore(m.database)
-		m.chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
-		m.chatService = chat.NewService(m.chatStore, cfg.EnableChatAI)
-		m.background = append(m.background, m.chatStore.CleanLocations)
-		m.reminderService = reminder.NewService(reminder.NewStore(m.database))
-		memoryStore := memory.NewStore(m.database, cfg.Memory)
-		memoryService, err := cfg.Memory.Build()
-		if err != nil {
-			return nil, err
-		}
-		memoryService.Store = memoryStore
-		if err = memoryStore.Initialize(ctx); err != nil {
-			return nil, err
-		}
-		m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
-		m.memoryService = memoryService
-		fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
+	m.chatStore = chat.NewStore(m.database)
+	m.chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
+	m.chatService = chat.NewService(m.chatStore, cfg.EnableChatAI)
+	m.background = append(m.background, m.chatStore.CleanLocations)
+	m.reminderService = reminder.NewService(reminder.NewStore(m.database))
+	memoryStore := memory.NewStore(m.database, cfg.Memory)
+	memoryService, err := cfg.Memory.Build()
+	if err != nil {
+		return nil, err
 	}
+	memoryService.Store = memoryStore
+	if err = memoryStore.Initialize(ctx); err != nil {
+		return nil, err
+	}
+	m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
+	m.memoryService = memoryService
+	fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
 	var model llm.ChatModel
 	var executor *execution.Service
 	if cfg.EnableChatAI {
@@ -92,15 +87,8 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		fmt.Printf("Model: %s (%s), profile: %s\n", cfg.Model.Model, cfg.Model.Provider, cfg.Model.Profile)
 	}
 	if cfg.EnableChatAI {
-		if m.reminderService == nil {
-			return nil, fmt.Errorf("chat AI requires account services")
-		}
-		var provider qa.ContextProvider
-		var interventionEvidence ai.InterventionEvidenceProvider
-		if m.memoryService != nil {
-			provider = qa.HistoryContext(m.memoryService, m.chatService)
-			interventionEvidence = intervention.HistoryEvidence(m.memoryService, m.chatService)
-		}
+		provider := qa.HistoryContext(m.memoryService, m.chatService)
+		interventionEvidence := intervention.HistoryEvidence(m.memoryService, m.chatService)
 		// Complete production chat capability list, including its domain dependencies.
 		entries := []tools.Tool{
 			respond.New(),
@@ -127,10 +115,8 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			return nil, err
 		}
 	}
-	if cfg.EnableAccountAPI {
-		if err = m.addAccountModules(ctx, cfg, executor); err != nil {
-			return nil, err
-		}
+	if err = m.addAccountModules(ctx, cfg, executor); err != nil {
+		return nil, err
 	}
 
 	return m, nil

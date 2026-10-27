@@ -28,12 +28,12 @@ chmod +x api-linux-amd64
 默认启用认证、好友、群聊 API 和共享 AI，需要配置 PostgreSQL、完成迁移并提供有效模型配置。仅测试 HTTP 连通性时显式关闭认证，无需数据库、模型配置或历史文件：
 
 ```sh
-./api-linux-amd64 -auth=false
+./api-linux-amd64 -chat-ai=false
 # 在另一个终端测试：
 curl http://127.0.0.1:8081/test/healthz
 ```
 
-`-auth=false` 仅启用 `/test/healthz`。旧 JSON 调试台已退役，不再提供相关参数和路由。
+`-chat-ai=false` 仅关闭群聊 Agent 回复，账号、聊天、数据库和记忆处理仍启用，需要数据库与记忆模型配置。旧 JSON 调试台已退役，不再提供相关参数和路由。
 
 默认认证模块自动开启 PostgreSQL；连接地址从 `JETAIME_DATABASE_URL` 环境变量读取。`start.sh`（默认 restart）、`start.sh start` 和 `start.sh migrate` 自动加载同目录 `.env` 并导出变量，文件中的同名配置优先于现有环境变量。`.env` 使用 Bash 赋值语法，特殊字符或空格使用单引号包裹；二进制本身不自动读取该文件。先创建空数据库和有建表权限的账号，再执行自动迁移与启动：
 
@@ -45,13 +45,13 @@ curl http://127.0.0.1:8081/test/healthz
 
 示例为本机连接；远端连接按数据库配置使用 TLS。迁移 SQL 已嵌入程序，执行器使用事务和数据库锁避免重复执行，并在 `schema_migrations` 保存版本、文件名和 SHA-256。重复执行无变化，已有版本校验不一致或数据库版本超出程序支持范围时拒绝执行。迁移失败会回滚本次 DDL 和版本记录。不提供删除数据的 down 命令。
 
-`-migrate` 执行后退出，不启动 HTTP 服务，也不调用模型；使用 `bash start.sh migrate` 加载配置并前台执行迁移，成功后再运行 `bash start.sh start`。`restart`（含默认动作）会先执行增量迁移，成功后再停止旧进程并启动新 API；迁移失败时退出并保留旧进程。显式 `start` 或直接运行二进制只检查连接和版本，不自动建表，未迁移或版本不匹配时启动失败。可用 `-auth=false -database` 仅检查数据库并提供健康检查。曾用 psql 手工建表但未记录版本的库不能自动接管，应使用新空库，保留旧库供核对或另行制定迁移方案。
+`-migrate` 执行后退出，不启动 HTTP 服务，也不调用模型；使用 `bash start.sh migrate` 加载配置并前台执行迁移，成功后再运行 `bash start.sh start`。`restart`（含默认动作）会先执行增量迁移，成功后再停止旧进程并启动新 API；迁移失败时退出并保留旧进程。显式 `start` 或直接运行二进制只检查连接和版本，不自动建表，未迁移或版本不匹配时启动失败。核心业务和数据库固定启用，`-auth`、`-database` 参数已移除。曾用 psql 手工建表但未记录版本的库不能自动接管，应使用新空库，保留旧库供核对或另行制定迁移方案。
 
 `/test/healthz` 固定返回测试 JSON；数据库模式只在启动时检查连接和迁移版本。Router 已移除存活、就绪接口，后续按实际业务需要通过模块注册。认证、好友请求、双人群聊、阅读进度、WebSocket 实时通知和共享 AI 已实现。群 AI 默认开启，需有效模型配置，可用 `-chat-ai=false` 显式关闭；代理需转发 `/api/chat/events` 的 WebSocket 升级。
 
-共享 AI 的部署配置：在 `local/models.json` 选择可用的云模型 profile，并在 `local/.env` 配置对应密钥，再构建上传。群聊 AI 默认开启，无需启用环境变量或启动参数。`start.sh` 自动读取同目录 `models.json`（可用 `JETAIME_MODEL_CONFIG` 指定其他路径），普通重启默认开启 AI。服务器上已有部署可补充这两个文件后运行 `bash start.sh restart`。启动日志应出现 `Group AI: ...`。显式参数优先，例如 `bash start.sh restart -chat-ai=false` 可临时关闭；仅健康检查时使用 `bash start.sh start -auth=false`，无需数据库迁移，不启动群聊 AI。启用后，聊天里失败的旧请求可点击“重试 AI 回复”，不会自动重新执行。
+共享 AI 的部署配置：在 `local/models.json` 选择可用的云模型 profile，并在 `local/.env` 配置对应密钥，再构建上传。群聊 AI 默认开启，无需启用环境变量或启动参数。`start.sh` 自动读取同目录 `models.json`（可用 `JETAIME_MODEL_CONFIG` 指定其他路径），普通重启默认开启 AI。服务器上已有部署可补充这两个文件后运行 `bash start.sh restart`。启动日志应出现 `Group AI: ...`。显式参数优先，例如 `bash start.sh restart -chat-ai=false` 可临时关闭；不再提供仅健康检查的启动模式。启用后，聊天里失败的旧请求可点击“重试 AI 回复”，不会自动重新执行。
 
-认证模块默认开启，自动连接 PostgreSQL 并注册账号相关接口，包括 `/api/auth/register`、`/api/auth/login`、`/api/auth/logout`。运行 `./api-linux-amd64` 或 `bash start.sh start` 即可，无需加 `-auth`；显式 `-auth=false` 可关闭。登录返回 7 天有效期的 Bearer Token，退出在请求头传 `Authorization: Bearer TOKEN`。认证应通过 HTTPS 使用。注册密码为 6–128 个 Unicode 字符，账号为 2–24 位 ASCII 字母、数字或下划线，大小写敏感；升级时运行 `bash start.sh restart` 自动执行所有待应用迁移并重启服务。完整请求与响应示例见仓库 `docs/v2/认证接口.md`。
+认证模块固定开启，启动时连接 PostgreSQL 并注册账号相关接口，包括 `/api/auth/register`、`/api/auth/login`、`/api/auth/logout`。运行 `./api-linux-amd64` 或 `bash start.sh start` 即可；不再提供关闭账号模块的参数。登录返回 7 天有效期的 Bearer Token，退出在请求头传 `Authorization: Bearer TOKEN`。认证应通过 HTTPS 使用。注册密码为 6–128 个 Unicode 字符，账号为 2–24 位 ASCII 字母、数字或下划线，大小写敏感；升级时运行 `bash start.sh restart` 自动执行所有待应用迁移并重启服务。完整请求与响应示例见仓库 `docs/v2/认证接口.md`。
 
 云服务器上可用包内脚本自动选择架构并后台运行。直接执行 `bash start.sh` 默认重启：先应用待执行的数据库迁移，成功后停止当前部署目录的旧 API，再后台启动；即使 PID 文件丢失，也会检查目标端口并识别旧 API（包含已被替换的二进制）。其他程序占用端口或无法确认进程身份时会退出并显示占用信息。端口检查依赖 Linux 的 `ss`（iproute2）。显式 `start` 保留已运行则直接返回的行为。
 

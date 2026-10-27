@@ -54,9 +54,9 @@ make dev API_ARGS='-model-config ../../local/other-models.json -addr 127.0.0.1:8
 
 ## HTTP 路由与模块装配
 
-`cmd/api/main.go` 读取命令行参数并监听退出信号 → `config.Parse` 生成配置 → `app.Run` 初始化模块并运行服务。`-auth` 控制账号、好友、群聊和通知 API；`-chat-ai` 控制正式群聊中的主 Agent。
+`cmd/api/main.go` 读取命令行参数并监听退出信号 → `config.Parse` 生成配置 → `app.Run` 初始化模块并运行服务。账号、好友、群聊、通知和数据库固定启用；`-chat-ai` 控制正式群聊中的主 Agent。
 
-`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。仅需健康检查时显式传 `-auth=false`。
+`make dev` 和 API 二进制默认启用认证、好友、群聊及实时同步 API、共享 AI 与 `/test/healthz`，需要 PostgreSQL 连接、已迁移的数据库及有效模型配置；无需历史文件。`make dev` 自动加载 `local/.env`，部署二进制从运行环境读取配置。不再提供无数据库的健康检查启动模式；`-auth` 和 `-database` 参数已移除。
 
 使用 Go 标准库 `net/http` 与 `ServeMux`。所有 HTTP 方法、路径和处理器绑定集中在 [internal/httpapi/router.go](services/api/internal/httpapi/router.go) 的 `NewRouter(Handlers)`，打开此文件即可查看完整路由表。启动流程在 [internal/app/server.go](services/api/internal/app/server.go)，模块装配在 [internal/app/modules.go](services/api/internal/app/modules.go)，按配置注入启用的端点组；未注入的组不注册路由。路由直接绑定业务 Handler 的具名方法（如 `ListMessages`、`SendMessage`），并显式包装 `Authenticate` 中间件。模块装配注入 Handler 实例，不再通过 `Endpoints()` 转接字段。认证身份由私有 Context key 传递，参数解析留在 Handler，业务入口统一经过 Service；账号和业务 API 共用 `httpapi.WriteJSON` 输出响应。
 
@@ -83,7 +83,7 @@ PostgreSQL 基础接入已完成：`JETAIME_DATABASE_URL` 配合 `make db-migrat
 
 ```sh
 make dev                                  # 默认启用认证、好友、群聊、实时同步与健康检查
-make dev API_ARGS='-auth=false'            # 只启用健康检查，不连接数据库
+make dev API_ARGS='-chat-ai=false'         # 关闭群聊 Agent，核心业务和记忆 Worker 继续运行
 ```
 
 统一 HTTP API 打包运行 `make api-build`，产物保存到 `outputs/api/`，包含 Linux amd64 / arm64 二进制和 `api-deploy.tar.gz`。详见 [API 打包说明](deploy/api/README.md)。

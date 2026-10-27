@@ -11,22 +11,21 @@ import (
 func TestModesResolveOnlyRequiredDependencies(t *testing.T) {
 	t.Setenv("JETAIME_MEMORY_CONFIG", writeMemoryConfig(t))
 	for _, tc := range []struct {
-		name                      string
-		args                      []string
-		accounts, chatAI, migrate bool
+		name            string
+		args            []string
+		chatAI, migrate bool
 	}{
-		{"production", []string{"-provider", "ollama", "-model", "test"}, true, true, false},
-		{"accounts without AI", []string{"-chat-ai=false", "-model-config", "missing.json"}, true, false, false},
-		{"health only", []string{"-auth=false", "-model-config", "missing.json"}, false, false, false},
-		{"migration", []string{"-migrate", "-model-config", "missing.json"}, true, true, true},
+		{"production", []string{"-provider", "ollama", "-model", "test"}, true, false},
+		{"accounts without AI", []string{"-chat-ai=false", "-model-config", "missing.json"}, false, false},
+		{"migration", []string{"-migrate", "-model-config", "missing.json"}, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := Parse(tc.args)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if cfg.EnableAccountAPI != tc.accounts || cfg.EnableChatAI != tc.chatAI || cfg.MigrateOnly != tc.migrate {
-				t.Fatalf("wrong mode: accounts=%t chatAI=%t migrate=%t", cfg.EnableAccountAPI, cfg.EnableChatAI, cfg.MigrateOnly)
+			if cfg.EnableChatAI != tc.chatAI || cfg.MigrateOnly != tc.migrate {
+				t.Fatalf("wrong mode: chatAI=%t migrate=%t", cfg.EnableChatAI, cfg.MigrateOnly)
 			}
 			if tc.chatAI && !tc.migrate {
 				if cfg.Model.Model != "test" {
@@ -41,9 +40,10 @@ func TestModesResolveOnlyRequiredDependencies(t *testing.T) {
 
 func TestInvalidModeAndAddress(t *testing.T) {
 	for _, args := range [][]string{
-		{"-auth=false", "-chat-ai=true"},
-		{"-auth=false", "-addr", "localhost:8081"},
-		{"-auth=false", "unexpected"},
+		{"-auth=false"},
+		{"-database"},
+		{"-addr", "localhost:8081"},
+		{"unexpected"},
 	} {
 		if _, err := Parse(args); err == nil {
 			t.Fatalf("invalid configuration accepted: %v", args)
@@ -67,8 +67,8 @@ func TestMemoryPlaceholderAndBackfillModes(t *testing.T) {
 	if _, err := Parse([]string{"-migrate", "-memory-backfill"}); err == nil {
 		t.Fatal("migration and backfill mixed")
 	}
-	// Health checks do not require an unused memory configuration.
-	if _, err := Parse([]string{"-auth=false", "-memory-config", "missing.json"}); err != nil {
+	// Migration does not require memory configuration.
+	if _, err := Parse([]string{"-migrate", "-memory-config", "missing.json", "-model-config", "missing.json"}); err != nil {
 		t.Fatal(err)
 	}
 }

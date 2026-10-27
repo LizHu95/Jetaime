@@ -127,7 +127,7 @@ def main():
             subprocess.run(['go', 'build', '-o', binary, './cmd/api'], cwd=ROOT / 'services/api', env=env, check=True)
             subprocess.run([binary, '-migrate'], env=env, check=True)
             with open(Path(folder) / 'api.log', 'w') as log:
-                api = subprocess.Popen([binary, '-auth', '-chat-ai', '-addr', '127.0.0.1:18081', '-provider', 'openai-compatible', '-model', 'test-shared-ai', '-model-url', 'http://127.0.0.1:18082/v1', '-api-key-env', 'JETAIME_TEST_MODEL_KEY', '-context-tokens', '16384', '-memory-config', str(memory_config)], env=env, stdout=log, stderr=log)
+                api = subprocess.Popen([binary, '-chat-ai', '-addr', '127.0.0.1:18081', '-provider', 'openai-compatible', '-model', 'test-shared-ai', '-model-url', 'http://127.0.0.1:18082/v1', '-api-key-env', 'JETAIME_TEST_MODEL_KEY', '-context-tokens', '16384', '-memory-config', str(memory_config)], env=env, stdout=log, stderr=log)
                 try:
                     for _ in range(100):
                         if api.poll() is not None:
