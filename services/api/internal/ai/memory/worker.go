@@ -66,14 +66,14 @@ func (s *Service) process(ctx context.Context, b Batch) error {
 				return err
 			}
 		}
-		if err = traceValidateCandidates(ctx, b, candidates); err != nil {
+		if err = traceValidateCandidates(ctx, b, candidates, "before_save_extraction"); err != nil {
 			return err
 		}
 		if err = s.Store.SaveExtraction(ctx, b, candidates); err != nil {
 			return err
 		}
 	}
-	if err = traceValidateCandidates(ctx, b, candidates); err != nil {
+	if err = traceValidateCandidates(ctx, b, candidates, "before_apply_mutations"); err != nil {
 		return err
 	}
 	mutations := append([]Mutation{}, b.Mutations...)
@@ -114,9 +114,28 @@ func (s *Service) process(ctx context.Context, b Batch) error {
 	}
 	return s.Store.Complete(ctx, b, mutations)
 }
-func traceValidateCandidates(ctx context.Context, b Batch, candidates []Candidate) error {
+func traceValidateCandidates(ctx context.Context, b Batch, candidates []Candidate, stage string) error {
 	_, span := telemetry.Start(ctx, "memory.validate_candidates", "CHAIN", attribute.Int("memory.candidate_count", len(candidates)))
+	span.SetAttributes(attribute.String("memory.validation_stage", stage), attribute.Int64("memory.from_seq", b.From), attribute.Int64("memory.to_seq", b.To), attribute.Int("memory.message_count", len(b.Messages)), attribute.Bool("memory.extraction_reused", b.Extracted))
+	if data, err := json.Marshal(candidates); err == nil {
+		telemetry.Content(span, "input.value", string(data))
+	}
 	err := validateCandidates(b, candidates)
+	span.SetAttributes(attribute.Bool("memory.succeeded", err == nil))
+	if err != nil {
+		detail := strings.TrimPrefix(err.Error(), ErrInvalid.Error()+": ")
+		reason := detail
+		if strings.HasPrefix(detail, "candidate[") {
+			var index int
+			if _, scanErr := fmt.Sscanf(detail, "candidate[%d] %s", &index, &reason); scanErr == nil {
+				span.SetAttributes(attribute.Int("memory.failed_candidate_index", index))
+			}
+		}
+		span.SetAttributes(attribute.String("memory.failure_reason", reason))
+	}
+	if data, e := json.Marshal(map[string]any{"candidateCount": len(candidates), "succeeded": err == nil}); e == nil {
+		telemetry.Content(span, "output.value", string(data))
+	}
 	telemetry.End(span, err)
 	return err
 }

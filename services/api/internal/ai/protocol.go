@@ -49,7 +49,7 @@ type Job struct {
 	TraceParent       string       `json:"-"`
 	TraceState        string       `json:"-"`
 	QueuedAt          time.Time    `json:"-"`
-	Kind              string       `json:"agentKind"`
+	Kind              string       `json:"-"`
 	ID                string       `json:"id"`
 	GroupID           string       `json:"groupId"`
 	AssistantID       string       `json:"-"`

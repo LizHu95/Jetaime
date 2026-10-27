@@ -138,7 +138,7 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 	}
 	existing, err := scanMessage(tx.QueryRow(ctx, messageSelect+`WHERE x.sender_user_id=$1 AND x.client_message_id=$2`, actor, input.ClientID))
 	if err == nil {
-		if existing.GroupID != group || existing.Content != input.Content || existing.MentionsAI != input.MentionsAI || existing.AgentKind != input.AgentKind {
+		if existing.GroupID != group || existing.Content != input.Content || existing.MentionsAI != input.MentionsAI {
 			return Message{}, ErrConflict
 		}
 		return existing, tx.Commit(ctx)
@@ -151,7 +151,7 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 		return Message{}, err
 	}
 	id := uuid.NewString()
-	if _, err = tx.Exec(ctx, `INSERT INTO messages(id,group_id,seq,sender_type,sender_user_id,content,mentions_ai,client_message_id,agent_kind) VALUES($1,$2,$3,'user',$4,$5,$6,$7,$8)`, id, group, seq, actor, input.Content, input.MentionsAI, input.ClientID, input.AgentKind); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO messages(id,group_id,seq,sender_type,sender_user_id,content,mentions_ai,client_message_id,agent_kind) VALUES($1,$2,$3,'user',$4,$5,$6,$7,$8)`, id, group, seq, actor, input.Content, input.MentionsAI, input.ClientID, "main"); err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) && pgerr.Code == "23505" {
 			return Message{}, ErrConflict
@@ -177,10 +177,7 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 		}
 	}
 	if input.MentionsAI || followup {
-		runKind := input.AgentKind
-		if followup {
-			runKind = "auto"
-		}
+		runKind := "main"
 		carrier := telemetry.Carrier(ctx)
 		status := "queued"
 		var code *string

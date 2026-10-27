@@ -65,7 +65,7 @@ func TestPostgresTraceSurvivesQueueAndRetry(t *testing.T) {
 		t.Fatal("ordinary message consumed tracing quota")
 	}
 	ctx, parent := telemetry.Start(context.Background(), "send", "CHAIN")
-	if _, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{AgentKind: "qa", Content: "@AI 测试", ClientID: uuid.NewString()}); err != nil {
+	if _, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 测试", ClientID: uuid.NewString()}); err != nil {
 		t.Fatal(err)
 	}
 	telemetry.End(parent, nil)

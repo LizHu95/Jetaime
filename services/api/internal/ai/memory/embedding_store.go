@@ -101,7 +101,7 @@ func (s *Store) CachedEmbedding(ctx context.Context, embed Embedder, group, text
 	return s.runEmbedding(ctx, embed, j)
 }
 func (s *Store) runEmbedding(ctx context.Context, embed Embedder, j embeddingJob) ([]float32, error) {
-	v, err := embed.Embed(ctx, j.Content)
+	v, err := embed.Embed(embeddingContext(ctx, "memory_content"), j.Content)
 	if err == nil {
 		err = s.finishEmbedding(ctx, j, v)
 	}

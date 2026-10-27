@@ -44,18 +44,6 @@ func (s *Service) Send(ctx context.Context, group, actor string, input SendInput
 		return Message{}, ErrInvalid
 	}
 	input.MentionsAI = input.MentionsAI || aiMention.MatchString(input.Content)
-	if input.AgentKind == "" {
-		input.AgentKind = "qa"
-		if input.MentionsAI {
-			input.AgentKind = "auto"
-		}
-	}
-	if input.AgentKind != "auto" && input.AgentKind != "help" && input.AgentKind != "qa" {
-		return Message{}, ErrInvalid
-	}
-	if !input.MentionsAI && input.AgentKind != "qa" {
-		return Message{}, ErrInvalid
-	}
 	if input.MentionsAI && len(input.Content) > 3000 {
 		return Message{}, ErrInvalid
 	}

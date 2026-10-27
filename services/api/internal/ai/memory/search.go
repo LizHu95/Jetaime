@@ -65,7 +65,7 @@ func (s *Service) Search(ctx context.Context, group, actor string, in SearchInpu
 	if s.Embedder == nil {
 		return out, ErrUnavailable
 	}
-	v, err := s.Embedder.Embed(ctx, in.Query)
+	v, err := s.Embedder.Embed(embeddingContext(ctx, "search_query"), in.Query)
 	if err != nil {
 		return out, err
 	}

@@ -422,7 +422,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 	ctx := context.Background()
 	for _, answer := range []string{`{"answer":"\u0000"}`, `{"answer":""}`, `{"answer":"ok","other":1}`, `not json`} {
 		f.model = testModel{func(context.Context, llm.Request) (llm.Result, error) { return llm.Result{Content: answer}, nil }}
-		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString(), AgentKind: "qa"})
+		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -478,7 +478,7 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 最近聊了什么？", ClientID: uuid.NewString(), AgentKind: "qa"})
+	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 最近聊了什么？", ClientID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
 	}

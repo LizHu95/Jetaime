@@ -23,7 +23,7 @@ func TestPostgresAutomaticRoutingPersistsChildResult(t *testing.T) {
 				}
 			}
 			trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 帮忙", ClientID: uuid.NewString()})
-			if err != nil || trigger.AgentKind != "auto" {
+			if err != nil || trigger.AgentKind != "main" {
 				t.Fatal("new request did not enter main agent", trigger, err)
 			}
 			if _, err := f.service.Send(ctx, f.group, f.users[1].ID, SendInput{Content: "future-only-secret", ClientID: uuid.NewString()}); err != nil {
@@ -108,7 +108,7 @@ func TestPostgresRetiredExtractJobUsesMainAndOriginalFence(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI /extract 请整理待办", ClientID: uuid.NewString()})
-	if err != nil || trigger.AgentKind != "auto" {
+	if err != nil || trigger.AgentKind != "main" {
 		t.Fatal("slash text bypassed main", trigger, err)
 	}
 	if _, err = f.store.pool.Exec(ctx, `UPDATE agent_runs SET agent_kind='extract' WHERE trigger_message_id=$1`, trigger.ID); err != nil {
