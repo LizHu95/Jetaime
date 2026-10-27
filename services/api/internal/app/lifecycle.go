@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -28,7 +27,8 @@ func openDatabase(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func migrateDatabase(ctx context.Context, url string) error {
+// MigrateDatabase applies schema migrations and closes the connection.
+func MigrateDatabase(ctx context.Context, url string) error {
 	startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	pool, err := database.Open(startup, url)
@@ -41,14 +41,6 @@ func migrateDatabase(ctx context.Context, url string) error {
 	}
 	fmt.Println("PostgreSQL migrations are current")
 	return nil
-}
-
-func flushTracing(shutdown func(context.Context) error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := shutdown(ctx); err != nil {
-		log.Print("trace shutdown failed")
-	}
 }
 
 func serveHTTP(ctx context.Context, cfg config.Config, handler http.Handler) error {

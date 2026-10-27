@@ -21,6 +21,8 @@
 
 ## 后端与主 Agent
 
+`cmd/api` 负责解析参数、分发迁移/记忆检查/历史补处理命令，并管理信号与 Trace 生命周期；`app.Run` 只负责正常 HTTP 服务的组件装配、后台 Worker 启动和退出清理。原有 `-migrate`、`-memory-check`、`-memory-backfill` 参数保持不变。
+
 正式服务提供账号、好友、双人群聊、实时同步、共享 AI、记忆检索和提醒。Web 客户端通过认证 API 使用这些能力。
 
 旧 JSON 调试台与离线 Workflow 评测已于 2026-10-23 退役。历史案例、结果与源码快照保留用于追溯，见 [历史评测说明](evals/README.md)。一期方案与结果保留在 `docs/v1/`。

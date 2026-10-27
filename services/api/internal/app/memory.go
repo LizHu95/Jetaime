@@ -10,7 +10,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 )
 
-func backfillMemory(ctx context.Context, cfg config.Config) error {
+// BackfillMemory processes pending history and embeddings once, retaining progress.
+func BackfillMemory(ctx context.Context, cfg config.Config) error {
 	pool, err := openDatabase(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -50,8 +51,8 @@ func backfillMemory(ctx context.Context, cfg config.Config) error {
 	return nil
 }
 
-// checkMemory performs no inference or database writes.
-func checkMemory(ctx context.Context, cfg config.Config) error {
+// CheckMemory validates configuration compatibility without inference or database writes.
+func CheckMemory(ctx context.Context, cfg config.Config) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	pool, err := openDatabase(ctx, cfg.DatabaseURL)
