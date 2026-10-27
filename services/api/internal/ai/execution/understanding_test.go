@@ -78,11 +78,11 @@ func TestUnderstandingInterventionPreservesOriginalClarificationAndLatestReply(t
 		t.Fatal(err)
 	}
 	model := &proactiveModel{outputs: []string{string(raw), `{"name":"respond","arguments":{"status":"answered","answer":"小周，刚才提醒的是做饭前解冻肉，没有提出让你吃蔬菜或替你决定吃什么。这里可能有点误会。","sourceMessageIds":["prep","clarified","control"]}}`}}
-	agent, err := mainagent.NewAgent(model, "test", 32768)
+	registry, err := tools.New(respond.New(), silence.New())
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(respond.New(), silence.New())
+	agent, err := mainagent.NewAgent(model, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,11 +127,11 @@ func TestHouseholdConflictPreservesBothConcernsWithoutCommunicationSkill(t *test
 		t.Fatal(err)
 	}
 	model := &proactiveModel{outputs: []string{string(raw), `{"name":"respond","arguments":{"status":"answered","answer":"小林在意垃圾异味，小周说工作很忙，也希望家务一起分担。可以一起商量这次怎么安排，才能让双方都承担得过来。","sourceMessageIds":["garbage","burden","work","cleaning"]}}`}}
-	agent, err := mainagent.NewAgent(model, "test", 32768)
+	registry, err := tools.New(respond.New(), silence.New())
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(respond.New(), silence.New())
+	agent, err := mainagent.NewAgent(model, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,11 +206,11 @@ func realCommunicationEntry(t *testing.T) (*entry, llm.Config) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent, err := mainagent.NewAgent(model, config.Model, config.ContextTokens)
+	registry, err := tools.New(respond.New(), silence.New())
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(respond.New(), silence.New())
+	agent, err := mainagent.NewAgent(model, config.Model, config.ContextTokens, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

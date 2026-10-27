@@ -60,11 +60,10 @@ func TestMainReservesToolSpaceBeforeOptionalBackground(t *testing.T) {
 			}
 			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + reserve + 700
 			model := &proactiveModel{outputs: []string{`{"name":"remain_silent","arguments":{"reason":"暂不发言"}}`}}
-			agent, err := NewAgent(model, "test", capacity)
+			agent, err := NewAgent(model, "test", capacity, registry)
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent.Tools = registry
 			run, err := agent.ExecuteMain(context.Background(), input, "核实", nil)
 			if err != nil || !run.Silent || len(model.requests) != 1 {
 				t.Fatal("assembly failed", err)

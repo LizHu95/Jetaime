@@ -104,9 +104,8 @@ func TestMainContextAndToolCatalogCannotBypassBudget(t *testing.T) {
 func TestMainToolLoopHasAHardLimit(t *testing.T) {
 	input := testContext()
 	m := &mainTestModel{decision: `{"name":"continue","arguments":{}}`}
-	a, _ := NewAgent(m, "test", 16384)
 	calls := 0
-	a.Tools, _ = tools.New(tools.NewTyped(tools.Metadata{Name: "continue", Description: "test"}, func(context.Context, tools.Scope, struct{}) (struct {
+	registry, _ := tools.New(tools.NewTyped(tools.Metadata{Name: "continue", Description: "test"}, func(context.Context, tools.Scope, struct{}) (struct {
 		Value string `json:"value"`
 	}, error) {
 		calls++
@@ -114,6 +113,7 @@ func TestMainToolLoopHasAHardLimit(t *testing.T) {
 			Value string `json:"value"`
 		}{Value: "continue"}, nil
 	}))
+	a, _ := NewAgent(m, "test", 16384, registry)
 	if _, err := a.ExecuteMain(context.Background(), input, "test", nil); err == nil || calls != MaxToolSteps {
 		t.Fatal("unbounded tool loop", err, calls)
 	}

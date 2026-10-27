@@ -17,11 +17,10 @@ func New(model llm.ChatModel, name string, tokens int, registry *tools.Registry,
 	if registry == nil {
 		return nil, fmt.Errorf("tool registry is required")
 	}
-	main, err := mainagent.NewAgent(model, name, tokens)
+	main, err := mainagent.NewAgent(model, name, tokens, registry)
 	if err != nil {
 		return nil, err
 	}
-	main.Tools = registry
 	judge, err := intervention.New(model, name, tokens)
 	if err != nil {
 		return nil, err

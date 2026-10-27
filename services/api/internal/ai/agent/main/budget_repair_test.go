@@ -52,11 +52,10 @@ func TestMainRebudgetsAfterToolFeedback(t *testing.T) {
 				t.Fatal(err)
 			}
 			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + ToolFeedbackReserve + 32
-			agent, err := NewAgent(model, "test", capacity)
+			agent, err := NewAgent(model, "test", capacity, registry)
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent.Tools = registry
 			run, err := agent.ExecuteMain(context.Background(), input, "附近去哪玩", nil)
 			if err != nil || !run.Silent || len(model.requests) != 2 {
 				t.Fatalf("repair failed: silent=%t requests=%d err=%v", run.Silent, len(model.requests), err)
@@ -122,11 +121,10 @@ func TestSkillBudgetCannotDropStrategyOrPinnedEvidence(t *testing.T) {
 	ref, _ := skills.Route("pacing_conflict")
 	input.Request.Skill = &ref
 	model := &proactiveModel{}
-	agent, err := NewAgent(model, "test", capacity)
+	agent, err := NewAgent(model, "test", capacity, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools = registry
 	run, err := agent.ExecuteMain(context.Background(), input, "协调暂停", nil)
 	if !errors.Is(err, ai.ErrContext) || len(model.requests) != 0 || run.Status != "failed" {
 		t.Fatalf("over-budget strategy reached provider: calls=%d err=%v", len(model.requests), err)
@@ -160,11 +158,10 @@ func TestMainFeedbackCannotDiscardRequiredEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + 32
-	agent, err := NewAgent(model, "test", capacity)
+	agent, err := NewAgent(model, "test", capacity, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools = registry
 	_, err = agent.ExecuteMain(context.Background(), input, "核实", nil)
 	if !errors.Is(err, ai.ErrContext) || len(model.requests) != 1 {
 		t.Fatal("required evidence or hard model limit was bypassed", err)

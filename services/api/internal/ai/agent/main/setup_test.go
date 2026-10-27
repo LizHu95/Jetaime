@@ -21,11 +21,11 @@ func testContext() ai.Context {
 }
 
 func newTestAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) {
-	a, err := NewAgent(model, name, tokens)
+	registry, err := tools.New(respond.New(), qa.New(model, name, tokens, nil))
 	if err != nil {
 		return nil, err
 	}
-	a.Tools, err = tools.New(respond.New(), qa.New(model, name, tokens, nil))
+	a, err := NewAgent(model, name, tokens, registry)
 	return a, err
 }
 

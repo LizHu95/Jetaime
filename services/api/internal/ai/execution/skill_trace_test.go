@@ -32,11 +32,11 @@ func TestSkillVersionTracedOnMainModelAndToolWithoutContentCapture(t *testing.T)
 	otel.SetTracerProvider(provider)
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
 	t.Setenv("JETAIME_TRACE_CAPTURE_CONTENT", "false")
-	agent, err := mainagent.NewAgent(skillTraceModel{}, "test", 32768)
+	registry, err := tools.New(respond.New())
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(respond.New())
+	agent, err := mainagent.NewAgent(skillTraceModel{}, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

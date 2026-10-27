@@ -42,9 +42,8 @@ func TestMainRepairsArgumentsWithoutExecutingInvalidCall(t *testing.T) {
 		saves++
 		return saveOutput{Status: "saved"}, nil
 	}, saveContractOptions())
-	agent, _ := NewAgent(model, "test", 16384)
-	var err error
-	agent.Tools, err = tools.New(tool)
+	registry, err := tools.New(tool)
+	agent, _ := NewAgent(model, "test", 16384, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,8 +80,8 @@ func TestMainRepairsEvidenceBeforeWriting(t *testing.T) {
 		saves++
 		return saveOutput{Status: "saved"}, nil
 	}, saveContractOptions())
-	agent, _ := NewAgent(model, "test", 16384)
-	agent.Tools, _ = tools.New(tool)
+	registry, _ := tools.New(tool)
+	agent, _ := NewAgent(model, "test", 16384, registry)
 	_, err := agent.ExecuteMain(context.Background(), testContext(), "保存", nil)
 	if err != nil || attempts != 2 || saves != 1 || len(model.requests) != 2 {
 		t.Fatal("evidence repair did not respect write boundary", err)
@@ -103,8 +102,8 @@ func TestMainDoesNotReplayInfrastructureOrOutputFailures(t *testing.T) {
 				}
 				return saveOutput{}, errors.New("storage unavailable")
 			}, saveContractOptions())
-			agent, _ := NewAgent(model, "test", 16384)
-			agent.Tools, _ = tools.New(tool)
+			registry, _ := tools.New(tool)
+			agent, _ := NewAgent(model, "test", 16384, registry)
 			run, err := agent.ExecuteMain(context.Background(), testContext(), "保存", nil)
 			if err == nil || saves != 1 || len(model.requests) != 1 || run.Answer != nil {
 				t.Fatal("potential write was replayed or exposed", err)
@@ -122,8 +121,8 @@ func TestMainBoundsArgumentRepairAttempts(t *testing.T) {
 		saves++
 		return saveOutput{Status: "saved"}, nil
 	}, saveContractOptions())
-	agent, _ := NewAgent(model, "test", 16384)
-	agent.Tools, _ = tools.New(tool)
+	registry, _ := tools.New(tool)
+	agent, _ := NewAgent(model, "test", 16384, registry)
 	_, err := agent.ExecuteMain(context.Background(), testContext(), "保存", nil)
 	if !errors.Is(err, ai.ErrInvalidDecision) || saves != 0 || len(model.requests) != MaxToolSteps {
 		t.Fatal("argument repair loop was not bounded", err)

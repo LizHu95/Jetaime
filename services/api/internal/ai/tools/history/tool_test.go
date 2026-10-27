@@ -192,11 +192,11 @@ func TestMainHistoryToolReturnsSourcesOutsideRecentWindow(t *testing.T) {
 	reader := &fakeReader{messages: testMessages(1)}
 	summaryModel := &fakeModel{answer: `{"status":"answered","answer":"讨论了项目。","sourceMessageIds":["0"]}`}
 	router := &fakeModel{answer: `{"name":"summarize_history","arguments":{"startTime":"2026-10-12T00:00:00Z","endTime":"2026-10-19T00:00:00Z"}}`}
-	agent, err := mainagent.NewAgent(router, "test", 32768)
+	registry, err := tools.New(New(summaryModel, "test", 32768, reader))
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(New(summaryModel, "test", 32768, reader))
+	agent, err := mainagent.NewAgent(router, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

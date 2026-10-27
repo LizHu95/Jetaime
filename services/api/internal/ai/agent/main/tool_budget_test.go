@@ -46,11 +46,10 @@ func TestToolBudgetReservesRestrictedFinalResponse(t *testing.T) {
 				model.outputs = append(model.outputs, `{"name":"`+tc.lookup+`","arguments":{}}`)
 			}
 			model.outputs = append(model.outputs, tc.final)
-			agent, err := NewAgent(model, "test", 32768)
+			agent, err := NewAgent(model, "test", 32768, registry)
 			if err != nil {
 				t.Fatal(err)
 			}
-			agent.Tools = registry
 			input := testContext()
 			if tc.proactive {
 				ref, _ := skills.Route("pacing_conflict")

@@ -35,8 +35,8 @@ func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 		writes++
 		return saveOutput{Status: "saved"}, nil
 	}, saveContractOptions())
-	a, _ := mainagent.NewAgent(model, "test", 32768)
-	a.Tools, _ = tools.New(save)
+	registry, _ := tools.New(save)
+	a, _ := mainagent.NewAgent(model, "test", 32768, registry)
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 	run, err := invokePassiveEntry(t, a, input)
@@ -60,7 +60,8 @@ func TestProactiveRepairsMisnestedObjectiveBeforeExecutingTool(t *testing.T) {
 func TestProactiveStopsAfterOneFormatRepair(t *testing.T) {
 	malformed := `{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m1","m6"],"anchorMessageIds":["m6"]},"action":"intervene","verification":null,"reason":"请求","breakdowns":[],"intent":{"type":"execute_request","evidenceMessageIds":["m6"]},"objective":"创建提醒"}`
 	model := &proactiveModel{outputs: []string{malformed, malformed}}
-	a, _ := mainagent.NewAgent(model, "test", 32768)
+	registry, _ := tools.New()
+	a, _ := mainagent.NewAgent(model, "test", 32768, registry)
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 	run, err := invokePassiveEntry(t, a, input)
@@ -101,8 +102,8 @@ func TestProactiveRecognitionAndExecution(t *testing.T) {
 			if tc.next != "" {
 				model.outputs = append(model.outputs, tc.next)
 			}
-			a, _ := mainagent.NewAgent(model, "test", 16384)
-			a.Tools, _ = tools.New(respond.New(), silence.New())
+			registry, _ := tools.New(respond.New(), silence.New())
+			a, _ := mainagent.NewAgent(model, "test", 16384, registry)
 			input := testContext()
 			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 			run, err := invokePassiveEntry(t, a, input)
@@ -134,8 +135,8 @@ func TestProactiveCanRemainSilentAfterReadTool(t *testing.T) {
 	}}
 	reads := 0
 	lookup := tools.NewTyped(tools.Metadata{Name: "lookup", Description: "查证", ReadOnly: true, Terminal: true}, func(context.Context, tools.Scope, struct{}) (struct{}, error) { reads++; return struct{}{}, nil })
-	a, _ := mainagent.NewAgent(model, "test", 16384)
-	a.Tools, _ = tools.New(lookup, respond.New(), silence.New())
+	registry, _ := tools.New(lookup, respond.New(), silence.New())
+	a, _ := mainagent.NewAgent(model, "test", 16384, registry)
 	input := testContext()
 	input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 	run, err := invokePassiveEntry(t, a, input)
@@ -154,8 +155,8 @@ func TestProactiveWriteRequiresExplicitRequestIntent(t *testing.T) {
 				writes++
 				return saveOutput{Status: "saved"}, nil
 			}, saveContractOptions())
-			a, _ := mainagent.NewAgent(model, "test", 16384)
-			a.Tools, _ = tools.New(save, silence.New(), respond.New())
+			registry, _ := tools.New(save, silence.New(), respond.New())
+			a, _ := mainagent.NewAgent(model, "test", 16384, registry)
 			input := testContext()
 			input.Request = &ai.RequestContext{MessageID: "m6", SenderID: input.ActorID, SentAt: input.Messages[1].SentAt}
 			run, err := invokePassiveEntry(t, a, input)
@@ -209,8 +210,8 @@ func TestCommunicationInterventionDirectResponse(t *testing.T) {
 				t.Fatal(err)
 			}
 			model := &proactiveModel{outputs: []string{string(decision), string(reply)}}
-			agent, _ := mainagent.NewAgent(model, "test", 32768)
-			agent.Tools, _ = tools.New(respond.New(), silence.New())
+			registry, _ := tools.New(respond.New(), silence.New())
+			agent, _ := mainagent.NewAgent(model, "test", 32768, registry)
 			input := testContext()
 			input.Messages[0].Text = tc.previous
 			input.Messages[1].Text = tc.current
@@ -248,8 +249,8 @@ func TestRejectedCommunicationCandidateEndsSuccessfullyWithoutMain(t *testing.T)
 	}
 	raw, _ := json.Marshal(candidate)
 	model := &proactiveModel{outputs: []string{string(raw)}}
-	agent, _ := mainagent.NewAgent(model, "test", 32768)
-	agent.Tools, _ = tools.New(respond.New(), silence.New())
+	registry, _ := tools.New(respond.New(), silence.New())
+	agent, _ := mainagent.NewAgent(model, "test", 32768, registry)
 	input := testContext()
 	input.Messages[0].Text = "你把我的手办弄坏了"
 	input.Messages[1].Text = "我很难过"
@@ -307,11 +308,11 @@ func TestProactiveRecognizesThirtyButExecutesWithEvidenceAndSixRecent(t *testing
 		`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m0","m1","m2","m3","m4","m5","m6","m7","m8","m9","m10","m11","m12","m13","m14","m15","m16","m17","m18","m19","m20","m21","m22","m23","m24","m25","m26","m27","m28","m29"],"anchorMessageIds":["m29"]},"action":"intervene","verification":null,"reason":"需要补充地点","breakdowns":[{"type":"underspecified_plan","evidenceMessageIds":["m2"]}],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m0"]}}`,
 		`{"name":"remain_silent","arguments":{"reason":"先等待成员补充"}}`,
 	}}
-	agent, err := mainagent.NewAgent(model, "test", 32768)
+	registry, err := tools.New(silence.New())
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent.Tools, err = tools.New(silence.New())
+	agent, err := mainagent.NewAgent(model, "test", 32768, registry)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -17,11 +17,16 @@ type Agent struct {
 	Tools        *tools.Registry
 }
 
-func NewAgent(model llm.ChatModel, name string, tokens int) (*Agent, error) {
+// NewAgent requires the complete tool registry so successful construction yields
+// an agent ready to execute; tool selection remains owned by the application.
+func NewAgent(model llm.ChatModel, name string, tokens int, registry *tools.Registry) (*Agent, error) {
 	if model == nil || strings.TrimSpace(name) == "" || tokens < 4096 {
 		return nil, fmt.Errorf("agent requires model and context >=4096")
 	}
-	return &Agent{ChatModel: model, DefaultModel: name, Tokens: tokens}, nil
+	if registry == nil {
+		return nil, fmt.Errorf("tool registry is required")
+	}
+	return &Agent{ChatModel: model, DefaultModel: name, Tokens: tokens, Tools: registry}, nil
 }
 func (a *Agent) ID() string { return "main" }
 
