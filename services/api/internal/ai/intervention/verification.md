@@ -59,6 +59,6 @@
 
 ## 输出要求
 
-- 顶层严格只有 `shouldIntervene`、`reason`、`breakdowns`、`intent`，全部必须出现。`breakdowns` 始终为数组。`false` 时 `intent=null`；`true` 时 `intent` 非空，只选择一个目标，完整包含 `type`、`objective`、`evidenceMessageIds`，`objective` 用一句话写帮助目标，不代写回复或生成参数。
-- 允许的 `intent.type` 为 `answer`、`clarify`、`suggest`、`summarize`、`remind`。本流程只核验历史，不允许 `execute_request` 或任何写操作授权；`remind` 是提醒注意已知信息，不是创建提醒。
+- `shouldIntervene=false` 时 `intent=null`；`shouldIntervene=true` 时 `intent` 非空，只选择一个目标。`objective` 用一句话写帮助目标，不代写回复或生成参数。
+- 本流程只核验历史，不授予任何写操作权限；`remind` 是提醒注意已知信息，不是创建提醒。
 - 介入目标必须同时引用 `candidate.verification.evidenceMessageIds` 中至少一条近期疑点原文，以及至少一条不在 `conversation.messages` 中的历史补充原文；所有证据只能来自输入且数组内不能重复。`reason` 简短说明决定依据，证据不足时说明缺口，不输出内部推理。

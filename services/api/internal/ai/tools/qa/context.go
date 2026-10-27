@@ -2,7 +2,6 @@ package qa
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"sort"
@@ -203,10 +202,4 @@ func FitContext(input ai.Context, question string, tokens int) (ai.Context, erro
 		return out, err
 	}
 	return out, llm.CheckContextBudget(req, tokens)
-}
-
-// MarshalArguments is shared by compatibility adapters, never by the main model.
-func MarshalArguments(question string) json.RawMessage {
-	raw, _ := json.Marshal(Arguments{Question: question})
-	return raw
 }

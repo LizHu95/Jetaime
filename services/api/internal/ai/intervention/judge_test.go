@@ -48,7 +48,6 @@ func TestDiscoveryRejectsInvalidTransitionsAndEvidence(t *testing.T) {
 }
 func TestFinalDecisionRequiresBothSourcesAndCannotAuthorizeWrites(t *testing.T) {
 	for _, output := range []string{
-		`{"shouldIntervene":true,"reason":"历史操作","breakdowns":[],"intent":{"type":"execute_request","objective":"创建提醒","evidenceMessageIds":["old","current"]}}`,
 		`{"shouldIntervene":true,"reason":"缺少新证据","breakdowns":[],"intent":{"type":"clarify","objective":"确认预算","evidenceMessageIds":["current"]}}`,
 		`{"shouldIntervene":true,"reason":"缺少当前依据","breakdowns":[],"intent":{"type":"clarify","objective":"确认预算","evidenceMessageIds":["old"]}}`,
 		`{"shouldIntervene":true,"reason":"伪造证据","breakdowns":[],"intent":{"type":"clarify","objective":"确认预算","evidenceMessageIds":["foreign","current"]}}`,
@@ -59,6 +58,31 @@ func TestFinalDecisionRequiresBothSourcesAndCannotAuthorizeWrites(t *testing.T) 
 		if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 1 {
 			t.Fatalf("unsafe final decision accepted/repaired: %v calls=%d", err, len(model.requests))
 		}
+	}
+}
+func TestVerificationSchemaRejectsWritesButDiscoveryAllowsRequests(t *testing.T) {
+	output := `{"shouldIntervene":true,"reason":"历史操作","breakdowns":[],"intent":{"type":"execute_request","objective":"创建提醒","evidenceMessageIds":["old","current"]}}`
+	resolved, _, err := recognitionSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decision ai.Recognition
+	if err := decodeDecision(output, resolved, &decision); err == nil {
+		t.Fatal("verification schema accepted a write request")
+	}
+	candidateResolved, _, err := candidateSchema()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var candidate ai.InterventionCandidate
+	if err := decodeDecision(`{"topicContext":{"topic":"提醒","continuity":"new_topic","messageIds":["current"],"anchorMessageIds":["current"]},"action":"intervene","reason":"明确请求","breakdowns":[],"intent":{"type":"execute_request","objective":"创建提醒","evidenceMessageIds":["current"]},"verification":null}`, candidateResolved, &candidate); err != nil {
+		t.Fatalf("discovery schema rejected an explicit request: %v", err)
+	}
+	// Forbidden enum values follow the existing one-repair limit for schema errors.
+	model := &sequenceModel{outputs: []string{output, output}}
+	judge, _ := New(model, "test", 32768)
+	if _, err := judge.Decide(context.Background(), verification()); !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != 2 {
+		t.Fatalf("write request accepted or repair limit changed: %v calls=%d", err, len(model.requests))
 	}
 }
 func TestFinalDecisionRepairsFormatOnce(t *testing.T) {

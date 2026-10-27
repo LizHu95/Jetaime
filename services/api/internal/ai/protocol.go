@@ -18,7 +18,7 @@ var (
 type ExtractContextLoader func(context.Context) (Context, error)
 
 // Invocation separates the registered agent from its requested capability.
-// Mode retains compatibility with explicit qa/help requests.
+// Mode selects main execution; empty, auto and main use the shared agent loop.
 type Invocation struct {
 	CheckIntervention InterventionCheck
 	TriggerMode       string

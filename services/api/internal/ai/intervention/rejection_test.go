@@ -102,6 +102,11 @@ func TestVerificationEvidenceRejectionStillChecksAuthority(t *testing.T) {
 			}
 			raw, _ := json.Marshal(decision)
 			model := &sequenceModel{outputs: []string{string(raw)}}
+			if scenario == "write" {
+				// The verification schema now rejects writes before semantic checks,
+				// so exercise both attempts of the bounded structural repair.
+				model.outputs = append(model.outputs, string(raw))
+			}
 			judge, _ := New(model, "test", 32768)
 			result, err := judge.Decide(context.Background(), input)
 			if scenario == "insufficient_participants" {

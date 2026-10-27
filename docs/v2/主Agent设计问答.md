@@ -59,7 +59,7 @@ HTTP 保存消息与 AI 任务
 | `history` | 近期原文加历史检索、来源原文及相邻消息 | 历史事实有来源；不把提议当决定 |
 | `mixed` | 与 history 相同，并允许一般建议 | 区分群聊事实与建议 |
 
-旧 `qa/help` 模式分别映射到同一个工具的 `history/general`，没有两套问答实现。问答提示词与输出 Schema 位于 [`qa/prompts.go`](../../services/api/internal/ai/tools/qa/prompts.go)，版本 `answer-question-v2-hybrid`；问答尚无独立 Skill 加载，当前内置 Skill 只覆盖五类沟通障碍。
+旧 `qa/help` 模式入口已删除，问答工具继续由 Main Agent 按需选择。问答提示词与输出 Schema 位于 [`qa/prompts.go`](../../services/api/internal/ai/tools/qa/prompts.go)，版本 `answer-question-v2-hybrid`；问答尚无独立 Skill 加载，当前内置 Skill 只覆盖五类沟通障碍。
 
 ## Q4：不知道用户意图时，默认上下文怎么选？
 
@@ -148,7 +148,7 @@ QA 内部通过 `memory.Service.Search` 查询当前群的 `history` 文档：�
 
 不需要。`extract_todos` 已下掉默认工具注册，主 Agent 当前不会调用它；行动事项请求由 QA 作文字总结。暂留的提取实现包装既有固定提取、证据与行动状态核对流程，输出待确认建议，不创建任务或提醒。实现位于 [`tools/extract/workflow.go`](../../services/api/internal/ai/tools/extract/workflow.go)，工具定义、提取、证据校验与行动状态核对均由 `ai/tools/extract` 封装，主 Agent 可以直接撰写普通回答，通过 respond 校验后返回；需要历史检索或业务操作时才选择相应工具。
 
-直接 `extract` 模式与 `/extract` 命令特判已移除，默认工具目录中也已移除 `extract_todos`。旧排队/重试任务在 Worker 读取后转入 main，原提问截止不变；结果中的 `kind=extract` 仍表示待办建议类型，不是可手选的入口。
+直接 `extract` 模式与 `/extract` 命令特判已移除，默认工具目录中也已移除 `extract_todos`。历史 qa/help/extract 任务由迁移 `000016_main_execution_only` 统一改为 main，原提问截止不变，Worker 不再承担旧模式转换；结果中的 `kind=extract` 仍表示待办建议类型，不是可手选的入口。
 
 保留的提取实现按授权快照执行，超限拒绝；精确的检索式提取范围未实现。群聊 `Tasks` 仍为空，不能承诺根据正式任务状态完整去重。
 
@@ -176,7 +176,7 @@ HTTP 发送、读取和重试；数据库保存权威状态与任务；后台执
 | QA 提示、模型生成、证据校验独立于 main | 已实现 |
 | 默认函数注入与逐次容量保险 | 已实现 |
 | QA 历史向量/关键词检索、原文与相邻消息回查 | 已实现，带原提问 seq 边界 |
-| 旧 qa/help 模式 | 复用 answer_question |
+| 旧 qa/help 模式 | 入口已删除，历史任务迁移为 main |
 | 固定待办提取工具 | 默认注册已移除，实现暂留 |
 | 独立问答 skill 加载 | 未实现 |
 | 群聊已有任务状态、完整去重 | 未接通 |
@@ -184,7 +184,7 @@ HTTP 发送、读取和重试；数据库保存权威状态与任务；后台执
 | 创建正式待办任务工具 | 未实现 |
 | Rerank、多轮补证、复杂组合任务 | 未实现 |
 
-验证覆盖工具路由、预算拒绝、检索引用、后发消息隔离与旧模式兼容。真实模型召回质量和回答正确率仍需独立评测。
+验证覆盖工具路由、预算拒绝、检索引用、后发消息隔离与旧模式拒绝。真实模型召回质量和回答正确率仍需独立评测。
 
 ## Q18：后续怎么扩展？
 

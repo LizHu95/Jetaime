@@ -43,7 +43,6 @@ type Scope struct {
 	Context        ai.Context
 	ContextEndSeq  int64
 	Question       string
-	LegacyMode     string
 	LoadExtraction ai.ExtractContextLoader
 }
 
@@ -128,19 +127,4 @@ func (r *Registry) Decode(content string) (Call, error) {
 		return c, InvalidArguments("unknown_tool", "选择已注册的工具名称。")
 	}
 	return c, nil
-}
-
-type legacyTool interface {
-	LegacyArguments(Scope) (json.RawMessage, bool)
-}
-
-func (r *Registry) ExecuteLegacy(ctx context.Context, s Scope) (Result, error) {
-	for name, t := range r.entries {
-		if legacy, ok := t.(legacyTool); ok {
-			if raw, matched := legacy.LegacyArguments(s); matched {
-				return r.Execute(ctx, s, Call{Name: name, Arguments: raw})
-			}
-		}
-	}
-	return Result{}, fmt.Errorf("unsupported capability %q", s.LegacyMode)
 }

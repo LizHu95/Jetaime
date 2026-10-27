@@ -119,12 +119,15 @@ func TestMainToolLoopHasAHardLimit(t *testing.T) {
 	}
 }
 
-func TestRetiredExtractModeDoesNotInvokeAnyModel(t *testing.T) {
-	input := testContext()
-	model := &mainTestModel{}
-	agent, _ := newTestAgent(model, "test", 8192)
-	if _, err := agent.Invoke(context.Background(), ai.Invocation{Context: input, Mode: "extract", Question: "提取待办"}); err == nil || len(model.requests) != 0 {
-		t.Fatal("retired extract mode executed", err)
+func TestUnsupportedModesDoNotInvokeModel(t *testing.T) {
+	for _, mode := range []string{"qa", "help", "extract", "unknown"} {
+		t.Run(mode, func(t *testing.T) {
+			model := &mainTestModel{}
+			agent, _ := newTestAgent(model, "test", 8192)
+			if _, err := agent.Invoke(context.Background(), ai.Invocation{Context: testContext(), Mode: mode, Question: "问题"}); err == nil || len(model.requests) != 0 {
+				t.Fatal("unsupported mode executed", err)
+			}
+		})
 	}
 }
 

@@ -78,12 +78,7 @@ func (s *Worker) Execute(ctx context.Context, run ai.Job) {
 	} else if err != nil {
 		code = "context_unavailable"
 	} else {
-		mode := run.Kind
-		if mode == "extract" {
-			// Drain/retry previously persisted jobs through the current main entry.
-			mode = "auto"
-		}
-		output, e := s.executor.Execute(call, ai.Invocation{TriggerMode: run.TriggerMode, AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: mode, Question: question, CheckIntervention: func(ctx context.Context, topic string, decision ai.Recognition) (string, error) {
+		output, e := s.executor.Execute(call, ai.Invocation{TriggerMode: run.TriggerMode, AgentID: "main", ContextEndSeq: run.ContextEnd, Context: input, Mode: run.Kind, Question: question, CheckIntervention: func(ctx context.Context, topic string, decision ai.Recognition) (string, error) {
 			return s.store.CheckIntervention(ctx, run, topic, decision)
 		}, LoadExtraction: func(ctx context.Context) (ai.Context, error) {
 			return s.store.ExtractionContext(ctx, run, s.tokens)

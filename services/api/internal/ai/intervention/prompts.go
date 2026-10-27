@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v8-communication-repair"
+const recognitionVersion = "proactive-v9-verification-schema"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.
@@ -35,7 +35,9 @@ func recognitionSchema() (*jsonschema.Resolved, json.RawMessage, error) {
 	s.Properties["breakdowns"].Type = "array"
 	s.Properties["breakdowns"].Items.Properties["type"].Enum = breakdownTypes
 	// Pointer fields are represented using a nullable type by jsonschema.For.
-	s.Properties["intent"].Properties["type"].Enum = intentTypes
+	// Final historical verification is read-only; discovery can still identify
+	// explicit execution requests through candidateSchema.
+	s.Properties["intent"].Properties["type"].Enum = []any{"answer", "clarify", "suggest", "summarize", "remind"}
 	resolved, err := s.Resolve(nil)
 	if err != nil {
 		return nil, nil, err

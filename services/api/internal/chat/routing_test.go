@@ -104,15 +104,12 @@ func TestPostgresRoutingFailureCanRetrySameRun(t *testing.T) {
 	}
 }
 
-func TestPostgresRetiredExtractJobUsesMainAndOriginalFence(t *testing.T) {
+func TestPostgresSlashTextUsesMainAndOriginalFence(t *testing.T) {
 	f := setup(t)
 	ctx := context.Background()
 	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI /extract 请整理待办", ClientID: uuid.NewString()})
 	if err != nil || trigger.AgentKind != "main" {
 		t.Fatal("slash text bypassed main", trigger, err)
-	}
-	if _, err = f.store.pool.Exec(ctx, `UPDATE agent_runs SET agent_kind='extract' WHERE trigger_message_id=$1`, trigger.ID); err != nil {
-		t.Fatal(err)
 	}
 	if _, err = f.service.Send(ctx, f.group, f.users[1].ID, SendInput{Content: "future-only-secret", ClientID: uuid.NewString()}); err != nil {
 		t.Fatal(err)
@@ -129,12 +126,12 @@ func TestPostgresRetiredExtractJobUsesMainAndOriginalFence(t *testing.T) {
 		return llm.Result{Content: `{"status":"answered","answer":"当前对话没有明确的待办安排。","sourceMessageIds":["` + trigger.ID + `"]}`}, nil
 	}}
 	job, err := f.store.Claim(ctx, time.Minute)
-	if err != nil || job.Kind != "extract" || job.ContextEnd != trigger.Seq {
-		t.Fatal("old job setup failed", job, err)
+	if err != nil || job.Kind != "main" || job.ContextEnd != trigger.Seq {
+		t.Fatal("main job setup failed", job, err)
 	}
 	f.worker(t).Execute(ctx, job)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
 	if err != nil || len(runs) != 1 || runs[0].Status != "succeeded" || calls != 2 {
-		t.Fatal("old job bypassed main or failed", runs, err, calls)
+		t.Fatal("main job failed", runs, err, calls)
 	}
 }
