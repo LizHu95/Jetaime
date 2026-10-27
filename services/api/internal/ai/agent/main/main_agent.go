@@ -28,9 +28,11 @@ const MaxMCPToolSteps = 8
 const ToolFeedbackReserve = 4 * 1024
 const MCPFeedbackReserve = 8 * 1024
 
-// ExecuteMain can answer through respond in one model call, or select capabilities
-// for retrieval and actions. All final responses pass the registered validators.
+// ExecuteMain 运行主 Agent 循环：模型选择工具，程序执行工具，再把结果交给模型。
+// 简单问题可首轮通过 respond 结束；需要查询或操作时继续循环，直到收尾或额度耗尽。
+// 此处返回执行结果，聊天消息和任务状态由外层 Worker 负责落库。
 func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question string, load ai.ExtractContextLoader, fence ...int64) (run ai.Run, err error) {
+	// 初始化本次执行记录，返回前统一补齐耗时和成功/失败状态。
 	ctx, span := telemetry.Start(ctx, "assistant.main", "CHAIN")
 	started := time.Now()
 	run = ai.Run{ID: "run-" + uuid.NewString(), GroupID: input.GroupID, ActorID: input.ActorID, Kind: "main", Question: question, Model: a.DefaultModel, PromptVersion: PromptVersion, StartedAt: started, Status: "running", Steps: []ai.Step{}}
@@ -63,6 +65,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	if strings.TrimSpace(question) == "" || len(question) > 3000 {
 		return run, fmt.Errorf("question must be 1–3000 bytes")
 	}
+	// 整理执行上下文：保留当前请求与必要证据，再填充有限的近期背景。
 	if input.Request == nil {
 		input, err = aicontext.RecentRouteContext(input, question, a.Tokens, input.HistoryScope != nil && input.HistoryScope.EarlierMessagesOmitted)
 		if err != nil {
@@ -77,17 +80,21 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	if len(fence) > 0 {
 		end = fence[0]
 	}
+	// scope 供工具读取执行身份、历史截止位置，以及本次执行共享的卡片状态。
 	scope := tools.Scope{ExcludedCards: map[string]bool{}, Context: input, ContextEndSeq: end, Question: question, LoadExtraction: load, Cards: map[string]ai.Card{}}
 	recordStep(ai.Step{Name: "build_context", Status: "succeeded", StartedAt: buildStarted, DurationNS: time.Since(buildStarted).Nanoseconds(), Output: input})
 	building = false
+	// observations 保存工具结果和纠错反馈，供下一轮模型决定后续动作。
 	observations := []map[string]any{}
 	catalog := a.Tools.Definitions()
+	// 普通轮开放完整工具目录；额度耗尽后只开放回答/沉默这类收尾工具。
 	finalCatalog := []tools.Definition{}
 	for _, definition := range catalog {
 		if definition.Name == "respond" || definition.Name == "remain_silent" && input.Request.TriggerMode == "proactive" {
 			finalCatalog = append(finalCatalog, definition)
 		}
 	}
+	// 地图任务可能需要多次搜索、详情和路线查询，因此采用更高轮数上限。
 	stepLimit := MaxToolSteps
 	feedbackReserve := ToolFeedbackReserve
 	for _, definition := range catalog {
@@ -97,12 +104,14 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			break
 		}
 	}
+	// 这些消息是必要证据，后续压缩上下文时不能删除。
 	required := map[string]bool{input.Request.MessageID: true}
 	for _, id := range input.Request.RelatedMessageIDs {
 		required[id] = true
 	}
 	roundCatalog := catalog
 	roundInstruction := ""
+	// 每轮重新组装提示词、聊天上下文、可选工具和前几轮的执行结果。
 	buildRequest := func() (llm.Request, error) {
 		req, e := prompts.MainRequest(a.DefaultModel, input, question, a.Tokens, roundCatalog...)
 		if e != nil {
@@ -130,6 +139,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	if len(finalCatalog) > 0 {
 		roundLimit++ // One bounded final response, with no external tool execution.
 	}
+	// Agent Loop：一轮选择并执行一个工具；非终结结果会反馈到下一轮。
 	for stepIndex := 0; stepIndex < roundLimit; stepIndex++ {
 		finalRound := stepIndex == stepLimit
 		if finalRound {
@@ -144,8 +154,8 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		if e != nil {
 			return run, e
 		}
-		// Re-budget every round: tool results and repair feedback also consume space.
-		// Only optional background may be dropped; evidence and observations stay intact.
+		// 调模型前检查容量，工具结果和纠错反馈也占空间。
+		// 空间不足时只裁剪可选背景，保留必要证据和已有工具结果。
 		trimStarted := time.Now()
 		before := len(input.Messages)
 		needsSpace := func() bool {
@@ -186,6 +196,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			run.Steps[0].Output = input
 		}
 		start := time.Now()
+		// 模型只决定下一步的工具和参数，此时尚未执行工具。
 		output, e := a.ChatModel.Call(ctx, req)
 		step := ai.Step{Name: "model_call", Status: "succeeded", StartedAt: start, DurationMS: time.Since(start).Milliseconds(), Input: req, Output: map[string]any{"content": output.Content, "promptTokens": output.PromptTokens, "completionTokens": output.CompletionTokens}}
 		if e != nil {
@@ -196,6 +207,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		if e != nil {
 			return run, e
 		}
+		// 将模型输出解析为 name/arguments；可修复的错误交给下一轮纠正。
 		call, e := a.Tools.Decode(output.Content)
 		if e != nil {
 			recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
@@ -217,6 +229,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			}
 		}
 		recordStep(ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
+		// 程序真正执行所选工具，取得业务结果、来源证据及是否结束的标记。
 		result, e := a.Tools.Execute(ctx, scope, call)
 		run.Steps = append(run.Steps, result.Execution.Steps...)
 		step = ai.Step{Name: "tool_result", Status: "succeeded", StartedAt: result.Execution.StartedAt, DurationMS: result.Execution.DurationMS, Input: call, Output: result.Data}
@@ -227,6 +240,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		recordStep(step)
 		if e != nil {
 			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < roundLimit {
+				// 把可修复错误反馈给模型；不可修复错误直接结束执行。
 				observations = append(observations, map[string]any{"name": call.Name, "arguments": call.Arguments, "error": feedback})
 				continue
 			}
@@ -235,8 +249,8 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		for _, source := range result.Completion.Sources {
 			required[source.ID] = true
 		}
-		// Read tools can restore original conversation evidence for the next main
-		// decision. Keep one copy in context; observations carry only tool metadata.
+		// 将工具查到的新原文合入上下文并去重，供下一轮判断及引用。
+		// 同时将来源标记为必要证据，避免后续预算裁剪时丢失。
 		if !result.Terminal || input.Request.TriggerMode == "proactive" {
 			known := map[string]bool{}
 			for _, message := range input.Messages {
@@ -265,16 +279,17 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			scope.Context = input
 		}
 		if result.Terminal {
-			// Proactive read results are evidence, not permission to speak. Give
-			// the main model a final chance to abstain after checking them.
+			// 主动场景查到信息后仍需由主模型决定是否发言，允许选择沉默。
 			if input.Request.TriggerMode == "proactive" && call.Name != "respond" && call.Name != "remain_silent" && readOnlyTool(a.Tools, call.Name) {
 				observations = append(observations, map[string]any{"name": call.Name, "result": result.Data})
 				continue
 			}
+			// 工具已完成任务：将回答、卡片或沉默结果装入 run，退出循环。
 			applyToolResult(&run, result)
 			run.Route = &ai.RouteDecision{Kind: run.Kind, Version: PromptVersion}
 			return run, nil
 		}
+		// 尚未完成：保存工具结果和卡片引用，下一轮携带它们再次询问模型。
 		refs := collectCards(scope.Cards, result.Completion.Cards)
 		observations = append(observations, map[string]any{"name": call.Name, "result": result.Data, "cardRefs": refs})
 	}
