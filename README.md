@@ -6,6 +6,19 @@
 
 首次运行 `cd apps/web && npm ci`，随后在仓库根目录运行 `make web`，打开 <http://127.0.0.1:5173/page/auth/login/>。真实认证需另行启动 `make dev` 并完成 PostgreSQL 配置与迁移。构建使用 `make web-build`，产物位于 `outputs/web/`；完整说明见 [Web 开发说明](apps/web/README.md)。
 
+## SQL 查询维护
+
+后端使用 pgx；首批 sqlc 接入覆盖 `ai/memory` 的向量任务队列，其他查询暂时保留现有实现。
+
+- SQL 源文件：`services/api/internal/ai/memory/queries/embeddings.sql`，使用命名参数，保留租约、鉴权和 `SKIP LOCKED` 条件。
+- 配置：`services/api/sqlc.yaml`，直接读取正式的 `.up.sql` 迁移，不维护另一份表结构；新增迁移时同步更新 schema 列表。
+- 生成代码：`services/api/internal/ai/memory/memorydb/`，随代码提交，不手动编辑。领域 Store 负责调用、错误映射与事务编排。
+- 修改 SQL 后运行 `make sqlc-generate`；运行 `make sqlc-check` 检查生成代码是否同步。`make check` 已包含该检查。
+
+工具固定为 sqlc v1.30.0，由 Makefile 安装到忽略提交的 `services/api/bin/`；普通构建不需要安装 sqlc。向量参数以文本传给 PostgreSQL 后转换为 `public.vector`，避免为代码生成引入额外向量客户端类型。此改造不修改数据库结构。
+
+验证数据库行为使用 `JETAIME_TEST_DATABASE_URL` 配合 `make db-test`，测试数据库需要安装 pgvector。
+
 ## 后端与主 Agent
 
 正式服务提供账号、好友、双人群聊、实时同步、共享 AI、记忆检索和提醒。Web 客户端通过认证 API 使用这些能力。

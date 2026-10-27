@@ -26,6 +26,10 @@ GO_DIR := services/api
 FEISHU_ARGS ?=
 API_ARGS ?=
 MODEL_CHECK_ARGS ?=
+SQLC_VERSION := v1.30.0
+SQLC_DIR := $(CURDIR)/$(GO_DIR)/bin/sqlc/$(SQLC_VERSION)
+SQLC := $(SQLC_DIR)/sqlc
+
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
@@ -46,6 +50,8 @@ help:
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make feishu-build Build the private Feishu deployment package"
+	@echo "make sqlc-generate Generate typed Go queries from SQL"
+	@echo "make sqlc-check Check that generated queries match SQL"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -89,7 +95,18 @@ vet: go-vet
 lint: go-lint
 check: go-check scripts-test
 
-go-tools: $(GOLANGCI_LINT)
+go-tools: $(GOLANGCI_LINT) $(SQLC)
+
+.PHONY: sqlc-generate sqlc-check
+
+$(SQLC):
+	GOBIN="$(SQLC_DIR)" go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+
+sqlc-generate: $(SQLC)
+	cd $(GO_DIR) && "$(SQLC)" generate
+
+sqlc-check: $(SQLC)
+	cd $(GO_DIR) && "$(SQLC)" diff
 
 $(GOLANGCI_LINT):
 	@set -eu; \
@@ -122,7 +139,7 @@ go-lint: go-tools
 	cd $(GO_DIR) && "$(GOLANGCI_LINT)" config verify --config .golangci.yml
 	cd $(GO_DIR) && "$(GOLANGCI_LINT)" run --config .golangci.yml ./...
 
-go-check: go-fmt-check go-build go-vet go-test go-lint
+go-check: sqlc-check go-fmt-check go-build go-vet go-test go-lint
 
 scripts-test:
 	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
