@@ -29,7 +29,7 @@ func (h *historyStub) scope(group, actor string, fence int64) {
 		h.t.Fatalf("scope escaped: %s %s %d", group, actor, fence)
 	}
 }
-func (h *historyStub) Search(_ context.Context, group, actor string, in memory.SearchInput) (memory.SearchResult, error) {
+func (h *historyStub) SearchDocuments(_ context.Context, group, actor string, in memory.SearchInput) (memory.SearchResult, error) {
 	h.scope(group, actor, in.MaxSeq)
 	h.searchCalls++
 	if in.Limit != 5 || in.Kind != "" || !strings.Contains(in.Query, "本次聚餐") {
@@ -40,19 +40,38 @@ func (h *historyStub) Search(_ context.Context, group, actor string, in memory.S
 	}
 	return memory.SearchResult{Documents: h.documents}, h.searchErr
 }
-func (h *historyStub) SourceMessages(_ context.Context, group, actor string, fence int64, ids []string) ([]history.Message, error) {
+func (h *historyStub) SourceEvidence(_ context.Context, group, actor string, fence int64, ids []string) (history.SourceEvidence, error) {
 	h.scope(group, actor, fence)
 	h.sourceCalls++
 	h.sourceIDs = ids
-	return h.sources, nil
-}
-func (h *historyStub) RecentMessages(_ context.Context, group, actor string, fence int64, limit int) ([]history.Message, error) {
-	h.scope(group, actor, fence)
-	h.recentCalls++
-	if limit != 40 {
-		h.t.Fatal("unbounded revision window")
+	out := history.SourceEvidence{}
+	selected := map[string]bool{}
+	for _, id := range ids {
+		selected[id] = true
 	}
-	return h.recent, nil
+	for _, m := range h.sources {
+		if selected[m.ID] {
+			out.Sources = append(out.Sources, m)
+		} else {
+			out.Neighbors = append(out.Neighbors, m)
+		}
+	}
+	return out, nil
+}
+func (h *historyStub) UnprocessedMessages(_ context.Context, group, actor string, in memory.SearchInput, exclude []string) (memory.SearchResult, error) {
+	h.scope(group, actor, in.MaxSeq)
+	h.recentCalls++
+	out := memory.SearchResult{}
+	seen := map[string]bool{}
+	for _, id := range exclude {
+		seen[id] = true
+	}
+	for _, m := range h.recent {
+		if !seen[m.ID] {
+			out.RecentUnprocessed = append(out.RecentUnprocessed, memory.Message{ID: m.ID, Seq: m.Seq, SenderID: m.SenderID, SenderName: m.SenderName, Text: m.Text, SentAt: m.SentAt})
+		}
+	}
+	return out, nil
 }
 func historyRequest() ai.InterventionEvidenceRequest {
 	now := time.Now()
@@ -116,5 +135,40 @@ func TestHistoryEvidenceRetainsSourceBeyondFormerByteLimit(t *testing.T) {
 	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest())
 	if err != nil || out.Truncated || len(out.Messages) != 1 || out.Messages[0].Text != text {
 		t.Fatal("long source dropped or truncated before model budget check", err)
+	}
+}
+
+func TestHistoryEvidenceReusesWindowAndExcludesKnownPending(t *testing.T) {
+	request := historyRequest()
+	request.Window = append([]ai.Message{}, request.Context.Messages...)
+	request.Window = append(request.Window, ai.Message{ID: "revision", GroupID: "g", SenderID: "u", SenderType: "user", Text: "预算改为500", SentAt: request.Context.Messages[0].SentAt.Add(-time.Minute)})
+	stub := &historyStub{t: t, recent: []history.Message{{ID: "revision", Seq: 40, SenderID: "u", Text: "must not reload"}, {ID: "unindexed", Seq: 30, SenderID: "u", Text: "尚未提炼", SentAt: request.Context.Messages[0].SentAt.Add(-time.Hour)}}}
+	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), request)
+	if err != nil || len(out.Messages) != 2 {
+		t.Fatal(out, err)
+	}
+	for _, m := range out.Messages {
+		if m.ID == "revision" && m.Text != "预算改为500" {
+			t.Fatal("window original replaced", m)
+		}
+	}
+}
+
+func TestHistoryEvidenceDirectSourcesHaveBudgetPriority(t *testing.T) {
+	stub := &historyStub{t: t, documents: []memory.Document{{SourceIDs: []string{"direct"}}}}
+	for i := 0; i < 60; i++ {
+		stub.sources = append(stub.sources, history.Message{ID: fmt.Sprint("neighbour-", i), Seq: 1, Text: "邻近消息"})
+	}
+	stub.sources = append(stub.sources, history.Message{ID: "direct", Seq: 2, Text: "直接证据"})
+	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest())
+	if err != nil || !out.Truncated || len(out.Messages) != ai.MaxInterventionEvidenceMessages {
+		t.Fatal(out, err)
+	}
+	found := false
+	for _, m := range out.Messages {
+		found = found || m.ID == "direct"
+	}
+	if !found {
+		t.Fatal("source displaced by neighbours")
 	}
 }

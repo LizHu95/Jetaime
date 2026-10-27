@@ -20,3 +20,10 @@ type Reader interface {
 	RecentMessages(context.Context, string, string, int64, int) ([]Message, error)
 	SourceMessages(context.Context, string, string, int64, []string) ([]Message, error)
 }
+
+// SourceEvidence distinguishes exact originals from optional surrounding context.
+type SourceEvidence struct {
+	Sources   []Message
+	Neighbors []Message
+	Truncated bool
+}

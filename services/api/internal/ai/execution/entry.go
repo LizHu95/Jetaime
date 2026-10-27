@@ -71,6 +71,7 @@ func (e *entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 	if err != nil {
 		return run, err
 	}
+	window := append([]ai.Message{}, in.Context.Messages...)
 	candidate := result.Decision
 	originalCount := len(in.Context.Messages)
 	if candidate.Action != "skip" {
@@ -119,7 +120,7 @@ func (e *entry) invokePassive(ctx context.Context, in ai.Invocation) (ai.Run, er
 	if candidate.Action == "verify" {
 		var steps []ai.Step
 		var extra []ai.Message
-		decision, steps, extra, err = e.verify(ctx, in, input, candidate)
+		decision, steps, extra, err = e.verify(ctx, in, input, candidate, window)
 		run.Steps = append(run.Steps, steps...)
 		run.DurationMS = time.Since(started).Milliseconds()
 		if err != nil {
@@ -227,7 +228,7 @@ func (e *entry) invokeMain(ctx context.Context, in ai.Invocation) (ai.Run, error
 }
 
 // verify performs exactly one bounded read and at most one final decision stage.
-func (e *entry) verify(ctx context.Context, in ai.Invocation, input ai.RecognitionInput, candidate ai.InterventionCandidate) (ai.Recognition, []ai.Step, []ai.Message, error) {
+func (e *entry) verify(ctx context.Context, in ai.Invocation, input ai.RecognitionInput, candidate ai.InterventionCandidate, window []ai.Message) (ai.Recognition, []ai.Step, []ai.Message, error) {
 	silent := ai.Recognition{Reason: "核验能力不可用，无法确认疑点", Breakdowns: []ai.Breakdown{}}
 	if candidate.Verification == nil {
 		return silent, nil, nil, ai.ErrInvalidDecision
@@ -244,7 +245,7 @@ func (e *entry) verify(ctx context.Context, in ai.Invocation, input ai.Recogniti
 	snapshot := ai.Context{GroupID: in.Context.GroupID, ActorID: in.Context.ActorID, Users: append([]ai.User{}, in.Context.Users...), Messages: append([]ai.Message{}, in.Context.Messages...)}
 	question := *candidate.Verification
 	question.EvidenceMessageIDs = append([]string{}, question.EvidenceMessageIDs...)
-	request := ai.InterventionEvidenceRequest{Context: snapshot, ContextEndSeq: in.ContextEndSeq, Question: question}
+	request := ai.InterventionEvidenceRequest{Window: window, Context: snapshot, ContextEndSeq: in.ContextEndSeq, Question: question}
 	started := time.Now()
 	lookup, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()

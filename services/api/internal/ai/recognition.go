@@ -97,6 +97,8 @@ type VerificationInput struct {
 
 // These provider arguments are server-owned and never parsed from model output.
 type InterventionEvidenceRequest struct {
+	// Window is the original recent window before topic filtering; server-owned only.
+	Window        []Message
 	Context       Context
 	ContextEndSeq int64
 	Question      VerificationQuestion

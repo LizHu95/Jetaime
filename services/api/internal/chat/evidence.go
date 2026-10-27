@@ -74,3 +74,50 @@ func (s *Service) SourceMessages(ctx context.Context, group, actor string, end i
 	}
 	return out, rows.Err()
 }
+
+// SourceEvidence reads direct sources before neighbours so surrounding messages
+// cannot displace a source when the bounded result is full.
+func (s *Service) SourceEvidence(ctx context.Context, group, actor string, end int64, ids []string) (history.SourceEvidence, error) {
+	out := history.SourceEvidence{}
+	if !validID(group) || !validID(actor) || end <= 0 || len(ids) > 20 {
+		return out, ErrInvalid
+	}
+	selected := map[string]bool{}
+	for _, id := range ids {
+		if !validID(id) {
+			return out, ErrInvalid
+		}
+		selected[id] = true
+	}
+	if _, err := s.store.State(ctx, group, actor); err != nil {
+		return out, err
+	}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	rows, err := s.store.pool.Query(ctx, `SELECT `+evidenceColumns+evidenceJoins+`WHERE x.group_id=$1 AND g.status='active' AND x.seq<=$3 AND EXISTS
+ (SELECT 1 FROM messages source WHERE source.group_id=$1 AND source.id=ANY($4::uuid[]) AND source.seq<=$3 AND x.seq BETWEEN source.seq-2 AND source.seq+2)
+ ORDER BY (x.id=ANY($4::uuid[])) DESC,x.seq LIMIT 81`, group, actor, end, ids)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+	count := 0
+	for rows.Next() {
+		var m history.Message
+		if err := rows.Scan(&m.ID, &m.Seq, &m.SenderID, &m.SenderName, &m.Text, &m.SentAt, &m.SenderType); err != nil {
+			return out, err
+		}
+		count++
+		if count > 80 {
+			out.Truncated = true
+			continue
+		}
+		if selected[m.ID] {
+			out.Sources = append(out.Sources, m)
+		} else {
+			out.Neighbors = append(out.Neighbors, m)
+		}
+	}
+	return out, rows.Err()
+}

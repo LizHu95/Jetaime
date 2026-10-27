@@ -874,3 +874,34 @@ func TestModelExtractorRepairsSubjectWithoutGuessingIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestUnprocessedMessagesExcludesWindowBeforeLimit(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	exclude := []string{}
+	var fence int64
+	for i := 0; i < 40; i++ {
+		m := f.send(t, f.alice, "尚未提炼")
+		fence = m.Seq
+		if i >= 5 {
+			exclude = append(exclude, m.ID)
+		}
+	}
+	out, err := f.service.UnprocessedMessages(ctx, f.group, f.alice, SearchInput{MaxSeq: fence}, exclude)
+	if err != nil || len(out.RecentUnprocessed) != 5 || out.RecentOmitted {
+		t.Fatal(out, err)
+	}
+	for _, m := range out.RecentUnprocessed {
+		if m.Seq > 5 {
+			t.Fatal("excluded message returned", m)
+		}
+	}
+	f.send(t, f.alice, "future")
+	out, err = f.service.UnprocessedMessages(ctx, f.group, f.alice, SearchInput{MaxSeq: fence}, exclude)
+	if err != nil || len(out.RecentUnprocessed) != 5 {
+		t.Fatal("fence escaped", out, err)
+	}
+	if _, err := f.service.UnprocessedMessages(ctx, f.group, f.outsider, SearchInput{MaxSeq: fence}, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatal("membership bypass", err)
+	}
+}

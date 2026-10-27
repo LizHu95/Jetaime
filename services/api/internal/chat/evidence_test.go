@@ -96,3 +96,31 @@ func TestOriginalMessagesFenceMembershipAndClosedGroup(t *testing.T) {
 		t.Fatal("closed group source read", err)
 	}
 }
+
+func TestSourceEvidencePrioritizesDirectSourcesBeforeLimit(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	ids := []string{}
+	for i := 0; i < 100; i++ {
+		m, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "original", ClientID: uuid.NewString()})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i%5 == 2 {
+			ids = append(ids, m.ID)
+		}
+	}
+	got, err := f.service.SourceEvidence(ctx, f.group, f.users[0].ID, 100, ids)
+	if err != nil || len(got.Sources) != 20 || len(got.Neighbors) != 60 || !got.Truncated {
+		t.Fatal(got, err)
+	}
+	if _, err := f.service.SourceEvidence(ctx, f.group, f.users[2].ID, 100, ids); !errors.Is(err, ErrNotFound) {
+		t.Fatal("membership bypass", err)
+	}
+	if err := f.service.CloseGroup(ctx, f.group, f.users[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.SourceEvidence(ctx, f.group, f.users[0].ID, 100, ids); !errors.Is(err, ErrNotFound) {
+		t.Fatal("closed group bypass", err)
+	}
+}
