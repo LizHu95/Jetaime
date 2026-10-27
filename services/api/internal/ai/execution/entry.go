@@ -248,7 +248,7 @@ func (e *entry) verify(ctx context.Context, in ai.Invocation, input ai.Recogniti
 	started := time.Now()
 	lookup, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	evidence, err := e.evidence(lookup, request)
+	evidence, err := e.evidence.Retrieve(lookup, request)
 	step := ai.Step{Name: "verify_intervention_evidence", StartedAt: started, DurationMS: time.Since(started).Milliseconds(), Status: "failed", Input: question}
 	if err == nil {
 		err = lookup.Err()

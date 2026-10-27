@@ -65,7 +65,7 @@ func TestHistoryEvidenceUsesScopedOriginalsAndRecentRevisions(t *testing.T) {
 		sources:   []history.Message{{ID: "old", Seq: 3, SenderID: "u", SenderType: "user", Text: "本次预算300", SentAt: now}, {ID: "neighbour", Seq: 4, SenderID: "u", SenderType: "user", Text: "确认", SentAt: now.Add(time.Second)}},
 		recent:    []history.Message{{ID: "update", Seq: 40, SenderID: "u", SenderType: "user", Text: "本次预算改成500", SentAt: now.Add(time.Minute)}},
 	}
-	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
+	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest())
 	if err != nil || len(out.Messages) != 3 || out.Coverage != "partial" || stub.searchCalls != 1 || stub.sourceCalls != 1 || stub.recentCalls != 1 || len(stub.sourceIDs) != 1 || stub.sourceIDs[0] != "old" {
 		t.Fatal("bad evidence lookup", out, err)
 	}
@@ -82,7 +82,7 @@ func TestHistoryEvidenceBoundsSourceFanoutAndWholeMessages(t *testing.T) {
 		stub.documents[0].SourceIDs = append(stub.documents[0].SourceIDs, id)
 		stub.sources = append(stub.sources, history.Message{ID: id, Seq: 1, SenderID: "u", Text: strings.Repeat("x", 500), SentAt: time.Now().Add(-time.Hour)})
 	}
-	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
+	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest())
 	if err != nil || !out.Truncated || len(stub.sourceIDs) > 20 || len(out.Messages) != ai.MaxInterventionEvidenceMessages {
 		t.Fatal("evidence limits failed", err)
 	}
@@ -94,18 +94,18 @@ func TestHistoryEvidenceBoundsSourceFanoutAndWholeMessages(t *testing.T) {
 }
 func TestHistoryEvidenceRejectsFutureSequenceAndStopsAfterFailure(t *testing.T) {
 	stub := &historyStub{t: t, sources: []history.Message{{ID: "future", Seq: 43}}}
-	if _, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest()); err == nil {
+	if _, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest()); err == nil {
 		t.Fatal("future sequence accepted")
 	}
 	failure := errors.New("search failed")
 	stub = &historyStub{t: t, searchErr: failure}
-	if _, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest()); !errors.Is(err, failure) || stub.sourceCalls != 0 || stub.recentCalls != 0 {
+	if _, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest()); !errors.Is(err, failure) || stub.sourceCalls != 0 || stub.recentCalls != 0 {
 		t.Fatal("failed search continued", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	stub = &historyStub{t: t, cancel: cancel}
-	if _, err := HistoryEvidence(stub, stub)(ctx, historyRequest()); !errors.Is(err, context.Canceled) || stub.sourceCalls != 0 || stub.recentCalls != 0 {
+	if _, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(ctx, historyRequest()); !errors.Is(err, context.Canceled) || stub.sourceCalls != 0 || stub.recentCalls != 0 {
 		t.Fatal("cancelled lookup continued", err)
 	}
 }
@@ -113,7 +113,7 @@ func TestHistoryEvidenceRejectsFutureSequenceAndStopsAfterFailure(t *testing.T) 
 func TestHistoryEvidenceRetainsSourceBeyondFormerByteLimit(t *testing.T) {
 	text := strings.Repeat("原文", 4096)
 	stub := &historyStub{t: t, documents: []memory.Document{{SourceIDs: []string{"old"}}}, sources: []history.Message{{ID: "old", Seq: 3, SenderID: "u", Text: text, SentAt: time.Now().Add(-time.Hour)}}}
-	out, err := HistoryEvidence(stub, stub)(context.Background(), historyRequest())
+	out, err := NewHistoryEvidenceProvider(stub, stub).Retrieve(context.Background(), historyRequest())
 	if err != nil || out.Truncated || len(out.Messages) != 1 || out.Messages[0].Text != text {
 		t.Fatal("long source dropped or truncated before model budget check", err)
 	}

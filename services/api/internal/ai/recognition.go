@@ -108,6 +108,9 @@ type InterventionEvidence struct {
 	Truncated bool      `json:"truncated"`
 }
 
-type InterventionEvidenceProvider func(context.Context, InterventionEvidenceRequest) (InterventionEvidence, error)
+// InterventionEvidenceProvider retrieves original messages for historical verification.
+type InterventionEvidenceProvider interface {
+	Retrieve(context.Context, InterventionEvidenceRequest) (InterventionEvidence, error)
+}
 
 const MaxInterventionEvidenceMessages = 50

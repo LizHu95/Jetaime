@@ -230,7 +230,7 @@ func TestVerificationCannotBypassEvidenceGate(t *testing.T) {
 				judge.cancel = cancel
 			}
 			calls := 0
-			provider := ai.InterventionEvidenceProvider(func(ctx context.Context, r ai.InterventionEvidenceRequest) (ai.InterventionEvidence, error) {
+			provider := ai.InterventionEvidenceProvider(evidenceProviderFunc(func(ctx context.Context, r ai.InterventionEvidenceRequest) (ai.InterventionEvidence, error) {
 				calls++
 				if r.ContextEndSeq != 42 || r.Context.GroupID != "g" || r.Context.ActorID != "u" {
 					t.Fatal("scope lost", r)
@@ -252,7 +252,7 @@ func TestVerificationCannotBypassEvidenceGate(t *testing.T) {
 					out.Messages[0].Text = strings.Repeat("a", 16*1024)
 				}
 				return out, tc.providerErr
-			})
+			}))
 			if tc.noProvider {
 				provider = nil
 			}
@@ -283,4 +283,11 @@ func TestVerificationCannotBypassEvidenceGate(t *testing.T) {
 			}
 		})
 	}
+}
+
+// evidenceProviderFunc keeps callback-based fixtures local to tests.
+type evidenceProviderFunc func(context.Context, ai.InterventionEvidenceRequest) (ai.InterventionEvidence, error)
+
+func (f evidenceProviderFunc) Retrieve(ctx context.Context, request ai.InterventionEvidenceRequest) (ai.InterventionEvidence, error) {
+	return f(ctx, request)
 }

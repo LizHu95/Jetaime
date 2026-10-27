@@ -94,7 +94,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 	}
 	if cfg.EnableChatAI {
 		provider := qa.HistoryContext(m.memoryService, m.chatService)
-		interventionEvidence := intervention.HistoryEvidence(m.memoryService, m.chatService)
+		interventionEvidence := intervention.NewHistoryEvidenceProvider(m.memoryService, m.chatService)
 		// 显式列出生产环境的 AI 工具，并注入其依赖的领域服务。
 		entries := []tools.Tool{
 			respond.New(),

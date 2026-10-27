@@ -183,7 +183,7 @@ func TestExecutionVerificationHandoffKeepsHistoricalEvidence(t *testing.T) {
 				}
 				return ai.InterventionEvidence{Coverage: "partial", Messages: []ai.Message{{ID: "old", GroupID: "g", SenderID: "u", Text: "本次聚餐人均最多300元", SentAt: now.Add(-time.Hour)}}}, nil
 			}
-			service, err := New(model, "test", 32768, registry, provider)
+			service, err := New(model, "test", 32768, registry, evidenceProviderFunc(provider))
 			if err != nil {
 				t.Fatal(err)
 			}
