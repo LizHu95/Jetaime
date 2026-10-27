@@ -19,29 +19,40 @@ import (
 )
 
 type initialHistory struct {
-	calls   int
-	request memory.SearchInput
-	fence   int64
-	err     error
+	pending   []memory.Message
+	excluded  []string
+	documents []memory.Document
+	calls     int
+	request   memory.SearchInput
+	fence     int64
+	err       error
 }
 
-func (h *initialHistory) Search(_ context.Context, group, actor string, in memory.SearchInput) (memory.SearchResult, error) {
+func (h *initialHistory) SearchDocuments(_ context.Context, group, actor string, in memory.SearchInput) (memory.SearchResult, error) {
 	if group != "g" || actor != "u" {
 		return memory.SearchResult{}, errors.New("wrong authorization")
 	}
 	h.calls++
 	h.request = in
-	return memory.SearchResult{Documents: []memory.Document{{SourceIDs: []string{"old"}}}}, h.err
-}
-func (h *initialHistory) RecentMessages(_ context.Context, _, _ string, fence int64, _ int) ([]history.Message, error) {
-	h.fence = fence
-	return nil, nil
-}
-func (h *initialHistory) SourceMessages(_ context.Context, _, _ string, fence int64, ids []string) ([]history.Message, error) {
-	if fence != h.fence || len(ids) != 1 || ids[0] != "old" {
-		return nil, errors.New("wrong evidence fence")
+	docs := h.documents
+	if docs == nil {
+		docs = []memory.Document{{SourceIDs: []string{"old"}}}
 	}
-	return []history.Message{{ID: "old", Seq: 1, SenderID: "u", Text: "历史中约定周五面试", SentAt: snapshot().Messages[0].SentAt.Add(-time.Hour)}}, nil
+	return memory.SearchResult{Documents: docs}, h.err
+}
+func (h *initialHistory) UnprocessedMessages(_ context.Context, group, actor string, in memory.SearchInput, exclude []string) (memory.SearchResult, error) {
+	if group != "g" || actor != "u" || in.MaxSeq != h.fence {
+		return memory.SearchResult{}, errors.New("wrong pending scope")
+	}
+	h.excluded = append([]string{}, exclude...)
+	return memory.SearchResult{RecentUnprocessed: h.pending}, nil
+}
+func (h *initialHistory) SourceEvidence(_ context.Context, group, actor string, fence int64, ids []string) (history.SourceEvidence, error) {
+	if group != "g" || actor != "u" || fence != 99 || len(ids) != 1 || ids[0] != "old" {
+		return history.SourceEvidence{}, errors.New("wrong source scope")
+	}
+	h.fence = fence
+	return history.SourceEvidence{Sources: []history.Message{{ID: "old", Seq: 1, SenderID: "u", Text: "历史中约定周五面试", SentAt: snapshot().Messages[0].SentAt.Add(-time.Hour)}}}, nil
 }
 func initialRequest() aicontext.ContextRequest {
 	return aicontext.ContextRequest{Snapshot: snapshot(), TriggerID: "current", Question: "面试是哪天？", Tokens: 16384, MaxSeq: 99}
@@ -133,5 +144,27 @@ func TestOnDemandHistoryFailsClosed(t *testing.T) {
 	h.err = errors.New("retrieval offline")
 	if _, err = tool.Invoke(context.Background(), scope, raw); !errors.Is(err, h.err) || model.calls != 0 {
 		t.Fatal("retrieval failure not propagated", err)
+	}
+}
+
+func TestHistoryContextUsesPendingOriginalsAndDeduplicatesSourceIDs(t *testing.T) {
+	h := &initialHistory{documents: []memory.Document{{SourceIDs: []string{"old", "old"}}, {SourceIDs: []string{"old"}}}, pending: []memory.Message{{ID: "update", Seq: 98, SenderID: "u", Text: "面试改到周六", SentAt: snapshot().Messages[0].SentAt.Add(-time.Minute)}}}
+	before := snapshot()
+	input, err := HistoryContext(h, h)(context.Background(), ContextRequest{Scope: tools.Scope{Context: before, ContextEndSeq: 99, Question: "面试哪天"}, Arguments: Arguments{Question: "面试哪天"}})
+	if err != nil || len(input.Messages) != 3 {
+		t.Fatal(input, err)
+	}
+	excluded := map[string]bool{}
+	for _, id := range h.excluded {
+		excluded[id] = true
+	}
+	if !excluded["current"] || !excluded["old"] {
+		t.Fatal("known originals not excluded before pending query", h.excluded)
+	}
+	if len(input.HistoryScope.RetrievedMessageIDs) != 1 || len(before.Messages) != 1 {
+		t.Fatal("duplicate sources or mutated context", input)
+	}
+	if input.Messages[1].ID != "update" {
+		t.Fatal("pending original missing or not chronological", input.Messages)
 	}
 }
