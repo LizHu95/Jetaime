@@ -92,7 +92,7 @@ func (s *Service) process(ctx context.Context, b Batch) error {
 		decision := Decision{Action: "ADD", Content: c.Content}
 		exact := false
 		for _, d := range related {
-			if d.Content == c.Content {
+			if d.Content == c.Content && sameMetadata(c, d) {
 				decision = Decision{Action: "NOOP", TargetID: d.ID}
 				exact = true
 				break
@@ -174,6 +174,9 @@ func validateCandidates(b Batch, cs []Candidate) error {
 		if c.TemporalScope != "enduring" && c.TemporalScope != "temporary" && c.TemporalScope != "event" {
 			return invalid("invalid_temporal_scope")
 		}
+		if err := validateMetadata(c); err != nil {
+			return invalid(err.Error())
+		}
 		fresh := false
 		for _, id := range c.SourceIDs {
 			m, ok := sources[id]
@@ -220,11 +223,14 @@ func validateDecision(c Candidate, d Decision, related []Document) error {
 	if _, err := uuid.Parse(d.TargetID); err != nil {
 		return ErrInvalid
 	}
-	if d.Action != "NOOP" && !c.ExplicitChange {
+	if d.Action == "UPDATE" && c.ChangeType == "none" || d.Action == "INVALIDATE" && c.ChangeType != "correct" {
 		return ErrInvalid
 	}
 	for _, old := range related {
 		if old.ID == d.TargetID && old.Subject == c.Subject && old.Kind == c.Kind && old.EventKey == c.EventKey && old.TemporalScope == c.TemporalScope {
+			if d.Action == "NOOP" && !sameMetadata(c, old) {
+				return ErrInvalid
+			}
 			return nil
 		}
 	}
@@ -343,6 +349,43 @@ func (s *Service) DrainEmbeddings(ctx context.Context) error {
 	}
 	if pending > 0 {
 		return fmt.Errorf("%d embedding jobs are leased or awaiting retry", pending)
+	}
+	return nil
+}
+
+func sameDate(a, b *string) bool { return a == nil && b == nil || a != nil && b != nil && *a == *b }
+func sameMetadata(c Candidate, d Document) bool {
+	return c.Status == d.Status && sameDate(c.ValidFrom, d.ValidFrom) && sameDate(c.ValidUntil, d.ValidUntil)
+}
+func validateMetadata(c Candidate) error {
+	switch c.Status {
+	case "active", "unknown", "completed", "cancelled":
+	default:
+		return errors.New("invalid_status")
+	}
+	switch c.ChangeType {
+	case "none", "supplement", "modify", "cancel", "complete", "correct":
+	default:
+		return errors.New("invalid_change_type")
+	}
+	if c.Status == "completed" && c.Kind != "plan" && c.Kind != "event" {
+		return errors.New("invalid_completed_kind")
+	}
+	if c.Status == "cancelled" && c.Kind != "plan" && c.Kind != "event" && c.Kind != "decision" {
+		return errors.New("invalid_cancelled_kind")
+	}
+	if c.ChangeType == "cancel" && c.Status != "cancelled" || c.ChangeType == "complete" && c.Status != "completed" {
+		return errors.New("inconsistent_change_status")
+	}
+	for _, d := range []*string{c.ValidFrom, c.ValidUntil} {
+		if d != nil {
+			if _, err := time.Parse("2006-01-02", *d); err != nil {
+				return errors.New("invalid_validity_date")
+			}
+		}
+	}
+	if c.ValidFrom != nil && c.ValidUntil != nil && *c.ValidFrom > *c.ValidUntil {
+		return errors.New("invalid_validity_range")
 	}
 	return nil
 }

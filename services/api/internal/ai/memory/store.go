@@ -229,13 +229,16 @@ func (s *Store) Complete(ctx context.Context, b Batch, mutations []Mutation) err
 		return err
 	}
 	for _, chunk := range chunks(b.Messages, b.From) {
-		d := Document{ID: uuid.NewString(), LogicalID: uuid.NewString(), Revision: 1, Kind: "history", Subject: "shared", TemporalScope: "event", Content: chunk.Content, SourceIDs: chunk.SourceIDs, Start: chunk.Start, End: chunk.End}
+		d := Document{ID: uuid.NewString(), LogicalID: uuid.NewString(), Revision: 1, Kind: "history", Subject: "shared", TemporalScope: "event", Status: "unknown", ChangeType: "none", Content: chunk.Content, SourceIDs: chunk.SourceIDs, Start: chunk.Start, End: chunk.End}
 		if err = s.insertDocument(ctx, tx, b.GroupID, d, "ADD", true); err != nil {
 			return err
 		}
 	}
 	for _, m := range mutations {
 		c, decision := m.Candidate, m.Decision
+		if err = validateMetadata(c); err != nil {
+			return fmt.Errorf("%w: %s", ErrInvalid, err)
+		}
 		var old Document
 		if decision.Action != "ADD" {
 			old, err = loadDocument(ctx, tx, b.GroupID, decision.TargetID)
@@ -245,6 +248,9 @@ func (s *Store) Complete(ctx context.Context, b Batch, mutations []Mutation) err
 			if old.Kind != c.Kind || old.Subject != c.Subject || old.EventKey != c.EventKey || old.TemporalScope != c.TemporalScope {
 				return ErrInvalid
 			}
+		}
+		if err = validateDecision(c, decision, []Document{old}); err != nil {
+			return err
 		}
 		if decision.Action == "NOOP" {
 			if err = addEvidence(ctx, tx, b.GroupID, old.ID, c.SourceIDs); err != nil {
@@ -259,7 +265,7 @@ func (s *Store) Complete(ctx context.Context, b Batch, mutations []Mutation) err
 		if decision.Action == "ADD" {
 			// Exact identity+content duplicates become evidence-only updates.
 			var existing string
-			err = tx.QueryRow(ctx, `SELECT id::text FROM memory_documents WHERE group_id=$1 AND active AND kind=$2 AND subject=$3 AND event_key=$4 AND temporal_scope=$5 AND content_hash=$6`, b.GroupID, c.Kind, c.Subject, c.EventKey, c.TemporalScope, hash(text)).Scan(&existing)
+			err = tx.QueryRow(ctx, `SELECT id::text FROM memory_documents WHERE group_id=$1 AND active AND kind=$2 AND subject=$3 AND event_key=$4 AND temporal_scope=$5 AND content_hash=$6 AND status=$7 AND valid_from IS NOT DISTINCT FROM $8::date AND valid_until IS NOT DISTINCT FROM $9::date`, b.GroupID, c.Kind, c.Subject, c.EventKey, c.TemporalScope, hash(text), c.Status, c.ValidFrom, c.ValidUntil).Scan(&existing)
 			if err == nil {
 				if err = addEvidence(ctx, tx, b.GroupID, existing, c.SourceIDs); err != nil {
 					return err
@@ -270,14 +276,14 @@ func (s *Store) Complete(ctx context.Context, b Batch, mutations []Mutation) err
 				return err
 			}
 		} else {
-			if !c.ExplicitChange {
+			if c.ChangeType == "none" {
 				return ErrInvalid
 			}
 			if _, err = tx.Exec(ctx, `UPDATE memory_documents SET active=false WHERE group_id=$1 AND id=$2`, b.GroupID, old.ID); err != nil {
 				return err
 			}
 		}
-		d := Document{ID: uuid.NewString(), LogicalID: uuid.NewString(), Revision: 1, Kind: c.Kind, Subject: c.Subject, EventKey: c.EventKey, TemporalScope: c.TemporalScope, Content: text, SourceIDs: append([]string{}, c.SourceIDs...)}
+		d := Document{ID: uuid.NewString(), LogicalID: uuid.NewString(), Revision: 1, Kind: c.Kind, Subject: c.Subject, EventKey: c.EventKey, TemporalScope: c.TemporalScope, Status: c.Status, ValidFrom: c.ValidFrom, ValidUntil: c.ValidUntil, ChangeType: c.ChangeType, Content: text, SourceIDs: append([]string{}, c.SourceIDs...)}
 		if decision.Action != "ADD" {
 			d.LogicalID = old.LogicalID
 			d.Revision = old.Revision + 1
@@ -300,8 +306,8 @@ func (s *Store) Complete(ctx context.Context, b Batch, mutations []Mutation) err
 	return tx.Commit(ctx)
 }
 func (s *Store) insertDocument(ctx context.Context, tx pgx.Tx, group string, d Document, action string, active bool) error {
-	_, err := tx.Exec(ctx, `INSERT INTO memory_documents(id,group_id,logical_id,revision,kind,subject,event_key,temporal_scope,content,content_hash,active,change_action,source_start_at,source_end_at)
- VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`, d.ID, group, d.LogicalID, d.Revision, d.Kind, d.Subject, d.EventKey, d.TemporalScope, d.Content, hash(d.Content), active, action, d.Start, d.End)
+	_, err := tx.Exec(ctx, `INSERT INTO memory_documents(id,group_id,logical_id,revision,kind,subject,event_key,temporal_scope,content,content_hash,active,change_action,source_start_at,source_end_at,status,valid_from,valid_until,change_type)
+ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::date,$17::date,$18)`, d.ID, group, d.LogicalID, d.Revision, d.Kind, d.Subject, d.EventKey, d.TemporalScope, d.Content, hash(d.Content), active, action, d.Start, d.End, d.Status, d.ValidFrom, d.ValidUntil, d.ChangeType)
 	if err != nil {
 		return err
 	}
@@ -331,12 +337,12 @@ type rowQuery interface {
 	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
-const documentColumns = `d.id::text,d.logical_id::text,d.revision,d.kind,d.subject,d.event_key,d.temporal_scope,d.content,d.source_start_at,d.source_end_at,
+const documentColumns = `d.id::text,d.logical_id::text,d.revision,d.kind,d.subject,d.event_key,d.temporal_scope,d.content,d.status,to_char(d.valid_from,'YYYY-MM-DD'),to_char(d.valid_until,'YYYY-MM-DD'),d.change_type,d.source_start_at,d.source_end_at,
  ARRAY(SELECT s.message_id::text FROM memory_document_sources s JOIN messages m ON m.group_id=s.group_id AND m.id=s.message_id WHERE s.document_id=d.id ORDER BY m.seq)`
 
 func scanDocument(row pgx.Row) (Document, error) {
 	var d Document
-	err := row.Scan(&d.ID, &d.LogicalID, &d.Revision, &d.Kind, &d.Subject, &d.EventKey, &d.TemporalScope, &d.Content, &d.Start, &d.End, &d.SourceIDs)
+	err := row.Scan(&d.ID, &d.LogicalID, &d.Revision, &d.Kind, &d.Subject, &d.EventKey, &d.TemporalScope, &d.Content, &d.Status, &d.ValidFrom, &d.ValidUntil, &d.ChangeType, &d.Start, &d.End, &d.SourceIDs)
 	return d, err
 }
 func loadDocument(ctx context.Context, q rowQuery, group, id string) (Document, error) {

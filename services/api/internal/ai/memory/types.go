@@ -3,10 +3,13 @@
 package memory
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -44,13 +47,16 @@ type Person struct {
 	Nickname string `json:"nickname"`
 }
 type Candidate struct {
-	Kind           string   `json:"kind"`
-	Subject        string   `json:"subject"`
-	EventKey       string   `json:"eventKey"`
-	TemporalScope  string   `json:"temporalScope"`
-	Content        string   `json:"content"`
-	SourceIDs      []string `json:"sourceMessageIds"`
-	ExplicitChange bool     `json:"explicitChange"`
+	Kind          string   `json:"kind"`
+	Subject       string   `json:"subject"`
+	EventKey      string   `json:"eventKey"`
+	TemporalScope string   `json:"temporalScope"`
+	Content       string   `json:"content"`
+	SourceIDs     []string `json:"sourceMessageIds"`
+	Status        string   `json:"status"`
+	ValidFrom     *string  `json:"validFrom"`
+	ValidUntil    *string  `json:"validUntil"`
+	ChangeType    string   `json:"changeType"`
 }
 type Document struct {
 	ID            string    `json:"id"`
@@ -64,6 +70,10 @@ type Document struct {
 	SourceIDs     []string  `json:"sourceMessageIds"`
 	Start         time.Time `json:"startAt"`
 	End           time.Time `json:"endAt"`
+	Status        string    `json:"status"`
+	ValidFrom     *string   `json:"validFrom"`
+	ValidUntil    *string   `json:"validUntil"`
+	ChangeType    string    `json:"changeType"`
 	Score         float64   `json:"score"`
 }
 type Decision struct {
@@ -87,3 +97,26 @@ type Mutation struct {
 func hash(s string) string { v := sha256.Sum256([]byte(s)); return hex.EncodeToString(v[:]) }
 
 const MaxBatchBytes = 18000
+
+// Required nullable dates must be present even when their value is unknown.
+func (c *Candidate) UnmarshalJSON(data []byte) error {
+	type wire Candidate
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for _, name := range []string{"kind", "subject", "eventKey", "temporalScope", "content", "sourceMessageIds", "status", "validFrom", "validUntil", "changeType"} {
+		value, ok := fields[name]
+		if !ok || ((name == "status" || name == "changeType") && bytes.Equal(bytes.TrimSpace(value), []byte("null"))) {
+			return fmt.Errorf("%w: missing_candidate_field_%s", ErrInvalid, name)
+		}
+	}
+	var out wire
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&out); err != nil {
+		return err
+	}
+	*c = Candidate(out)
+	return nil
+}

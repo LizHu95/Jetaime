@@ -98,7 +98,7 @@ func TestCandidateValidationTrace(t *testing.T) {
 			r := memoryRecorder(t)
 			t.Setenv("JETAIME_TRACE_CAPTURE_CONTENT", map[bool]string{false: "false", true: "true"}[capture])
 			b := Batch{From: 4, To: 5, Messages: []Message{{ID: "source", SenderID: "user", Seq: 5}}}
-			c := Candidate{Kind: "fact", Subject: "shared", EventKey: "private key", Content: "private candidate", TemporalScope: "enduring", SourceIDs: []string{"missing"}}
+			c := Candidate{Kind: "fact", Subject: "shared", EventKey: "private key", Content: "private candidate", TemporalScope: "enduring", Status: "active", ChangeType: "none", SourceIDs: []string{"missing"}}
 			err := traceValidateCandidates(context.Background(), b, []Candidate{c}, "before_save_extraction")
 			if !errors.Is(err, ErrInvalid) {
 				t.Fatal(err)
