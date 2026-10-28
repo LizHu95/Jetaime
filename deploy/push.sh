@@ -75,10 +75,15 @@ tar -xzf "$staging/api-deploy.tar.gz" -C "$staging"
 (cd "$staging/api" && sha256sum -c SHA256SUMS)
 # Check the incoming binary/configuration before replacing any installed files.
 mkdir -p "$parent/api"
-(cd "$parent/api" && bash "$staging/api/start.sh" migrate && bash "$staging/api/start.sh" check) || {
-    echo '部署预检失败，未替换 API、配置、Web 或 Nginx，现有进程保持运行。请恢复原记忆配置，或先完成显式索引重建。' >&2
+# Keep migration failures separate from model compatibility failures: their remedies differ.
+if ! (cd "$parent/api" && bash "$staging/api/start.sh" migrate); then
+    echo '数据库迁移失败，未替换 API、配置、Web 或 Nginx，现有进程保持运行。请按上方数据库错误处理后重新部署；已成功提交的迁移不会自动回滚。' >&2
     exit 1
-}
+fi
+if ! (cd "$parent/api" && bash "$staging/api/start.sh" check); then
+    echo '记忆配置预检失败，未替换 API、配置、Web 或 Nginx，现有进程保持运行。请核对上方错误；模型或 pipeline 不兼容时恢复原记忆配置，或完成显式索引重建。' >&2
+    exit 1
+fi
 mkdir -p "$parent/api/phoenix"
 for file in "$staging/api/phoenix/"*; do
     mv -f -- "$file" "$parent/api/phoenix/"

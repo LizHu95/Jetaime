@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v9-verification-schema"
+const recognitionVersion = "proactive-v10-compact-decisions"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.
@@ -31,6 +31,9 @@ func recognitionSchema() (*jsonschema.Resolved, json.RawMessage, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	// Empty branches omit unused fields; domain validation still checks every
+	// supplied source, intent and action before execution.
+	s.Required = []string{"shouldIntervene", "reason"}
 	s.Properties["breakdowns"].Types = nil
 	s.Properties["breakdowns"].Type = "array"
 	s.Properties["breakdowns"].Items.Properties["type"].Enum = breakdownTypes
@@ -51,6 +54,7 @@ func candidateSchema() (*jsonschema.Resolved, json.RawMessage, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	s.Required = []string{"action", "reason"}
 	s.Properties["topicContext"].Properties["continuity"].Enum = []any{"new_topic", "continuation", "uncertain"}
 	s.Properties["action"].Enum = []any{"skip", "intervene", "verify"}
 	s.Properties["breakdowns"].Types = nil

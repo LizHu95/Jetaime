@@ -111,7 +111,20 @@ case "$action" in
       exec "$binary" -memory-check -memory-config "${JETAIME_MEMORY_CONFIG:-$api_dir/memory.json}" "$@"
     fi
     if [[ "$action" == migrate ]]; then
-      exec "$binary" -migrate "$@"
+      # Capture only for classification; preserve the original database diagnostic and exit status.
+      migration_output=$(mktemp)
+      trap 'rm -f -- "$migration_output"' EXIT
+      if "$binary" -migrate "$@" >"$migration_output" 2>&1; then
+        cat "$migration_output"
+      else
+        migration_status=$?
+        cat "$migration_output" >&2
+        if LC_ALL=C grep -Eq 'extension "pg_search" is not available|could not (open|access).*pg_search|requires pg_search >=|extension "pg_search" has no installation script' "$migration_output"; then
+          echo '数据库缺少可用的 pg_search >= 0.26.0。请在实际 PostgreSQL 主机或容器中安装与 PostgreSQL 主版本、系统及架构匹配的扩展，再重新部署；SQL 迁移不能安装系统扩展文件。无需恢复 memory.json 或重新提取记忆。' >&2
+        fi
+        exit "$migration_status"
+      fi
+      exit 0
     fi
     exec "$binary" -memory-backfill -memory-config "${JETAIME_MEMORY_CONFIG:-$api_dir/memory.json}" "$@"
     ;;
@@ -121,7 +134,7 @@ case "$action" in
     ensure_phoenix
     if [[ "$action" == restart ]]; then
       echo '执行数据库增量迁移...'
-      if ! (cd "$api_dir" && "$binary" -migrate "$@"); then
+      if ! bash "$api_dir/start.sh" migrate "$@"; then
         echo '数据库迁移失败，未重启 API' >&2
         exit 1
       fi

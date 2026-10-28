@@ -129,6 +129,7 @@ func TestExecutionRoutesActiveAndPassiveToSameMain(t *testing.T) {
 	}{
 		{name: "active mention", trigger: "mention", outputs: []string{answer}},
 		{name: "active followup", outputs: []string{answer}},
+		{name: "compact passive silence", trigger: "proactive", outputs: []string{`{"action":"skip","reason":"正常聊天"}`}, silent: true},
 		{name: "passive silence", trigger: "proactive", outputs: []string{`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"skip","verification":null,"reason":"正常聊天","breakdowns":[],"intent":null}`}, silent: true},
 		{name: "passive intervention", trigger: "proactive", outputs: []string{`{"topicContext":{"topic":"当前测试事项","continuity":"continuation","messageIds":["m"],"anchorMessageIds":["m"]},"action":"intervene","verification":null,"reason":"地点不明确","breakdowns":[],"intent":{"type":"clarify","objective":"确认地点","evidenceMessageIds":["m"]}}`, answer}},
 	} {

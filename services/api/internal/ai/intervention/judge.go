@@ -164,8 +164,29 @@ func decodeDecision(content string, resolved *jsonschema.Resolved, output any) e
 	if err := resolved.Validate(value); err != nil {
 		return fmt.Errorf("%w: recognition schema: %v", ai.ErrInvalidDecision, err)
 	}
-	if err := ai.DecodeJSON([]byte(content), output); err != nil {
-		return fmt.Errorf("%w: recognition fields: %v", ai.ErrInvalidDecision, err)
+	// Decode into a fresh value: omitted optional fields must not retain state
+	// from an earlier malformed response during the single structural repair.
+	switch target := output.(type) {
+	case *ai.InterventionCandidate:
+		var decision ai.InterventionCandidate
+		if err := ai.DecodeJSON([]byte(content), &decision); err != nil {
+			return fmt.Errorf("%w: recognition fields: %v", ai.ErrInvalidDecision, err)
+		}
+		if decision.Breakdowns == nil {
+			decision.Breakdowns = []ai.Breakdown{}
+		}
+		*target = decision
+	case *ai.Recognition:
+		var decision ai.Recognition
+		if err := ai.DecodeJSON([]byte(content), &decision); err != nil {
+			return fmt.Errorf("%w: recognition fields: %v", ai.ErrInvalidDecision, err)
+		}
+		if decision.Breakdowns == nil {
+			decision.Breakdowns = []ai.Breakdown{}
+		}
+		*target = decision
+	default:
+		return fmt.Errorf("%w: unsupported recognition output", ai.ErrInvalidDecision)
 	}
 	return nil
 }
