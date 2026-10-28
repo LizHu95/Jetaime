@@ -87,7 +87,7 @@ func (s *Service) SearchDocuments(ctx context.Context, group, actor string, in S
 	if err = validateVector(v, s.Config.Embedding.Dimension); err != nil {
 		return out, err
 	}
-	// 两路各取最多 20 个候选：关键词路按完整检索词包含匹配，向量路按余弦距离排序。
+	// 两路各取最多 20 个候选：关键词路按中文分词后的 BM25 相关性排序，向量路按余弦距离排序。
 	// 两路都限制群、有效文档及来源截止序号，具体查询见 searchDocuments。
 	scores := map[string]float64{}
 	docs := map[string]Document{}
@@ -193,8 +193,9 @@ func (s *Store) searchDocuments(ctx context.Context, group, actor string, in Sea
 	order := `ORDER BY e.embedding OPERATOR(public.<=>) $9::public.vector,d.id LIMIT 20`
 	if route == "keyword" {
 		args = append(args, in.Query)
-		query += `AND strpos(lower(d.content),lower($7))>0 `
-		order = `ORDER BY d.source_end_at DESC,d.id LIMIT 20`
+		// Match treats input as text rather than query syntax; the index supplies Chinese tokenization.
+		query += `AND d.content ||| $7::text `
+		order = `ORDER BY pdb.score(d.id) DESC,d.source_end_at DESC,d.id LIMIT 20`
 	}
 	if in.MaxSeq > 0 {
 		args = append(args, in.MaxSeq)

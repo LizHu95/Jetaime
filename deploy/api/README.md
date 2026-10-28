@@ -102,3 +102,9 @@ tail -f runtime/api.log
 可运行 `bash start.sh check` 单独检查部署目录里的记忆配置和目标数据库是否兼容；也可直接执行 `./api-linux-amd64 -memory-check -memory-config /path/to/memory.json`。检查验证模型配置、所需密钥环境变量、数据库 schema 和记忆 pipeline，不发起模型推理、不创建或重置记忆进度。它不验证模型服务权限或输出质量。`restart` 在停止旧进程前也会执行同样的检查。
 
 如果仅更换聊天模型，保持 `memory.json` 不变；如果更换 extraction、Embedding 或其他影响记忆 pipeline 的配置，应先在独立副本中显式重建并验证，再切换生产索引与配置。普通部署不自动清空或重建记忆。
+
+### 记忆关键词检索升级
+
+执行 `000018_memory_search.up.sql` 前，数据库主机必须安装 ParadeDB `pg_search >= 0.26.0`，并继续提供 pgvector；迁移账号需有启用扩展权限，或由管理员预先启用。普通 PostgreSQL / 仅含 pgvector 的安装不能直接执行该迁移。新关键词路使用 Jieba 中文分词与 BM25，原有向量路继续使用 pgvector。
+
+通过现有迁移命令创建索引后再启动新程序；迁移失败不会写入该版本记录。已有记忆会自动建立搜索索引，无需重新调用模型。索引创建在事务内执行，会阻塞记忆表写入；较大数据库应安排维护窗口并预留磁盘空间。
