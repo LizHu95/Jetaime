@@ -3,6 +3,25 @@
 set -euo pipefail
 
 repo_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
+architectures=(amd64 arm64)
+create_archive=true
+while (($#)); do
+    case "$1" in
+        --arch)
+            [[ $# -ge 2 ]] || { echo '--arch 需要 amd64、arm64 或 all' >&2; exit 1; }
+            case "$2" in
+                amd64|arm64) architectures=("$2") ;;
+                all) architectures=(amd64 arm64) ;;
+                *) echo '不支持的架构，请使用 amd64、arm64 或 all' >&2; exit 1 ;;
+            esac
+            shift 2 ;;
+        --no-archive) create_archive=false; shift ;;
+        -h|--help)
+            echo 'Usage: bash deploy/api/build.sh [--arch amd64|arm64|all] [--no-archive]'
+            exit 0 ;;
+        *) echo '未知构建参数，请使用 --help 查看用法' >&2; exit 1 ;;
+    esac
+done
 [[ -f "$repo_root/local/.env" ]] || { echo '缺少 local/.env，无法打包部署配置' >&2; exit 1; }
 [[ -f "$repo_root/local/memory.json" ]] || { echo '缺少 local/memory.json，API 启动需要记忆模型配置' >&2; exit 1; }
 bash -n "$repo_root/local/.env"
@@ -11,10 +30,10 @@ mkdir -p "$output_dir"
 build_dir=$(mktemp -d "$output_dir/.build-XXXXXX")
 trap 'rm -rf -- "$build_dir"' EXIT
 
-for arch in amd64 arm64; do
+for arch in "${architectures[@]}"; do
     (
         cd "$repo_root/services/api"
-        CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath \
+        CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -ldflags='-s -w' \
             -o "$build_dir/api-linux-$arch" ./cmd/api
     )
 done
@@ -39,14 +58,15 @@ if [[ -f "$repo_root/local/memory.json" ]]; then
     cp "$repo_root/local/memory.json" "$build_dir/memory.json"
     chmod 600 "$build_dir/memory.json"
 fi
-python3 - "$build_dir" <<'PY'
+python3 - "$build_dir" "$create_archive" <<'PY'
 import hashlib
 import sys
 import tarfile
 from pathlib import Path
 
 source = Path(sys.argv[1])
-names = ["api-linux-amd64", "api-linux-arm64", "models.example.json", "memory.example.json", "README.md", "start.sh", ".env"]
+names = [p.name for p in sorted(source.glob("api-linux-*"))]
+names.extend(["models.example.json", "memory.example.json", "README.md", "start.sh", ".env"])
 names.extend(str(path.relative_to(source)) for path in sorted((source / "phoenix").rglob("*")) if path.is_file())
 for optional in ("models.json", "memory.json"):
     if (source / optional).exists():
@@ -55,22 +75,28 @@ for optional in ("models.json", "memory.json"):
     f"{hashlib.sha256((source / name).read_bytes()).hexdigest()}  {name}\n"
     for name in names
 ))
-with tarfile.open(source / "api-deploy.tar.gz", "w:gz") as archive:
-    for name in (*names, "SHA256SUMS"):
-        archive.add(source / name, arcname="api/" + name)
+if sys.argv[2] == "true":
+    with tarfile.open(source / "api-deploy.tar.gz", "w:gz") as archive:
+        for name in (*names, "SHA256SUMS"):
+            archive.add(source / name, arcname="api/" + name)
 PY
-chmod 600 "$build_dir/api-deploy.tar.gz"
+if [[ -f "$build_dir/api-deploy.tar.gz" ]]; then chmod 600 "$build_dir/api-deploy.tar.gz"; fi
 mkdir -p "$output_dir/phoenix"
 cp -R "$build_dir/phoenix/." "$output_dir/phoenix/"
 for name in api-linux-amd64 api-linux-arm64 models.example.json memory.example.json README.md start.sh .env SHA256SUMS api-deploy.tar.gz; do
-    mv -f -- "$build_dir/$name" "$output_dir/$name"
+    if [[ -f "$build_dir/$name" ]]; then
+        mv -f -- "$build_dir/$name" "$output_dir/$name"
+    else
+        rm -f -- "$output_dir/$name"
+    fi
 done
 if [[ -f "$build_dir/models.json" ]]; then
     mv -f -- "$build_dir/models.json" "$output_dir/models.json"
 else
     rm -f -- "$output_dir/models.json"
 fi
-printf 'API deployment package: %s\n' "$output_dir/api-deploy.tar.gz"
+printf 'API deployment files: %s (architectures: %s)\n' "$output_dir" "${architectures[*]}"
+if [[ "$create_archive" == true ]]; then printf 'API deployment package: %s\n' "$output_dir/api-deploy.tar.gz"; fi
 
 if [[ -f "$build_dir/memory.json" ]]; then
     mv -f -- "$build_dir/memory.json" "$output_dir/memory.json"

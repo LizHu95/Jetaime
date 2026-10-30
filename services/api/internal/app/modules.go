@@ -17,6 +17,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/amap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/catalog"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/history"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
@@ -113,7 +114,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			}
 			entries = append(entries, amap.New(client, guard, location.AmapRegionResolver(key))...)
 		}
-		registry, e := tools.New(entries...)
+		registry, e := catalog.New(entries...)
 		if e != nil {
 			return nil, e
 		}
