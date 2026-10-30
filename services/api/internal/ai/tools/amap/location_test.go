@@ -14,25 +14,25 @@ import (
 
 func TestCurrentLocationResolution(t *testing.T) {
 	scope := tools.Scope{Context: ai.Context{ActorID: "alice", Request: &ai.RequestContext{SenderID: "alice", Location: &location.Fix{Longitude: 121.5, Latitude: 31.3, AccuracyMeters: 30, CapturedAt: time.Now(), CoordinateSystem: "gcj02"}}}}
-	around, err := resolveCurrent(scope, Around{Keywords: "粥", Location: "current"})
+	around, err := resolveCurrent(context.Background(), scope, Around{Keywords: "粥", Location: "current"})
 	if err != nil || around.Location != "121.500000,31.300000" {
 		t.Fatal(around, err)
 	}
-	route, err := resolveCurrent(scope, Direction{Origin: "current", Destination: "121.6,31.4"})
+	route, err := resolveCurrent(context.Background(), scope, Direction{Origin: "current", Destination: "121.6,31.4"})
 	if err != nil || route.Origin != around.Location || route.Destination != "121.6,31.4" {
 		t.Fatal(route, err)
 	}
-	explicit, err := resolveCurrent(scope, Direction{Origin: "120,30", Destination: "121,31"})
+	explicit, err := resolveCurrent(context.Background(), scope, Direction{Origin: "120,30", Destination: "121,31"})
 	if err != nil || explicit.Origin != "120,30" {
 		t.Fatal("explicit origin overwritten")
 	}
 	scope.Context.Request.SenderID = "bob"
-	if _, err = resolveCurrent(scope, Around{Location: "current"}); err == nil {
+	if _, err = resolveCurrent(context.Background(), scope, Around{Location: "current"}); err == nil {
 		t.Fatal("another sender's location accepted")
 	}
 	scope.Context.Request.SenderID = "alice"
 	scope.Context.Request.Location.CapturedAt = time.Now().Add(-6 * time.Minute)
-	if _, err = resolveCurrent(scope, Transit{Origin: "current"}); err == nil {
+	if _, err = resolveCurrent(context.Background(), scope, Transit{Origin: "current"}); err == nil {
 		t.Fatal("stale location accepted")
 	}
 }

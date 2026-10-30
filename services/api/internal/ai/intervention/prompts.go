@@ -8,7 +8,7 @@ import (
 	"github.com/google/jsonschema-go/jsonschema"
 )
 
-const recognitionVersion = "proactive-v10-compact-decisions"
+const recognitionVersion = "proactive-v11-request-priority"
 
 // Embedded at build time so deployments do not depend on a prompt file on disk.
 // Update recognitionVersion whenever the decision instructions change.
