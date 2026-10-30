@@ -111,7 +111,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			guard := func(ctx context.Context, scope tools.Scope) error {
 				return m.chatService.AuthorizeExternalTool(ctx, chatExecutionScope(scope))
 			}
-			entries = append(entries, amap.New(client, guard)...)
+			entries = append(entries, amap.New(client, guard, location.AmapRegionResolver(key))...)
 		}
 		registry, e := tools.New(entries...)
 		if e != nil {

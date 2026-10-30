@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 )
 
 type Caller interface {
@@ -31,7 +32,7 @@ type Detail struct {
 	ID string `json:"id" jsonschema:"搜索结果中的真实高德地点ID"`
 }
 type Weather struct {
-	City string `json:"city" jsonschema:"城市名称或adcode；只使用实际返回的预报日期"`
+	City string `json:"city" jsonschema:"城市名称或adcode；查询本轮有效定位所在地时填current，由后端解析；只使用实际返回的预报日期"`
 }
 type Geo struct {
 	Address string `json:"address"`
@@ -49,7 +50,7 @@ type Transit struct {
 }
 
 // This is a local allowlist, not automatic registration of a remote tool catalog.
-func New(caller Caller, authorize Authorize) []tools.Tool {
+func New(caller Caller, authorize Authorize, regionResolver ...location.RegionResolver) []tools.Tool {
 	entries := []tools.Tool{
 		wrap("maps_text_search", "搜索真实餐厅、景点、公园或具体地点。必须已知城市，城市内最多返回5条；搜索结果可能没有坐标，可再查详情或地理编码。", caller, authorize, func(in Search) (any, error) {
 			if !short(in.Keywords, 100) || !short(in.City, 60) {
@@ -80,12 +81,12 @@ func New(caller Caller, authorize Authorize) []tools.Tool {
 			}
 			return in, nil
 		}),
-		wrap("maps_weather", "查询指定城市天气，最多保留4天。超出返回日期时说明暂无预报，不能用当前天气代替未来。", caller, authorize, func(in Weather) (any, error) {
+		wrap("maps_weather", "查询指定城市天气，最多保留4天。本轮有有效定位且未指定其他地点时city填current，无需追问城市。超出返回日期时说明暂无预报，不能用当前天气代替未来。", caller, authorize, func(in Weather) (any, error) {
 			if !short(in.City, 60) {
 				return nil, invalid("请提供用户指定的城市或行政区编码。")
 			}
 			return in, nil
-		}),
+		}, regionResolver...),
 		wrap("maps_geo", "将已知城市内的明确地址转换为高德坐标；用于路线起终点。同名地点有歧义时先询问。", caller, authorize, func(in Geo) (any, error) {
 			if !short(in.Address, 200) || !short(in.City, 60) {
 				return nil, invalid("需要明确的地址和城市，不能猜测出发地。")
@@ -110,7 +111,7 @@ func New(caller Caller, authorize Authorize) []tools.Tool {
 	return entries
 }
 
-func wrap[I any](name, description string, caller Caller, authorize Authorize, args func(I) (any, error)) tools.Tool {
+func wrap[I any](name, description string, caller Caller, authorize Authorize, args func(I) (any, error), regionResolver ...location.RegionResolver) tools.Tool {
 	return tools.NewTyped(tools.Metadata{Name: name, Description: description, Version: "amap-mcp-v1", Kind: "main", ReadOnly: true, Idempotent: true, Timeout: 30 * time.Second},
 		func(ctx context.Context, scope tools.Scope, in I) (Output, error) {
 			if authorize == nil || caller == nil {
@@ -119,8 +120,11 @@ func wrap[I any](name, description string, caller Caller, authorize Authorize, a
 			if err := authorize(ctx, scope); err != nil {
 				return Output{}, err
 			}
-			resolved, err := resolveCurrent(scope, in)
+			resolved, err := resolveCurrent(ctx, scope, in, regionResolver...)
 			if err != nil {
+				if errors.Is(err, location.ErrRegionUnavailable) {
+					return Output{Status: "unavailable", Source: "高德地图 MCP", Message: "当前位置的城市解析暂不可用，请稍后重试或提供城市名称。"}, nil
+				}
 				return Output{}, err
 			}
 			request, err := args(resolved)
@@ -185,16 +189,16 @@ func coordinate(s string) bool {
 }
 
 // Resolve the sentinel after domain authorization; raw coordinates are never invented by the model.
-func resolveCurrent[I any](scope tools.Scope, in I) (I, error) {
+func resolveCurrent[I any](ctx context.Context, scope tools.Scope, in I, regionResolver ...location.RegionResolver) (I, error) {
 	resolve := func(value string) (string, error) {
 		if value != "current" {
 			return value, nil
 		}
-		r := scope.Context.Request
-		if r == nil || r.SenderID != scope.Context.ActorID || r.Location == nil || r.Location.CoordinateSystem != "gcj02" || !r.Location.Valid(time.Now()) {
-			return "", invalid("本次客户端定位不可用或已过期，请用户重新定位或提供出发地点。")
+		fix, err := currentFix(scope)
+		if err != nil {
+			return "", err
 		}
-		return r.Location.Coordinates(), nil
+		return fix.Coordinates(), nil
 	}
 	var err error
 	var value any = in
@@ -208,8 +212,42 @@ func resolveCurrent[I any](scope tools.Scope, in I) (I, error) {
 	case Transit:
 		v.Origin, err = resolve(v.Origin)
 		value = v
+	case Weather:
+		v.City, err = currentCity(ctx, scope, v.City, regionResolver...)
+		value = v
 	}
 	return value.(I), err
+}
+
+func currentCity(ctx context.Context, scope tools.Scope, city string, regionResolver ...location.RegionResolver) (string, error) {
+	city = strings.TrimSpace(city)
+	if city != "current" {
+		return city, nil
+	}
+	fix, err := currentFix(scope)
+	if err != nil {
+		return "", err
+	}
+	if len(regionResolver) == 0 || regionResolver[0] == nil {
+		return "", location.ErrRegionUnavailable
+	}
+	code, err := regionResolver[0](ctx, fix)
+	if err != nil || !location.ValidAdcode(code) {
+		return "", location.ErrRegionUnavailable
+	}
+	// Resolution must not extend the lifetime of the original fix.
+	if _, err := currentFix(scope); err != nil {
+		return "", err
+	}
+	return code, nil
+}
+
+func currentFix(scope tools.Scope) (location.Fix, error) {
+	r := scope.Context.Request
+	if r == nil || r.SenderID != scope.Context.ActorID || r.Location == nil || r.Location.CoordinateSystem != "gcj02" || !r.Location.Valid(time.Now()) {
+		return location.Fix{}, invalid("本次客户端定位不可用或已过期，请用户重新定位或提供地点。")
+	}
+	return *r.Location, nil
 }
 
 // Filter both observations and cards, and deduplicate provider POIs within a batch.
