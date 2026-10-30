@@ -23,6 +23,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 		modules.close()
 	}()
 
+	modules.handlers.Deployment = httpapi.Deployment{Branch: cfg.DeployBranch, Commit: cfg.DeployCommit, Dirty: cfg.DeployDirty}
 	modules.startWorkers(ctx)
 	return serveHTTP(ctx, cfg, httpapi.NewRouter(modules.handlers))
 }

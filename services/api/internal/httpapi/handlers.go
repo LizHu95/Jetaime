@@ -6,6 +6,7 @@ import "net/http"
 // Interfaces keep the route table independent of domain implementations;
 // each method is a named HTTP handler, not an endpoint field mapping.
 type Handlers struct {
+	Deployment    Deployment
 	Auth          AuthHandler
 	Collaboration CollaborationHandler
 	Chat          ChatHandler
@@ -63,4 +64,16 @@ type ReminderHandler interface {
 	UpdateReminder(http.ResponseWriter, *http.Request)
 	ListReminders(http.ResponseWriter, *http.Request)
 	CancelReminder(http.ResponseWriter, *http.Request)
+}
+
+// Deployment contains only public source metadata, never runtime credentials.
+type Deployment struct {
+	Branch string `json:"branch"`
+	Commit string `json:"commit"`
+	Dirty  string `json:"dirty"`
+}
+
+func (d Deployment) GetDeployment(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	WriteJSON(w, http.StatusOK, d)
 }

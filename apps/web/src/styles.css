@@ -624,3 +624,9 @@ input::placeholder, textarea::placeholder { color: var(--placeholder); opacity: 
 .location-recovery-actions a { color: var(--link-highlight); }
 .location-permission-help details { margin-top: 16px; color: var(--muted-foreground); font-size: 12px; }
 .location-permission-help summary { cursor: pointer; }
+
+.deployment-info { margin: 0; }
+.deployment-info > div { padding: 16px 0; border-bottom: 1px solid var(--border); }
+.deployment-info dt { color: var(--muted-foreground); font-size: 13px; margin-bottom: 8px; }
+.deployment-info dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.deployment-info code { font-size: 13px; }

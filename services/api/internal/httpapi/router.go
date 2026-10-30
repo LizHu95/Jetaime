@@ -16,6 +16,7 @@ func NewRouter(handlers Handlers) http.Handler {
 	})
 
 	if h := handlers.Auth; h != nil {
+		mux.HandleFunc("GET /api/deployment", h.Authenticate(handlers.Deployment.GetDeployment))
 		mux.HandleFunc("POST /api/auth/register", h.Register)
 		mux.HandleFunc("POST /api/auth/login", h.Login)
 		mux.HandleFunc("POST /api/auth/logout", h.Logout)

@@ -110,3 +110,14 @@ tail -f runtime/api.log
 通过现有迁移命令创建索引后再启动新程序；迁移失败不会写入该版本记录。已有记忆会自动建立搜索索引，无需重新调用模型。索引创建在事务内执行，会阻塞记忆表写入；较大数据库应安排维护窗口并预留磁盘空间。
 
 部署脚本分别报告数据库迁移失败与记忆配置检查失败。缺少 `pg_search` 时，会提示先在实际数据库主机/容器安装匹配扩展，不要求恢复记忆配置。`start.sh migrate` 与 `restart` 共用此诊断。脚本不自动修改数据库主机的软件包或替换数据库容器；API 主机可能连接远程数据库。失败时保留旧进程与部署文件，但已成功提交的迁移不会因后续预检失败自动回滚。
+
+### 部署代码信息
+
+打包脚本自动将当前 Git 信息写入部署包 `.env`（不修改 `local/.env`）：
+
+- `JETAIME_DEPLOY_BRANCH`：分支名，分离 HEAD 时为 `detached`。
+- `JETAIME_DEPLOY_COMMIT`：完整提交哈希。
+- `JETAIME_DEPLOY_DIRTY`：打包时是否包含未提交修改（`true` / `false`）。
+
+登录后在“我 → 开发调试”查看运行中 API 的部署信息。未配置时显示“未记录”。
+Trace 的 Resource 属性同步包含 `deployment.branch`、`deployment.commit`、`deployment.dirty`，并以提交哈希设置 `service.version`。只上报上述明确字段，不上报其他环境变量。

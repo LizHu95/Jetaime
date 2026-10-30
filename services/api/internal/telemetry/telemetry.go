@@ -44,7 +44,18 @@ func Init(ctx context.Context) (func(context.Context) error, error) {
 	if name == "" {
 		name = "jetaime-api"
 	}
-	res, err := resource.New(ctx, resource.WithFromEnv(), resource.WithAttributes(attribute.String("service.name", name)))
+	attrs := []attribute.KeyValue{attribute.String("service.name", name)}
+	for _, field := range []struct{ env, key string }{
+		{"JETAIME_DEPLOY_BRANCH", "deployment.branch"},
+		{"JETAIME_DEPLOY_COMMIT", "service.version"},
+		{"JETAIME_DEPLOY_COMMIT", "deployment.commit"},
+		{"JETAIME_DEPLOY_DIRTY", "deployment.dirty"},
+	} {
+		if value := os.Getenv(field.env); value != "" {
+			attrs = append(attrs, attribute.String(field.key, value))
+		}
+	}
+	res, err := resource.New(ctx, resource.WithFromEnv(), resource.WithAttributes(attrs...))
 	if err != nil {
 		_ = exporter.Shutdown(ctx)
 		return nil, fmt.Errorf("initialize trace resource: %w", err)

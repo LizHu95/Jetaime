@@ -14,6 +14,9 @@ import (
 
 // Config is fully parsed before the application starts. No flag pointers escape here.
 type Config struct {
+	DeployBranch   string
+	DeployCommit   string
+	DeployDirty    string
 	Address        string
 	DatabaseURL    string
 	EnableChatAI   bool // Background main Agent for authenticated group chat.
@@ -45,6 +48,9 @@ func Parse(args []string) (Config, error) {
 	if commandLine.NArg() != 0 {
 		return cfg, fmt.Errorf("unexpected arguments")
 	}
+	cfg.DeployBranch = os.Getenv("JETAIME_DEPLOY_BRANCH")
+	cfg.DeployCommit = os.Getenv("JETAIME_DEPLOY_COMMIT")
+	cfg.DeployDirty = os.Getenv("JETAIME_DEPLOY_DIRTY")
 	cfg.DatabaseURL = os.Getenv("JETAIME_DATABASE_URL")
 	cfg.GaodeAPIKey = os.Getenv("JETAIME_GAODE_API_KEY")
 	if err := cfg.validateAddress(); err != nil {

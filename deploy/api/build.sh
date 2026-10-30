@@ -24,6 +24,12 @@ cp "$repo_root/deploy/api/README.md" "$build_dir/README.md"
 cp "$repo_root/deploy/api/start.sh" "$build_dir/start.sh"
 cp -R "$repo_root/deploy/phoenix" "$build_dir/phoenix"
 cp "$repo_root/local/.env" "$build_dir/.env"
+# Record the source packaged into these binaries; override any stale local values.
+branch=$(git -C "$repo_root" symbolic-ref --quiet --short HEAD || printf 'detached')
+commit=$(git -C "$repo_root" rev-parse HEAD)
+dirty=false
+if [[ -n "$(git -C "$repo_root" status --porcelain --untracked-files=normal)" ]]; then dirty=true; fi
+printf '\nJETAIME_DEPLOY_BRANCH=%q\nJETAIME_DEPLOY_COMMIT=%q\nJETAIME_DEPLOY_DIRTY=%q\n' "$branch" "$commit" "$dirty" >> "$build_dir/.env"
 chmod 600 "$build_dir/.env"
 if [[ -f "$repo_root/local/models.json" ]]; then
     cp "$repo_root/local/models.json" "$build_dir/models.json"

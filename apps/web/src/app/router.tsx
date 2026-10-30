@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate, useLocation } from 'react-router-dom'
 import { MainLayout } from './main-layout'
+import { DebugPage } from '@/features/settings/debug-page'
 import { SettingsPage } from '@/features/settings/settings-page'
 import { ReminderSettings } from '@/features/chat/reminder-settings'
 import { ChatPage } from '@/features/chat/chat-page'
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
     { path: '/chat/:groupId/', element: <ChatPage /> },
     { path: '/chat/:groupId/settings/', element: <ReminderSettings /> },
     { path: '/me/', element: <SessionPage /> },
+    { path: '/me/debug/', element: <DebugPage /> },
     { path: '/me/settings/', element: <SettingsPage /> },
     { path: '/auth/session/', element: <Navigate to="/me/" replace /> },
     { path: '/auth/password/', element: <PasswordPage /> },
