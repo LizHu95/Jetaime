@@ -38,6 +38,7 @@ type Call struct {
 
 // Scope is backend-owned; it is never decoded from model arguments.
 type Scope struct {
+	LoadedTools    map[string]bool    // Non-nil only for invocation-local deferred discovery; backend-owned.
 	ExcludedCards  map[string]bool    // Invocation-local exclusions activated by a replacement search.
 	Cards          map[string]ai.Card // Invocation-local, populated only by successful tools.
 	Context        ai.Context
@@ -109,6 +110,9 @@ func (r *Registry) Definitions() []Definition {
 	return out
 }
 func (r *Registry) Execute(ctx context.Context, s Scope, call Call) (Result, error) {
+	if s.LoadedTools != nil && !s.LoadedTools[call.Name] {
+		return Result{}, InvalidArguments("tool_not_loaded", "该工具尚未加载，请先用 tool_search 搜索所需能力。")
+	}
 	t, ok := r.entries[call.Name]
 	if !ok {
 		return Result{}, InvalidArguments("unknown_tool", "选择已注册的工具名称。")

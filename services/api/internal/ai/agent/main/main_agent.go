@@ -13,12 +13,16 @@ import (
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/search"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 )
 
 const PromptVersion = prompts.Version
 const MaxToolSteps = 3
+
+// Search attempts have their own bounded allowance, separate from business tools.
+const MaxSearchCalls = 3
 
 // MCP planning can require two searches, two detail lookups, a route and weather.
 const MaxMCPToolSteps = 8
@@ -86,8 +90,32 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	building = false
 	// observations 保存工具结果和纠错反馈，供下一轮模型决定后续动作。
 	observations := []map[string]any{}
-	catalog := a.Tools.Definitions()
-	// 普通轮开放完整工具目录；额度耗尽后只开放回答/沉默这类收尾工具。
+	allCatalog := a.Tools.Definitions()
+	discovery := false
+	for _, definition := range allCatalog {
+		if definition.Name == search.Name {
+			discovery = true
+		}
+	}
+	if discovery {
+		scope.LoadedTools = map[string]bool{}
+		for _, definition := range allCatalog {
+			if definition.Name == "respond" || definition.Name == "read_recent_messages" || definition.Name == search.Name || definition.Name == "remain_silent" && input.Request.TriggerMode == "proactive" {
+				scope.LoadedTools[definition.Name] = true
+			}
+		}
+	}
+	selectCatalog := func() []tools.Definition {
+		selected := []tools.Definition{}
+		for _, definition := range allCatalog {
+			if !discovery || scope.LoadedTools[definition.Name] {
+				selected = append(selected, definition)
+			}
+		}
+		return selected
+	}
+	catalog := selectCatalog()
+	// 普通轮开放本次已加载目录；额度耗尽后只开放回答/沉默这类收尾工具。
 	finalCatalog := []tools.Definition{}
 	for _, definition := range catalog {
 		if definition.Name == "respond" || definition.Name == "remain_silent" && input.Request.TriggerMode == "proactive" {
@@ -98,12 +126,13 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	stepLimit := MaxToolSteps
 	feedbackReserve := ToolFeedbackReserve
 	for _, definition := range catalog {
-		if definition.Name == "maps_text_search" {
+		if strings.HasPrefix(definition.Name, "maps_") {
 			stepLimit = MaxMCPToolSteps
 			feedbackReserve = MCPFeedbackReserve
 			break
 		}
 	}
+	searchCalls := 0
 	// 这些消息是必要证据，后续压缩上下文时不能删除。
 	required := map[string]bool{input.Request.MessageID: true}
 	for _, id := range input.Request.RelatedMessageIDs {
@@ -141,6 +170,22 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	}
 	// Agent Loop：一轮选择并执行一个工具；非终结结果会反馈到下一轮。
 	for stepIndex := 0; stepIndex < roundLimit; stepIndex++ {
+		catalog = selectCatalog()
+		if discovery {
+			for _, definition := range catalog {
+				if strings.HasPrefix(definition.Name, "maps_") {
+					stepLimit = MaxMCPToolSteps + searchCalls
+					feedbackReserve = MCPFeedbackReserve
+					break
+				}
+			}
+			roundLimit = stepLimit
+			if len(finalCatalog) > 0 {
+				roundLimit++
+			}
+			roundCatalog = catalog
+			roundInstruction = ""
+		}
 		finalRound := stepIndex == stepLimit
 		if finalRound {
 			roundCatalog = finalCatalog
@@ -227,6 +272,15 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 				recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
 				return run, err
 			}
+		}
+		if discovery && call.Name == search.Name {
+			if searchCalls >= MaxSearchCalls {
+				observations = append(observations, map[string]any{"name": call.Name, "error": tools.InvalidArguments("search_limit", "本次最多搜索3次，请使用已加载能力或基于已有证据收尾。")})
+				continue
+			}
+			searchCalls++
+			stepLimit++
+			roundLimit++
 		}
 		recordStep(ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
 		// 程序真正执行所选工具，取得业务结果、来源证据及是否结束的标记。

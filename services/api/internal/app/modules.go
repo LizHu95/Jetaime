@@ -22,6 +22,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/search"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
@@ -113,6 +114,7 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			}
 			entries = append(entries, amap.New(client, guard)...)
 		}
+		entries = append(entries, search.New(entries))
 		registry, e := tools.New(entries...)
 		if e != nil {
 			return nil, e
