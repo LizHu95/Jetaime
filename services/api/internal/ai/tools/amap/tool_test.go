@@ -13,6 +13,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/search"
 )
 
 type fakeCaller struct {
@@ -104,6 +105,7 @@ type sequenceModel struct {
 
 func (m *sequenceModel) Call(_ context.Context, request llm.Request) (llm.Result, error) {
 	steps := []string{
+		`{"name":"tool_search","arguments":{"query":"地址坐标 步行路线"}}`,
 		`{"name":"maps_geo","arguments":{"address":"五角场站","city":"上海"}}`,
 		`{"name":"maps_geo","arguments":{"address":"三门路站","city":"上海"}}`,
 		`{"name":"maps_direction_walking","arguments":{"origin":"121.5,31.3","destination":"121.51,31.31"}}`,
@@ -117,7 +119,7 @@ func (m *sequenceModel) Call(_ context.Context, request llm.Request) (llm.Result
 			m.t.Fatal("raw MCP data reached model")
 		}
 	}
-	if m.calls == 3 {
+	if m.calls == 4 {
 		var observations []struct {
 			CardRefs []struct {
 				Ref string `json:"ref"`
@@ -142,6 +144,10 @@ func TestMainAgentCanComposeMCPQueries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	registry, err = registry.With(search.New(registry.Definitions()))
+	if err != nil {
+		t.Fatal(err)
+	}
 	model := &sequenceModel{t: t}
 	service, err := execution.New(model, "test", 65536, registry)
 	if err != nil {
@@ -149,7 +155,7 @@ func TestMainAgentCanComposeMCPQueries(t *testing.T) {
 	}
 	s := scope()
 	run, err := service.Execute(context.Background(), ai.Invocation{Mode: "main", Context: s.Context, Question: s.Context.Messages[0].Text})
-	if err != nil || run.Answer == nil || model.calls != 4 || caller.calls != 3 || len(run.Cards) != 1 || run.Cards[0].Route == nil || *run.Cards[0].Route.DurationSeconds != 600 {
+	if err != nil || run.Answer == nil || model.calls != 5 || caller.calls != 3 || len(run.Cards) != 1 || run.Cards[0].Route == nil || *run.Cards[0].Route.DurationSeconds != 600 {
 		t.Fatal(run.Answer, err)
 	}
 }

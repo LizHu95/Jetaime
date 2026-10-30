@@ -128,3 +128,12 @@ func (r *Registry) Decode(content string) (Call, error) {
 	}
 	return c, nil
 }
+
+// With returns a separate registry; an Agent never mutates the shared registry.
+func (r *Registry) With(extra ...Tool) (*Registry, error) {
+	entries := make([]Tool, 0, len(r.entries)+len(extra))
+	for _, entry := range r.entries {
+		entries = append(entries, entry)
+	}
+	return New(append(entries, extra...)...)
+}

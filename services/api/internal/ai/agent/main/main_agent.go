@@ -13,6 +13,7 @@ import (
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/search"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
 )
@@ -86,8 +87,21 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	building = false
 	// observations 保存工具结果和纠错反馈，供下一轮模型决定后续动作。
 	observations := []map[string]any{}
-	catalog := a.Tools.Definitions()
-	// 普通轮开放完整工具目录；额度耗尽后只开放回答/沉默这类收尾工具。
+	allCatalog := a.Tools.Definitions()
+	discoveryEnabled := false
+	for _, d := range allCatalog {
+		discoveryEnabled = discoveryEnabled || d.Name == search.Name
+	}
+	catalog := []tools.Definition{}
+	for _, d := range allCatalog {
+		if !discoveryEnabled || !search.Deferred(d.Name) && (d.Name != "remain_silent" || input.Request.TriggerMode == "proactive") {
+			catalog = append(catalog, d)
+		}
+	}
+	searchCalls := 0
+	const maxSearchCalls = 3
+	hasMaps := false
+	// 每次运行只开放基础工具及本次发现的能力；额度耗尽后只开放收尾工具。
 	finalCatalog := []tools.Definition{}
 	for _, definition := range catalog {
 		if definition.Name == "respond" || definition.Name == "remain_silent" && input.Request.TriggerMode == "proactive" {
@@ -97,13 +111,16 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	// 地图任务可能需要多次搜索、详情和路线查询，因此采用更高轮数上限。
 	stepLimit := MaxToolSteps
 	feedbackReserve := ToolFeedbackReserve
-	for _, definition := range catalog {
-		if definition.Name == "maps_text_search" {
-			stepLimit = MaxMCPToolSteps
-			feedbackReserve = MCPFeedbackReserve
-			break
+	if !discoveryEnabled {
+		for _, d := range catalog {
+			if search.Deferred(d.Name) {
+				stepLimit = MaxMCPToolSteps
+				feedbackReserve = MCPFeedbackReserve
+				break
+			}
 		}
 	}
+
 	// 这些消息是必要证据，后续压缩上下文时不能删除。
 	required := map[string]bool{input.Request.MessageID: true}
 	for _, id := range input.Request.RelatedMessageIDs {
@@ -217,15 +234,40 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			}
 			return run, e
 		}
-		if finalRound {
+		{
 			allowed := false
-			for _, definition := range finalCatalog {
+			for _, definition := range roundCatalog {
 				allowed = allowed || call.Name == definition.Name
 			}
 			if !allowed {
-				err = fmt.Errorf("%w: final response must use a completion tool", ai.ErrInvalidDecision)
+				e = tools.InvalidArguments("tool_not_loaded", "只能调用本轮目录中的工具；高德能力需先通过tool_search加载。")
+				if !finalRound && stepIndex+1 < roundLimit {
+					feedback, _ := tools.Repairable(e)
+					observations = append(observations, map[string]any{"error": feedback})
+					recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
+					continue
+				}
+				err = fmt.Errorf("%w: tool is not in the current catalog", ai.ErrInvalidDecision)
 				recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
 				return run, err
+			}
+		}
+		if call.Name == search.Name {
+			if searchCalls >= maxSearchCalls {
+				return run, fmt.Errorf("%w: discovery budget exhausted", ai.ErrInvalidDecision)
+			}
+			searchCalls++
+			stepLimit++
+			roundLimit++
+			if searchCalls >= maxSearchCalls {
+				active := []tools.Definition{}
+				for _, d := range catalog {
+					if d.Name != search.Name {
+						active = append(active, d)
+					}
+				}
+				catalog = active
+				roundCatalog = catalog
 			}
 		}
 		recordStep(ai.Step{Name: "tool_call", Status: "succeeded", StartedAt: time.Now(), Output: call})
@@ -245,6 +287,38 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 				continue
 			}
 			return run, e
+		}
+		if call.Name == search.Name {
+			var found search.Output
+			if e = json.Unmarshal(result.Data, &found); e != nil {
+				return run, e
+			}
+			for _, match := range found.Tools {
+				for _, d := range allCatalog {
+					if d.Name != match.Name || !search.Deferred(d.Name) {
+						continue
+					}
+					known := false
+					for _, active := range catalog {
+						known = known || active.Name == d.Name
+					}
+					if !known {
+						catalog = append(catalog, d)
+						hasMaps = true
+					}
+				}
+			}
+			if hasMaps {
+				stepLimit = MaxMCPToolSteps + searchCalls
+				feedbackReserve = MCPFeedbackReserve
+				roundLimit = stepLimit
+				if len(finalCatalog) > 0 {
+					roundLimit++
+				}
+			}
+
+			roundCatalog = catalog
+			roundInstruction = ""
 		}
 		for _, source := range result.Completion.Sources {
 			required[source.ID] = true

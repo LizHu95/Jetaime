@@ -4,6 +4,7 @@ package prompts
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
@@ -11,7 +12,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 )
 
-const Version = "main-v24-communication-repair"
+const Version = "main-v25-tool-search-b"
 
 const Main = `你是群聊主Agent，目标是直接、清楚地帮助用户。默认自己回答问题，先给结论，再给必要说明，中文自然简洁，不描述内部流程。
 普通知识、建议、写作、闲聊、澄清，以及当前上下文足够的问题：直接写好最终回答，用respond返回status、answer、sourceMessageIds，不再调用answer_question重复生成。一般知识无需群聊来源，可用空数组；群聊事实必须引用本次原消息ID，不能编造经历、约定或时间，也不能把AI回复当真人承诺。证据不足用insufficient_evidence，有冲突用conflicting_evidence。关键条件缺失才简短追问，能给建议时先回答。
@@ -47,7 +48,13 @@ func MainRequest(model string, input ai.Context, question string, tokens int, ca
 	}
 	system := Main
 	for _, definition := range catalog {
-		if definition.Name == "maps_text_search" {
+		if definition.Name == "tool_search" {
+			system += "\n高德地图能力按需加载。涉及真实地点、商家、天气或路线时先用tool_search发现所需能力，再调用已加载工具；搜索不等于业务查询成功。未命中时改用更具体关键词，仍无可用能力时如实说明；位置或城市缺失时先澄清，不能编造位置。只允许调用本轮目录中的工具。"
+			break
+		}
+	}
+	for _, definition := range catalog {
+		if strings.HasPrefix(definition.Name, "maps_") {
 			system += "\n" + amap + "\n" + amapCards
 			break
 		}

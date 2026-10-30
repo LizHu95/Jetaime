@@ -11,6 +11,7 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/search"
 )
 
 func TestReplacementSearchExcludesDisplayedPlacesAcrossRounds(t *testing.T) {
@@ -86,12 +87,15 @@ type refreshModel struct {
 func (m *refreshModel) Call(_ context.Context, r llm.Request) (llm.Result, error) {
 	m.calls++
 	if m.calls == 1 {
+		return llm.Result{Content: `{"name":"tool_search","arguments":{"query":"maps_text_search"}}`}, nil
+	}
+	if m.calls == 2 {
 		if !strings.Contains(r.Messages[1].Content, `"recentRecommendedPlaces"`) || !strings.Contains(r.Messages[1].Content, "B001") || !strings.Contains(r.Messages[0].Content, "excludePrevious=true") {
 			m.t.Fatal("refresh context or instructions missing")
 		}
 		return llm.Result{Content: `{"name":"maps_text_search","arguments":{"keywords":"餐厅","city":"上海","excludePrevious":true}}`}, nil
 	}
-	if m.calls != 2 {
+	if m.calls != 3 {
 		m.t.Fatal("unexpected model retry")
 	}
 	feedback := r.Messages[len(r.Messages)-1].Content
@@ -105,6 +109,10 @@ func TestMainRefreshReturnsOnlyNewPlaceCards(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	registry, err = registry.With(search.New(registry.Definitions()))
+	if err != nil {
+		t.Fatal(err)
+	}
 	model := &refreshModel{t: t}
 	service, err := execution.New(model, "test", 32768, registry)
 	if err != nil {
@@ -114,7 +122,7 @@ func TestMainRefreshReturnsOnlyNewPlaceCards(t *testing.T) {
 	input.Messages[0].Text = "换一批"
 	input.RecentPlaces = []ai.RecommendedPlace{{ID: "amap:place:B001", Name: "旧店"}}
 	run, err := service.Execute(context.Background(), ai.Invocation{Mode: "main", Context: input, Question: "换一批"})
-	if err != nil || len(run.Cards) != 1 || run.Cards[0].ID != "amap:place:B002" || model.calls != 2 {
+	if err != nil || len(run.Cards) != 1 || run.Cards[0].ID != "amap:place:B002" || model.calls != 3 {
 		t.Fatalf("replacement failed: %+v %v", run, err)
 	}
 }
