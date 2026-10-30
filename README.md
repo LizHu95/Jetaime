@@ -192,3 +192,7 @@ Go API 使用 OpenTelemetry 直接向 Phoenix 上报 AI 调用链，只采集 @A
 Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读角标、阅读进度和断线补拉。`make dev` 默认开启共享 AI，使用现有模型 profile；可用 `-chat-ai=false` 显式关闭；模型 ID 必须为实际可调用名称。普通消息不触发模型，@AI 提问排队，完整回复保存后向双方推送。实现和接口详见 [双人群聊接口](docs/v2/双人群聊接口.md)。
 
 同机部署 Phoenix 收集 Trace，见 [Phoenix 部署说明](deploy/phoenix/README.md)。
+
+### 本地历史回放评测
+
+`make eval-replay-check` 验证独立回放入口；`make eval-replay EVAL_ARGS='...'` 从冻结消息快照运行真实 Agent，不启动业务服务、不连接业务数据库。支持指定 B/C 工作目录并将结果接入 Phoenix Dataset/Experiment，说明见 [本地回放评测](docs/v2/本地回放评测.md)。

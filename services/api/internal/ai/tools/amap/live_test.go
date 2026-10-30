@@ -15,6 +15,35 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/location"
 )
 
+func TestLiveWeatherCurrent(t *testing.T) {
+	if os.Getenv("JETAIME_GAODE_LIVE_TEST") != "true" {
+		t.Skip("opt-in live current weather check")
+	}
+	key := os.Getenv("JETAIME_GAODE_API_KEY")
+	if key == "" {
+		t.Fatal("missing Amap key")
+	}
+	client := mcpclient.New("https://mcp.amap.com/mcp?" + url.Values{"key": {key}}.Encode())
+	registry, err := tools.New(New(client, allow, location.AmapRegionResolver(key))...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	// Public Shanghai reference point; never uses a person's stored location.
+	result, err := registry.Execute(ctx, weatherScope(), tools.Call{Name: "maps_weather", Arguments: json.RawMessage(`{"city":"current"}`)})
+	if err != nil {
+		t.Fatal("current weather query failed")
+	}
+	var out Output
+	if json.Unmarshal(result.Data, &out) != nil || out.Status != "ok" || len(out.Forecasts) == 0 || len(result.Data) > MaxOutputBytes {
+		t.Fatalf("current weather returned status=%s forecasts=%d", out.Status, len(out.Forecasts))
+	}
+	if strings.Contains(string(result.Data), "121.5") || strings.Contains(string(result.Data), "longitude") {
+		t.Fatal("private coordinates in observation")
+	}
+}
+
 func TestLiveMCP(t *testing.T) {
 	if os.Getenv("JETAIME_GAODE_LIVE_TEST") != "true" {
 		t.Skip("set JETAIME_GAODE_LIVE_TEST=true and JETAIME_GAODE_API_KEY for live MCP checks")
@@ -24,7 +53,7 @@ func TestLiveMCP(t *testing.T) {
 		t.Fatal("missing Amap key")
 	}
 	client := mcpclient.New("https://mcp.amap.com/mcp?" + url.Values{"key": {key}}.Encode())
-	registry, err := tools.New(New(client, allow)...)
+	registry, err := tools.New(New(client, allow, location.AmapRegionResolver(key))...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +103,7 @@ func TestLiveMCP(t *testing.T) {
 	}
 	callScope.Context.Request.Location = &fix
 	callScope.Context.Request.LocationStatus = "available"
+	call("maps_weather", Weather{City: "current"})
 	call("maps_around_search", Around{Keywords: "餐厅", Location: "current", Radius: 1000})
 	call("maps_direction_walking", Direction{Origin: "current", Destination: d})
 }

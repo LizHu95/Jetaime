@@ -1,0 +1,53 @@
+{
+  "version": "synthetic-smoke-v1",
+  "snapshotSha256": "13da77849056ef817d1761efde624b9bca34b16d0ac711079494463e8ca6e993",
+  "cases": [
+    {
+      "groupId": "00000000-0000-4000-8000-000000000010",
+      "actorId": "00000000-0000-4000-8000-000000000020",
+      "cutoffSeq": 2,
+      "at": "2026-10-30T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "retrievedMessageIds": [
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002"
+      ],
+      "mapFixtures": [],
+      "reviewed": true,
+      "id": "greeting",
+      "question": "帮我写一句晚安",
+      "expected": {
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_weather",
+          "set_reminder"
+        ]
+      }
+    },
+    {
+      "groupId": "00000000-0000-4000-8000-000000000010",
+      "actorId": "00000000-0000-4000-8000-000000000020",
+      "cutoffSeq": 2,
+      "at": "2026-10-30T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "retrievedMessageIds": [
+        "00000000-0000-4000-8000-000000000001",
+        "00000000-0000-4000-8000-000000000002"
+      ],
+      "mapFixtures": [],
+      "reviewed": true,
+      "id": "agreement",
+      "question": "我们约好周六几点出门？",
+      "expected": {
+        "answerContainsAll": [
+          "三点"
+        ],
+        "requiredSourceIds": [
+          "00000000-0000-4000-8000-000000000002"
+        ]
+      }
+    }
+  ]
+}

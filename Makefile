@@ -25,6 +25,7 @@ web-check:
 GO_DIR := services/api
 FEISHU_ARGS ?=
 API_ARGS ?=
+API_BUILD_ARGS ?=
 MODEL_CHECK_ARGS ?=
 SQLC_VERSION := v1.30.0
 SQLC_DIR := $(CURDIR)/$(GO_DIR)/bin/sqlc/$(SQLC_VERSION)
@@ -49,6 +50,8 @@ help:
 	@echo "make api-build  Package unified HTTP API into outputs/api"
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
+	@echo "make eval-replay-check Validate isolated snapshot replay without model requests"
+	@echo "make eval-replay Run local snapshot evaluation (EVAL_ARGS)"
 	@echo "make feishu-build Build the private Feishu deployment package"
 	@echo "make sqlc-generate Generate typed Go queries from SQL"
 	@echo "make sqlc-check Check that generated queries match SQL"
@@ -65,7 +68,7 @@ dev:
 	python3 scripts/dev.py api $(API_ARGS)
 
 api-build:
-	bash deploy/api/build.sh
+	bash deploy/api/build.sh $(API_BUILD_ARGS)
 
 db-migrate:
 	cd $(GO_DIR) && go run ./cmd/api -migrate
@@ -143,3 +146,17 @@ go-check: sqlc-check go-fmt-check go-build go-vet go-test go-lint
 
 scripts-test:
 	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
+
+# Isolated snapshot replay; never starts business API/workers.
+EVAL_ARGS ?=
+.PHONY: eval-replay eval-replay-build eval-replay-check
+
+eval-replay:
+	python3 scripts/eval_replay.py run -- $(EVAL_ARGS)
+
+eval-replay-build:
+	python3 scripts/eval_replay.py build
+
+eval-replay-check:
+	cd $(GO_DIR) && go test -race ./internal/ai/replay ./cmd/eval-replay
+	python3 scripts/eval_replay.py run -- -snapshot evals/replay/messages.example.jsonl -cases evals/replay/cases.example.json -dry-run -output -

@@ -22,11 +22,35 @@ web_dir=${2:-/var/www/jetaime}
 server=${destination%%:*}
 printf -v quoted_web_dir '%q' "$web_dir"
 
-printf 'Building API and Web...\n'
-make -C "$repo_root" api-build web-build
+command -v rsync >/dev/null || { echo '本机需要 rsync，请安装后重新部署' >&2; exit 1; }
+printf 'Checking deployment target %s...\n' "$server"
+remote_arch=$(ssh "$server" 'command -v rsync >/dev/null && command -v flock >/dev/null && command -v sha256sum >/dev/null && uname -m') || {
+    echo '远端连接或部署工具检查失败，需要 rsync、flock 和 sha256sum' >&2
+    exit 1
+}
+case "$remote_arch" in
+    x86_64) api_arch=amd64 ;;
+    aarch64|arm64) api_arch=arm64 ;;
+    *) echo "不支持的服务器架构：$remote_arch" >&2; exit 1 ;;
+esac
+printf 'Building API (%s) and Web...\n' "$api_arch"
+make -C "$repo_root" api-build web-build API_BUILD_ARGS="--arch $api_arch --no-archive"
 
-nginx_config=$(mktemp)
-trap 'rm -f -- "$nginx_config"' EXIT
+deploy_temp=$(mktemp -d)
+trap 'rm -rf -- "$deploy_temp"' EXIT
+nginx_config="$deploy_temp/nginx.conf"
+api_files="$deploy_temp/api-files"
+manifest_hash=$(python3 - "$repo_root/outputs/api/SHA256SUMS" "$api_files" <<'PY'
+import hashlib
+from pathlib import Path
+import sys
+
+manifest = Path(sys.argv[1]).read_bytes()
+names = [line.split("  ", 1)[1] for line in manifest.decode().splitlines()]
+Path(sys.argv[2]).write_text("\n".join([*names, "SHA256SUMS"]) + "\n")
+print(hashlib.sha256(manifest).hexdigest())
+PY
+)
 python3 - "$repo_root/deploy/nginx/default.conf" "$web_dir" > "$nginx_config" <<'PY'
 from pathlib import Path
 import sys
@@ -44,7 +68,7 @@ PY
 
 printf 'Preparing Web directory on %s: %s...\n' "$server" "$web_dir"
 ssh "$server" "mkdir -p -- $quoted_web_dir"
-# Resolve remote home explicitly instead of relying on scp/SFTP tilde expansion.
+# Resolve remote home explicitly instead of relying on remote-shell tilde expansion.
 remote_home=$(ssh "$server" 'printf "%s" "$HOME"')
 api_parent=${destination#*:}
 case "$api_parent" in
@@ -56,23 +80,47 @@ esac
 api_parent=${api_parent%/}
 api_parent=${api_parent:-/}
 printf -v quoted_api_parent '%q' "$api_parent"
-printf -v quoted_upload_template '%q' "${api_parent%/}/.jetaime-api-upload.XXXXXX"
-upload_dir=$(ssh "$server" "mkdir -p -- $quoted_api_parent && mktemp -d $quoted_upload_template")
-[[ "$upload_dir" == "${api_parent%/}/.jetaime-api-upload."* ]] || {
-    echo '无法确定远端 API 临时上传目录' >&2
-    exit 1
-}
+upload_dir="${api_parent%/}/.jetaime-api-upload-$api_arch"
 printf -v quoted_upload_dir '%q' "$upload_dir"
-printf 'Uploading API package to %s:%s/...\n' "$server" "$upload_dir"
-scp "$repo_root/outputs/api/api-deploy.tar.gz" "$server:$upload_dir/"
-# A running Linux executable cannot be overwritten in place. Extract to new
-# files on the same filesystem, then rename them over the installed artifacts.
+printf -v quoted_upload_lock '%q' "$upload_dir.lock"
+ssh "$server" "umask 077; mkdir -p -- $quoted_api_parent $quoted_upload_dir/api; chmod 700 -- $quoted_upload_dir"
+printf 'Syncing API files to %s:%s/ (compression, delta transfer, resume)...\n' "$server" "$upload_dir"
+# The stable private cache provides a delta basis across releases and retains
+# partial files after interruption. Never transfer directly onto live binaries.
+rsync -rlptzc --partial-dir=.rsync-partial --progress --stats \
+    --files-from="$api_files" --rsync-path="flock -w 120 $quoted_upload_lock rsync" \
+    "$repo_root/outputs/api/" "$server:$quoted_upload_dir/api/"
+# Copy verified cache files into fresh inodes on the same filesystem, then rename
+# them over installed artifacts. Keep the cache intact for subsequent transfers.
 api_installer=$(cat <<'SH'
 set -euo pipefail
-staging=$1
+cache=$1
 parent=$2
-tar -xzf "$staging/api-deploy.tar.gz" -C "$staging"
-(cd "$staging/api" && sha256sum -c SHA256SUMS)
+manifest_hash=$3
+arch=$4
+[[ "$arch" == amd64 || "$arch" == arm64 ]] || exit 1
+umask 077
+# Share the rsync lock: concurrent uploads cannot change files during validation
+# or installation. Detect an intervening release before running its migrations.
+exec 9>"$cache.lock"
+flock -w 120 9
+incoming="$cache/api"
+printf '%s  %s\n' "$manifest_hash" "$incoming/SHA256SUMS" | sha256sum -c -
+(cd "$incoming" && sha256sum -c SHA256SUMS)
+[[ -f "$incoming/api-linux-$arch" ]] || { echo '上传文件缺少目标架构程序' >&2; exit 1; }
+staging=$(mktemp -d "$parent/.jetaime-api-install.XXXXXX")
+trap 'rm -rf -- "$staging"' EXIT
+mkdir -p "$staging/api"
+# Only install manifest-listed files; an optional file removed from the next
+# build may still exist in the reusable cache and must not be deployed again.
+while read -r digest name; do
+    if [[ -z "$name" || "$name" == /* || "$name" == ../* || "$name" == */../* || "$name" == */.. ]]; then
+        echo '无效部署文件路径' >&2; exit 1
+    fi
+    mkdir -p -- "$staging/api/$(dirname -- "$name")"
+    cp -p -- "$incoming/$name" "$staging/api/$name"
+done < "$incoming/SHA256SUMS"
+cp -p -- "$incoming/SHA256SUMS" "$staging/api/SHA256SUMS"
 # Check the incoming binary/configuration before replacing any installed files.
 mkdir -p "$parent/api"
 # Keep migration failures separate from model compatibility failures: their remedies differ.
@@ -89,7 +137,7 @@ for file in "$staging/api/phoenix/"*; do
     mv -f -- "$file" "$parent/api/phoenix/"
 done
 rmdir "$staging/api/phoenix"
-for name in api-linux-amd64 api-linux-arm64 models.example.json memory.example.json README.md start.sh .env SHA256SUMS; do
+for name in "api-linux-$arch" models.example.json memory.example.json README.md start.sh .env SHA256SUMS; do
     mv -f -- "$staging/api/$name" "$parent/api/$name"
 done
 if [[ -f "$staging/api/models.json" ]]; then
@@ -98,14 +146,14 @@ fi
 if [[ -f "$staging/api/memory.json" ]]; then
     mv -f -- "$staging/api/memory.json" "$parent/api/memory.json"
 fi
-mv -f -- "$staging/api-deploy.tar.gz" "$parent/api/api-deploy.tar.gz"
 rmdir "$staging/api" "$staging"
 SH
 )
 quoted_api_installer=$(python3 -c 'import shlex, sys; print(shlex.quote(sys.argv[1]))' "$api_installer")
-ssh "$server" "bash -c $quoted_api_installer -- $quoted_upload_dir $quoted_api_parent"
+ssh "$server" "bash -c $quoted_api_installer -- $quoted_upload_dir $quoted_api_parent $manifest_hash $api_arch"
 printf 'Uploading Web to %s:%s/...\n' "$server" "$web_dir"
-scp -r "$repo_root/outputs/web/." "$server:$web_dir/"
+rsync -rlptzc --partial-dir=.rsync-partial --delay-updates --progress --stats \
+    "$repo_root/outputs/web/" "$server:$quoted_web_dir/"
 ssh "$server" "chmod -R a+rX -- $quoted_web_dir"
 printf 'Installing and reloading Nginx configuration on %s...\n' "$server"
 quoted_installer=$(python3 -c 'import pathlib, shlex, sys; print(shlex.quote(pathlib.Path(sys.argv[1]).read_text()))' "$repo_root/deploy/nginx/install.sh")
