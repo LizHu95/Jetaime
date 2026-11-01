@@ -11,6 +11,7 @@ import sys
 import uuid
 
 from eval_replay import ROOT, build, model_environment, private_json
+from replay_judge import EVALUATORS, JudgeScore, ReplayJudge, evaluation_settings
 
 
 def digest(path):
@@ -54,14 +55,23 @@ def main():
     parser.add_argument('--model-config', type=Path)
     parser.add_argument('--env-file', type=Path, help='model credential environment file')
     parser.add_argument('--model-profile')
+    parser.add_argument('--judge-profile', help='independent semantic judge profile; local eval setting by default')
+    parser.add_argument('--judge-timeout', type=int, default=60)
+    parser.add_argument('--no-judge', action='store_true', help='disable semantic judge; keep deterministic scores')
     parser.add_argument('--repetitions', type=int, default=3)
     parser.add_argument('--case-timeout', type=int, default=300)
     parser.add_argument('--output-dir', type=Path)
     parser.add_argument('--dry-run', action='store_true', help='validate locally; no Phoenix or model requests')
     parser.add_argument('--capture-content', action='store_true', help='include bounded prompt/output text in traces')
     args = parser.parse_args()
-    if not 1 <= args.repetitions <= 20 or args.case_timeout <= 0:
-        parser.error('repetitions must be 1-20, case-timeout must be positive')
+    if not 1 <= args.repetitions <= 20 or args.case_timeout <= 0 or args.judge_timeout <= 0:
+        parser.error('repetitions must be 1-20, timeouts must be positive')
+    if args.no_judge and args.judge_profile:
+        parser.error('--no-judge and --judge-profile are mutually exclusive')
+    settings = evaluation_settings(ROOT)
+    if not args.model_profile and not args.model_config:
+        args.model_profile = settings.get('modelProfile')
+    judge_profile = None if args.no_judge else args.judge_profile or settings.get('judgeProfile')
     root = args.source_root.resolve()
     binary = args.binary.resolve() if args.binary else build(root)
     snapshot, cases = args.snapshot.resolve(), args.cases.resolve()
@@ -72,6 +82,17 @@ def main():
     subprocess.run([*common, '-dry-run', '-output', '-'], check=True)
     if args.dry_run:
         return
+
+    config = args.model_config.resolve() if args.model_config else root / 'local/models.json'
+    config_bytes = config.read_bytes()
+    model_config = json.loads(config_bytes)
+    task_profile = args.model_profile or model_config.get('default_profile')
+    if task_profile not in model_config.get('models', {}):
+        raise ValueError('model-profile does not exist in model-config')
+    env = model_environment(root, args.env_file.resolve() if args.env_file else None)
+    judge = ReplayJudge(model_config, judge_profile, env, args.judge_timeout) if judge_profile else None
+    messages = [json.loads(line) for line in snapshot.read_text().splitlines()] if judge else []
+    cases_by_id = {case['id']: case for case in suite['cases']}
 
     import httpx
     from phoenix.client import Client
@@ -111,17 +132,18 @@ def main():
 
     outdir = args.output_dir.resolve() if args.output_dir else root / 'outputs/evals/replay' / (
         datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:8])
-    outdir.mkdir(parents=True, exist_ok=False)
-    config = args.model_config.resolve() if args.model_config else root / 'local/models.json'
-    model_args = ['-model-config', str(config)]
-    if args.model_profile:
-        model_args += ['-model-profile', args.model_profile]
+    outdir.mkdir(parents=True, exist_ok=False, mode=0o700)
+    # Freeze configuration for both roles; later edits cannot silently change a run.
+    private_json(outdir / 'models.json', model_config)
+    config = outdir / 'models.json'
+    model_args = ['-model-config', str(config), '-model-profile', task_profile]
     metadata = {**hashes, 'source': source, 'binarySha256': digest(binary),
                 'modelConfigSha256': digest(config), 'repetitions': args.repetitions,
+                'modelProfile': task_profile, 'model': model_config['models'][task_profile]['model'],
+                'judge': judge.metadata if judge else None,
                 'datasetId': dataset.id, 'datasetVersionId': dataset.version_id,
                 'retrieval': 'fixed_message_ids', 'maps': 'recorded_only', 'reminders': 'simulated'}
     private_json(outdir / 'metadata.json', metadata)
-    env = model_environment(root, args.env_file.resolve() if args.env_file else None)
     env['JETAIME_PHOENIX_TRACES_ENDPOINT'] = endpoint + '/v1/traces'
     env['JETAIME_TRACE_CAPTURE_CONTENT'] = str(args.capture_content).lower()
     env['OTEL_RESOURCE_ATTRIBUTES'] = 'openinference.project.name=jetaime-eval'
@@ -129,6 +151,7 @@ def main():
     # Both Go and Python exporters use the same explicitly selected endpoint/key.
     if api_key:
         env['PHOENIX_API_KEY'] = api_key
+    judge_errors = []
 
     def task(input):
         if digest(snapshot) != hashes['snapshotSha256'] or digest(cases) != hashes['suiteSha256']:
@@ -150,26 +173,52 @@ def main():
         if len(report['results']) != 1:
             raise RuntimeError('Expected exactly one replay result')
         row = report['results'][0]
+        output = {key: row.get(key) for key in ('caseId', 'status', 'error', 'answer', 'metrics', 'scores',
+                  'traceId', 'simulatedReminderOperations', 'mapFixtureMisses')}
+        output['cards'] = row.get('run', {}).get('cards', [])
+        if judge:
+            with trace.get_tracer(__name__).start_as_current_span('eval.judge') as span:
+                span.set_attribute('openinference.span.kind', 'LLM')
+                span.set_attribute('llm.model_name', judge.config['model'])
+                span.set_attribute('eval.case_id', row['caseId'])
+                judgement = judge.evaluate(cases_by_id[row['caseId']], messages, row)
+                span.set_attribute('eval.judge.status', judgement['status'])
+                for field, attribute in [('promptTokens', 'llm.token_count.prompt'),
+                                         ('completionTokens', 'llm.token_count.completion')]:
+                    if judgement['metrics'][field] is not None:
+                        span.set_attribute(attribute, judgement['metrics'][field])
+            private_json(outdir / 'judgements' / path.name, {
+                'formatVersion': judgement['version'], 'reportFile': path.name, 'reportSha256': digest(path),
+                **hashes, 'judge': judgement})
+            output['judge'] = judgement
+            if judgement['status'] == 'error':
+                judge_errors.append(row['caseId'])
         # Full run/prompts stay in the local private report; the experiment table
         # gets the answer, scores, metrics and Trace link, not all source messages.
-        return {key: row.get(key) for key in ('caseId', 'status', 'error', 'answer', 'metrics', 'scores',
-                'traceId', 'simulatedReminderOperations', 'mapFixtureMisses')}
+        return output
 
     evaluators = {name: score_evaluator(name) for name in (
         'execution_success', 'map_fixtures_complete', 'required_tools', 'forbidden_tools',
-        'answer_terms', 'required_sources')}
+        'answer_terms', 'required_sources', 'reminder_operations', 'reminder_arguments', 'reminder_result')}
     evaluators.update({name: metric_evaluator(name) for name in (
         'promptTokens', 'completionTokens', 'durationMs', 'firstInputByteEstimate',
         'cumulativeInputByteEstimate', 'searchCalls')})
+    if judge:
+        for name in EVALUATORS:
+            evaluator = JudgeScore(name)
+            evaluators[evaluator.name] = evaluator
     try:
         experiment = run_experiment(dataset=dataset, task=task, evaluators=evaluators,
             experiment_name=args.experiment, experiment_metadata=metadata,
-            repetitions=args.repetitions, retries=0, timeout=args.case_timeout + 60, client=client)
+            repetitions=args.repetitions, retries=0,
+            timeout=args.case_timeout + 60 + (args.judge_timeout if judge else 0), client=client)
         private_json(outdir / 'experiment.json', {'experimentId': experiment['experiment_id'],
                      'datasetId': dataset.id, 'datasetVersionId': dataset.version_id})
         print('Local replay reports: ' + str(outdir))
     finally:
         provider.shutdown()
+    if judge_errors:
+        raise RuntimeError(f'{len(judge_errors)} semantic judge request(s) failed; inspect private judgements')
 
 
 if __name__ == '__main__':

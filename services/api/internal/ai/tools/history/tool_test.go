@@ -35,12 +35,64 @@ type fakeModel struct {
 	answer           string
 	promptTokens     *int
 	completionTokens *int
+	answers          []string
+	requests         []llm.Request
+	err              error
 }
 
 func (m *fakeModel) Call(_ context.Context, r llm.Request) (llm.Result, error) {
 	m.calls++
 	m.request = r
-	return llm.Result{Content: m.answer, PromptTokens: m.promptTokens, CompletionTokens: m.completionTokens}, nil
+	m.requests = append(m.requests, r)
+	answer := m.answer
+	if m.calls <= len(m.answers) {
+		answer = m.answers[m.calls-1]
+	}
+	return llm.Result{Content: answer, PromptTokens: m.promptTokens, CompletionTokens: m.completionTokens}, m.err
+}
+
+func TestHistoryRepairsInvalidStatusOnceWithoutChangingEvidence(t *testing.T) {
+	for _, repaired := range []bool{false, true} {
+		t.Run(fmt.Sprint(repaired), func(t *testing.T) {
+			ten := 10
+			model := &fakeModel{answer: `{"status":"success","answer":"项目总结","sourceMessageIds":["0"]}`, promptTokens: &ten, completionTokens: &ten}
+			if repaired {
+				model.answers = []string{model.answer, `{"status":"answered","answer":"项目总结","sourceMessageIds":["0"]}`}
+			}
+			reader := &fakeReader{messages: testMessages(1)}
+			result, err := New(model, "test", 20000, reader).Invoke(context.Background(), testScope(), json.RawMessage(`{"startTime":"2026-10-12T00:00:00Z","endTime":"2026-10-19T00:00:00Z"}`))
+			if model.calls != 2 || reader.calls != 1 {
+				t.Fatalf("unbounded retry or repeated query: %d/%d", model.calls, reader.calls)
+			}
+			if model.requests[0].Messages[1].Content != model.requests[1].Messages[1].Content || !strings.Contains(model.requests[1].Messages[0].Content, "上次输出未通过") || strings.Contains(model.requests[0].Messages[0].Content, "上次输出未通过") {
+				t.Fatal("repair changed evidence or prior trace input")
+			}
+			if !repaired {
+				if !errors.Is(err, tools.ErrInvalidOutput) {
+					t.Fatal("invalid status accepted", err)
+				}
+				return
+			}
+			if err != nil || result.Completion.Answer.Status != "answered" {
+				t.Fatal("repair failed", err)
+			}
+			var output Output
+			if err := json.Unmarshal(result.Data, &output); err != nil {
+				t.Fatal(err)
+			}
+			if output.Usage == nil || *output.Usage.PromptTokens != 20 || *output.Usage.CompletionTokens != 20 {
+				t.Fatal("repair usage missing", output.Usage)
+			}
+		})
+	}
+}
+
+func TestHistoryDoesNotRetryProviderErrors(t *testing.T) {
+	model := &fakeModel{err: errors.New("provider refused")}
+	_, err := New(model, "test", 20000, &fakeReader{messages: testMessages(1)}).Invoke(context.Background(), testScope(), json.RawMessage(`{"startTime":"2026-10-12T00:00:00Z","endTime":"2026-10-19T00:00:00Z"}`))
+	if err == nil || model.calls != 1 {
+		t.Fatal("provider error retried", err, model.calls)
+	}
 }
 func testScope() tools.Scope {
 	return tools.Scope{Context: ai.Context{GroupID: "group", ActorID: "user", Users: []ai.User{{ID: "user", Nickname: "用户"}}}, ContextEndSeq: 42, Question: "上周聊了什么"}

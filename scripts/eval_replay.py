@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 from dev import load_env
+from replay_judge import evaluation_settings
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -151,6 +152,14 @@ def main():
     argv = args.arguments
     if argv and argv[0] == '--':
         argv = argv[1:]
+    # Evaluation-only preference; explicit model flags always win. The business
+    # default in local/models.json is never changed by this launcher.
+    explicit_model = {'-model-config', '-model-profile', '-provider', '-model-url',
+                      '-ollama-url', '-model', '-api-key-env', '-output-mode', '-enable-thinking'}
+    if not any(value.split('=', 1)[0] in explicit_model for value in argv):
+        profile = evaluation_settings(ROOT).get('modelProfile')
+        if profile:
+            argv = [*argv, '-model-config', str(ROOT / 'local/models.json'), '-model-profile', profile]
     # User paths are relative to the shell's directory, not the Go module cwd.
     paths = {'-snapshot', '-cases', '-output', '-model-config'}
     normalized = list(argv)

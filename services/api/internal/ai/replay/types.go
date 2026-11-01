@@ -54,11 +54,26 @@ type MapFixture struct {
 	Response  json.RawMessage `json:"response"`
 }
 type Expected struct {
-	Reference         string   `json:"reference,omitempty"`
-	AnswerContainsAll []string `json:"answerContainsAll,omitempty"`
-	RequiredSourceIDs []string `json:"requiredSourceIds,omitempty"`
-	RequiredTools     []string `json:"requiredTools,omitempty"`
-	ForbiddenTools    []string `json:"forbiddenTools,omitempty"`
+	Reference         string            `json:"reference,omitempty"`
+	AnswerContainsAll []string          `json:"answerContainsAll,omitempty"`
+	RequiredSourceIDs []string          `json:"requiredSourceIds,omitempty"`
+	RequiredTools     []string          `json:"requiredTools,omitempty"`
+	ForbiddenTools    []string          `json:"forbiddenTools,omitempty"`
+	Reminder          *ExpectedReminder `json:"reminder,omitempty"`
+}
+
+// Optional pointers preserve the distinction between no assertion and a draft's
+// deliberately empty date/time. Checks apply only to reviewed cases.
+type ExpectedReminder struct {
+	Operations       int      `json:"operations"`
+	Action           string   `json:"action,omitempty"`
+	TitleContainsAll []string `json:"titleContainsAll,omitempty"`
+	Date             *string  `json:"date,omitempty"`
+	Time             *string  `json:"time,omitempty"`
+	SourceMessageIDs []string `json:"sourceMessageIds,omitempty"`
+	ResultStatus     string   `json:"resultStatus,omitempty"`
+	ReminderStatus   string   `json:"reminderStatus,omitempty"`
+	UserID           string   `json:"userId,omitempty"`
 }
 type ModelCall struct {
 	Model             string `json:"model"`

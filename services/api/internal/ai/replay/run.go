@@ -170,5 +170,8 @@ func Score(c Case, r Result) map[string]bool {
 		}
 		scores["required_sources"] = ok
 	}
+	if c.Expected.Reminder != nil {
+		scoreReminder(*c.Expected.Reminder, r, scores)
+	}
 	return scores
 }

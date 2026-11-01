@@ -52,6 +52,8 @@ help:
 	@echo "make model-check Validate default model configuration without inference"
 	@echo "make eval-replay-check Validate isolated snapshot replay without model requests"
 	@echo "make eval-replay Run local snapshot evaluation (EVAL_ARGS)"
+	@echo "make eval-tool-search-check Build A/B/C and validate the candidate suite offline"
+	@echo "make eval-tool-search Run an approved Phoenix comparison (TOOL_SEARCH_ARGS)"
 	@echo "make feishu-build Build the private Feishu deployment package"
 	@echo "make sqlc-generate Generate typed Go queries from SQL"
 	@echo "make sqlc-check Check that generated queries match SQL"
@@ -160,3 +162,13 @@ eval-replay-build:
 eval-replay-check:
 	cd $(GO_DIR) && go test -race ./internal/ai/replay ./cmd/eval-replay
 	python3 scripts/eval_replay.py run -- -snapshot evals/replay/messages.example.jsonl -cases evals/replay/cases.example.json -dry-run -output -
+
+# A/B/C discovery comparison. The default check is strictly offline.
+TOOL_SEARCH_ARGS ?=
+.PHONY: eval-tool-search-check eval-tool-search
+
+eval-tool-search-check:
+	python3 scripts/tool_search_eval.py check $(TOOL_SEARCH_ARGS)
+
+eval-tool-search:
+	local/eval-replay-venv/bin/python scripts/tool_search_eval.py run $(TOOL_SEARCH_ARGS)

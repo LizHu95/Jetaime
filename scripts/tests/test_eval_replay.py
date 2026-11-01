@@ -87,6 +87,25 @@ class ReplayToolingTest(unittest.TestCase):
         self.assertEqual(phoenix_replay.score_evaluator('required_sources')(
             {'scores': {'required_sources': False}})['score'], 0)
 
+    def test_local_eval_preference_never_overrides_explicit_model_flags(self):
+        for explicit in ([], ['-model-profile', 'other'], ['-model=other'],
+                         ['-model-config', 'custom.json']):
+            with self.subTest(explicit=explicit), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                (root / 'local').mkdir()
+                (root / 'local/eval-settings.json').write_text('{"modelProfile":"flash","judgeProfile":"flash"}')
+                with patch.object(eval_replay, 'ROOT', root), \
+                        patch.object(eval_replay, 'build', return_value=root / 'binary'), \
+                        patch.object(eval_replay, 'model_environment', return_value={}), \
+                        patch.object(eval_replay.subprocess, 'run') as run, \
+                        patch.object(sys, 'argv', ['eval_replay.py', 'run', '--', *explicit]):
+                    run.return_value.returncode = 0
+                    with self.assertRaises(SystemExit): eval_replay.main()
+                command = run.call_args.args[0]
+                self.assertEqual('flash' in command, not explicit)
+                if explicit:
+                    self.assertIn(explicit[0], command)
+
 
 if __name__ == '__main__':
     unittest.main()

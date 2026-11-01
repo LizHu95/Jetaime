@@ -24,7 +24,8 @@ const MaxToolSteps = 3
 const MaxMCPToolSteps = 8
 
 // Reserve space for tool observations before filling optional chat background.
-// Required evidence takes priority if the full reserve cannot fit.
+// Required evidence and the nearest original take priority over a full soft
+// reserve. The hard model budget still applies to every round.
 const ToolFeedbackReserve = 4 * 1024
 const MCPFeedbackReserve = 8 * 1024
 
@@ -162,7 +163,13 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			if llm.CheckContextBudget(req, a.Tokens) != nil {
 				return true
 			}
-			return stepIndex == 0 && llm.InputTokenUpperBound(req) > a.Tokens-req.Options.NumPredict-feedbackReserve
+			optional := 0
+			for _, message := range input.Messages {
+				if !required[message.ID] {
+					optional++
+				}
+			}
+			return stepIndex == 0 && optional > 1 && llm.InputTokenUpperBound(req) > a.Tokens-req.Options.NumPredict-feedbackReserve
 		}
 		for needsSpace() {
 			remove := aicontext.OptionalMessageToDrop(input, required)

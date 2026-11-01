@@ -113,6 +113,21 @@ func (s *Snapshot) View(c Case) (*View, error) {
 	if _, err := time.LoadLocation(c.Timezone); err != nil {
 		return nil, fmt.Errorf("invalid timezone")
 	}
+	if expected := c.Expected.Reminder; expected != nil {
+		if expected.Operations < 0 || expected.Operations > 1 {
+			return nil, fmt.Errorf("reminder operations must be zero or one per isolated case")
+		}
+		if expected.Date != nil && *expected.Date != "" {
+			if _, err := time.Parse("2006-01-02", *expected.Date); err != nil {
+				return nil, fmt.Errorf("invalid expected reminder date")
+			}
+		}
+		if expected.Time != nil && *expected.Time != "" {
+			if _, err := time.Parse("15:04", *expected.Time); err != nil {
+				return nil, fmt.Errorf("invalid expected reminder time")
+			}
+		}
+	}
 	v := &View{Case: c, Fence: c.CutoffSeq + 1}
 	users := map[string]ai.User{}
 	actor := false
@@ -160,6 +175,20 @@ func (s *Snapshot) View(c Case) (*View, error) {
 	trigger := Message{ID: uuid.NewSHA1(uuid.NameSpaceURL, []byte("jetaime-eval:"+c.ID)).String(), GroupID: c.GroupID, Seq: v.Fence, SenderType: "user", SenderID: c.ActorID, SenderName: users[c.ActorID].Nickname, Content: c.Question, CreatedAt: c.At, ReplyToID: c.ReplyToID}
 	if _, exists := byID[trigger.ID]; exists {
 		return nil, fmt.Errorf("synthetic message ID collision")
+	}
+	if expected := c.Expected.Reminder; expected != nil {
+		if expected.UserID != "" && expected.UserID != c.ActorID {
+			return nil, fmt.Errorf("expected reminder owner must be the current actor")
+		}
+		for _, id := range expected.SourceMessageIDs {
+			if id == trigger.ID {
+				continue
+			}
+			m, ok := byID[id]
+			if !ok || m.SenderType != "user" || m.SenderID != c.ActorID {
+				return nil, fmt.Errorf("reminder reference must be visible actor evidence")
+			}
+		}
 	}
 	v.Messages = append(v.Messages, trigger)
 	v.Input = ai.Context{GroupID: c.GroupID, ActorID: c.ActorID, Tasks: []ai.Task{}, Request: &ai.RequestContext{MessageID: trigger.ID, SenderID: c.ActorID, SentAt: c.At, CurrentTime: c.At, Timezone: c.Timezone, TriggerMode: "reactive", AllowWrites: true}}

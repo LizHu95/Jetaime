@@ -196,3 +196,5 @@ Web 入口为 `/page/chat/`，支持实时文字消息、历史分页、未读�
 ### 本地历史回放评测
 
 `make eval-replay-check` 验证独立回放入口；`make eval-replay EVAL_ARGS='...'` 从冻结消息快照运行真实 Agent，不启动业务服务、不连接业务数据库。支持指定 B/C 工作目录并将结果接入 Phoenix Dataset/Experiment，说明见 [本地回放评测](docs/v2/本地回放评测.md)。
+
+工具发现策略 A/B/C 对照使用 `make eval-tool-search-check` 离线检查20道合成候选题；审核题集后再运行 Phoenix 冒烟与完整对照，入口、人工审核和结果汇总见 [tool-search 评测](evals/tool-search/README.md)。
