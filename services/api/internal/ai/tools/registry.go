@@ -80,6 +80,7 @@ type Tool interface {
 	Definition() Definition
 	Invoke(context.Context, Scope, json.RawMessage) (Result, error)
 	contractError() error
+	acceptsArguments(json.RawMessage) bool
 }
 type Registry struct{ entries map[string]Tool }
 

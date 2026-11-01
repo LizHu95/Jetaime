@@ -90,6 +90,17 @@ func (t *Typed[I, O]) initialize(options []Options[O]) error {
 	return nil
 }
 func (t *Typed[I, O]) contractError() error { return t.initErr }
+func (t *Typed[I, O]) acceptsArguments(raw json.RawMessage) bool {
+	if t.initErr != nil {
+		return false
+	}
+	var value any
+	if json.Unmarshal(raw, &value) != nil || t.input.Validate(value) != nil {
+		return false
+	}
+	var input I
+	return ai.DecodeJSON(raw, &input) == nil
+}
 func (t *Typed[I, O]) Definition() Definition {
 	d := t.definition
 	d.InputSchema = append(json.RawMessage(nil), d.InputSchema...)

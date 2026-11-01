@@ -214,8 +214,12 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		if e != nil {
 			return run, e
 		}
-		// 将模型输出解析为 name/arguments；可修复的错误交给下一轮纠正。
-		call, e := a.Tools.Decode(output.Content)
+		// 参数完整且唯一匹配当前目录时，仅在本地补齐遗漏的调用外壳。
+		// 参数、来源和权限仍由原执行管线检查，无法唯一识别时才请求模型纠正。
+		call, normalized, e := a.Tools.DecodeWithEnvelope(output.Content, roundCatalog)
+		if normalized {
+			recordStep(ai.Step{Name: "normalize_tool_call", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"name": call.Name, "strategy": "unique_input_schema", "originalEnvelopeValid": false}})
+		}
 		if e != nil {
 			recordStep(ai.Step{Name: "validate_result", Status: "failed", StartedAt: time.Now(), Error: e.Error()})
 			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < roundLimit {

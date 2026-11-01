@@ -163,6 +163,15 @@ eval-replay-check:
 	cd $(GO_DIR) && go test -race ./internal/ai/replay ./cmd/eval-replay
 	python3 scripts/eval_replay.py run -- -snapshot evals/replay/messages.example.jsonl -cases evals/replay/cases.example.json -dry-run -output -
 
+# Paired passive-recognition window comparison; checks never call a model.
+.PHONY: eval-intervention-check eval-intervention
+eval-intervention-check:
+	cd $(GO_DIR) && go test -race ./cmd/eval-intervention ./internal/ai/intervention
+	python3 -m unittest discover -s scripts/tests -p 'test_intervention_eval.py'
+
+eval-intervention:
+	python3 scripts/intervention_eval.py $(EVAL_ARGS)
+
 # A/B/C discovery comparison. The default check is strictly offline.
 TOOL_SEARCH_ARGS ?=
 .PHONY: eval-tool-search-check eval-tool-search

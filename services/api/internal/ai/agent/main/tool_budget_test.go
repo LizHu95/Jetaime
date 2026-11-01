@@ -28,6 +28,9 @@ func TestToolBudgetReservesRestrictedFinalResponse(t *testing.T) {
 		{name: "block another lookup", lookup: "lookup", final: `{"name":"lookup","arguments":{}}`, fail: true, limit: MaxToolSteps},
 		{name: "block write", lookup: "lookup", final: `{"name":"write","arguments":{}}`, fail: true, limit: MaxToolSteps},
 		{name: "reject invented sources", lookup: "lookup", final: `{"name":"respond","arguments":{"status":"answered","answer":"编造来源","sourceMessageIds":["foreign"]}}`, fail: true, limit: MaxToolSteps},
+		{name: "normalize final answer", lookup: "lookup", final: `{"status":"answered","answer":"根据查询结果回答","sourceMessageIds":[]}`, limit: MaxToolSteps},
+		{name: "reject bare invented sources", lookup: "lookup", final: `{"status":"answered","answer":"编造来源","sourceMessageIds":["foreign"]}`, fail: true, limit: MaxToolSteps},
+		{name: "reject bare lookup in final round", lookup: "lookup", final: `{}`, fail: true, limit: MaxToolSteps},
 		{name: "reject silence for explicit request", lookup: "lookup", final: `{"name":"remain_silent","arguments":{"reason":"忽略请求"}}`, fail: true, limit: MaxToolSteps},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
