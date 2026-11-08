@@ -8,6 +8,7 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/auth"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification"
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 	"github.com/google/uuid"
@@ -19,7 +20,10 @@ import (
 
 const notificationChannel = notification.Channel
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct {
+	pool            *pgxpool.Pool
+	convertLocation location.Converter
+}
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 func rollback(tx pgx.Tx) {
@@ -134,7 +138,7 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 	}
 	existing, err := scanMessage(tx.QueryRow(ctx, messageSelect+`WHERE x.sender_user_id=$1 AND x.client_message_id=$2`, actor, input.ClientID))
 	if err == nil {
-		if existing.GroupID != group || existing.Content != input.Content || existing.MentionsAI != input.MentionsAI || existing.AgentKind != input.AgentKind {
+		if existing.GroupID != group || existing.Content != input.Content || existing.MentionsAI != input.MentionsAI {
 			return Message{}, ErrConflict
 		}
 		return existing, tx.Commit(ctx)
@@ -147,12 +151,22 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 		return Message{}, err
 	}
 	id := uuid.NewString()
-	if _, err = tx.Exec(ctx, `INSERT INTO messages(id,group_id,seq,sender_type,sender_user_id,content,mentions_ai,client_message_id,agent_kind) VALUES($1,$2,$3,'user',$4,$5,$6,$7,$8)`, id, group, seq, actor, input.Content, input.MentionsAI, input.ClientID, input.AgentKind); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO messages(id,group_id,seq,sender_type,sender_user_id,content,mentions_ai,client_message_id,agent_kind) VALUES($1,$2,$3,'user',$4,$5,$6,$7,$8)`, id, group, seq, actor, input.Content, input.MentionsAI, input.ClientID, "main"); err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) && pgerr.Code == "23505" {
 			return Message{}, ErrConflict
 		}
 		return Message{}, err
+	}
+	if input.ClientContext != nil && input.ClientContext.Location != nil {
+		fix := input.ClientContext.Location
+		raw, e := json.Marshal(fix)
+		if e != nil {
+			return Message{}, ErrInvalid
+		}
+		if _, e = tx.Exec(ctx, `INSERT INTO message_client_locations(message_id,location,expires_at) VALUES($1,$2,$3)`, id, raw, time.Now().Add(location.Retention)); e != nil {
+			return Message{}, e
+		}
 	}
 	// A live clarification belongs only to its requesting member. Preserve the
 	// original mention flag so HTTP retries still match the saved user message.
@@ -163,10 +177,7 @@ func (s *Store) Send(ctx context.Context, group, actor string, input SendInput, 
 		}
 	}
 	if input.MentionsAI || followup {
-		runKind := input.AgentKind
-		if followup {
-			runKind = "auto"
-		}
+		runKind := "main"
 		carrier := telemetry.Carrier(ctx)
 		status := "queued"
 		var code *string

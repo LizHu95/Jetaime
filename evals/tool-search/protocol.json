@@ -1,0 +1,157 @@
+{
+  "version": "tool-search-protocol-v1-draft",
+  "dataOrigin": "hand-authored-synthetic",
+  "baselineCommit": "1cc0db9",
+  "smokeCaseIds": [
+    "history-meeting",
+    "maps-weather"
+  ],
+  "repetitions": 3,
+  "proposedThresholds": {
+    "minimumTotalTokenReduction": 0.15,
+    "maximumMedianLatencyIncrease": 0.2,
+    "noNewCriticalFailures": true
+  },
+  "cases": [
+    {
+      "id": "chat-greeting",
+      "category": "chat",
+      "manualChecks": [
+        "自然、有帮助；未编造用户经历。"
+      ]
+    },
+    {
+      "id": "chat-goodnight",
+      "category": "chat",
+      "manualChecks": [
+        "人工数中文字符，不超过30；无需历史检索。"
+      ]
+    },
+    {
+      "id": "chat-rewrite",
+      "category": "chat",
+      "manualChecks": [
+        "没有把改写文本视为创建提醒指令。"
+      ]
+    },
+    {
+      "id": "chat-knowledge",
+      "category": "chat",
+      "manualChecks": [
+        "原理正确，约两句话；不编造聊天历史。"
+      ]
+    },
+    {
+      "id": "history-meeting",
+      "category": "history",
+      "manualChecks": [
+        "正确归属原约定，未读取未来“四点”；原证据在初始30条窗口之外。"
+      ]
+    },
+    {
+      "id": "history-fare",
+      "category": "history",
+      "manualChecks": [
+        "来源为小甲本人原文，不能混用未来999元。"
+      ]
+    },
+    {
+      "id": "history-yesterday-trip",
+      "category": "history",
+      "manualChecks": [
+        "时间范围为2026-10-31上午；不混入29日或昨日晚间家务；分工正确。"
+      ]
+    },
+    {
+      "id": "history-yesterday-chores",
+      "category": "history",
+      "manualChecks": [
+        "时间范围为2026-10-31晚间；角色正确，不把分工自动建成提醒。"
+      ]
+    },
+    {
+      "id": "reminder-tomorrow",
+      "category": "reminder",
+      "manualChecks": [
+        "检查set_reminder输入date=2026-11-02、time=09:00；模拟操作数=1；没有真实投递。"
+      ]
+    },
+    {
+      "id": "reminder-absolute",
+      "category": "reminder",
+      "manualChecks": [
+        "检查date=2026-11-03、time=20:30、标题拉伸；模拟操作数=1。"
+      ]
+    },
+    {
+      "id": "reminder-missing-time",
+      "category": "reminder",
+      "manualChecks": [
+        "检查date=2026-11-02、time为空；结果needs_clarification；不得声称已安排投递。"
+      ]
+    },
+    {
+      "id": "reminder-recurring",
+      "category": "reminder",
+      "manualChecks": [
+        "action=unsupported；模拟写入数=0；不得创建一次性任务来冒充周期提醒。"
+      ]
+    },
+    {
+      "id": "maps-weather",
+      "category": "maps",
+      "manualChecks": [
+        "说明天气来源；不把次日小雨当今天；天气数据为模拟。"
+      ]
+    },
+    {
+      "id": "maps-search",
+      "category": "maps",
+      "manualChecks": [
+        "有对应地点卡片；不补造未返回的营业时间/价格。"
+      ]
+    },
+    {
+      "id": "maps-around",
+      "category": "maps",
+      "manualChecks": [
+        "location与用户提供值一致；radius规范化为字符串1000；不得用虚构current定位。"
+      ]
+    },
+    {
+      "id": "maps-detail",
+      "category": "maps",
+      "manualChecks": [
+        "详情ID必须来自本题搜索结果；不从无详情的搜索结果编造信息。"
+      ]
+    },
+    {
+      "id": "maps-geocode-walk",
+      "category": "maps",
+      "manualChecks": [
+        "两端坐标来自地理编码；距离1200米/1.2公里、时间15分钟/900秒；有路线卡片。"
+      ]
+    },
+    {
+      "id": "maps-multistep",
+      "category": "maps",
+      "manualChecks": [
+        "工具顺序和数据依赖正确；累计token及耗时包含发现轮次；不补造位置。"
+      ]
+    },
+    {
+      "id": "boundary-no-location",
+      "category": "boundary",
+      "manualChecks": [
+        "可以调用tool_search了解能力；不能调用地图业务工具；实际答复必须询问位置，不能只说“没有”。"
+      ]
+    },
+    {
+      "id": "boundary-no-booking",
+      "category": "boundary",
+      "manualChecks": [
+        "不得声称已预订、已付款或创建提醒；不能虚构不存在的预订工具。"
+      ]
+    }
+  ]
+}

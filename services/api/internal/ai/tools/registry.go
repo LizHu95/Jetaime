@@ -38,16 +38,18 @@ type Call struct {
 
 // Scope is backend-owned; it is never decoded from model arguments.
 type Scope struct {
+	ExcludedCards  map[string]bool    // Invocation-local exclusions activated by a replacement search.
+	Cards          map[string]ai.Card // Invocation-local, populated only by successful tools.
 	Context        ai.Context
 	ContextEndSeq  int64
 	Question       string
-	LegacyMode     string
 	LoadExtraction ai.ExtractContextLoader
 }
 
 // Completion is an optional presentation of a successful business result.
 // Tools never construct the Agent's execution Run.
 type Completion struct {
+	Cards        []ai.Card
 	Silent       bool
 	Answer       *ai.Answer
 	Suggestions  []ai.Suggestion
@@ -78,6 +80,7 @@ type Tool interface {
 	Definition() Definition
 	Invoke(context.Context, Scope, json.RawMessage) (Result, error)
 	contractError() error
+	acceptsArguments(json.RawMessage) bool
 }
 type Registry struct{ entries map[string]Tool }
 
@@ -125,19 +128,4 @@ func (r *Registry) Decode(content string) (Call, error) {
 		return c, InvalidArguments("unknown_tool", "选择已注册的工具名称。")
 	}
 	return c, nil
-}
-
-type legacyTool interface {
-	LegacyArguments(Scope) (json.RawMessage, bool)
-}
-
-func (r *Registry) ExecuteLegacy(ctx context.Context, s Scope) (Result, error) {
-	for name, t := range r.entries {
-		if legacy, ok := t.(legacyTool); ok {
-			if raw, matched := legacy.LegacyArguments(s); matched {
-				return r.Execute(ctx, s, Call{Name: name, Arguments: raw})
-			}
-		}
-	}
-	return Result{}, fmt.Errorf("unsupported capability %q", s.LegacyMode)
 }

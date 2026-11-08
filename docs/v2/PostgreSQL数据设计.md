@@ -81,7 +81,7 @@ AuthSession 每次认证均检查 expires_at 与 revoked_at；过期不依赖清
 
 迁移 `000002_case_sensitive_usernames.up.sql` 将 `lower(username)` 唯一索引替换为 `username` 唯一索引。已应用的 000001 不修改，保持版本校验有效；新库依次应用两版，已有库仅升级第二版。用户名原值保留，`Liz`、`liz`、`LIZ` 作为不同账号，查重和登录均按相同大小写精确匹配。
 
-`-database` 开启 pgx 连接池，启动时检查连接和所有迁移记录，不自动修改 schema。HTTP Router 精简后只内置 `/test/healthz`，不再提供运行期数据库就绪接口。默认基础 HTTP 模式仍无需数据库。连接从 `JETAIME_DATABASE_URL` 读取，配置和连接错误不输出连接字符串或密码。现有 assistant 调试存储仍为 JSON，不因为开启数据库而自动迁移。
+正式 API 固定创建 pgx 连接池，启动时检查连接和所有迁移记录，不自动修改 schema；连接从 `JETAIME_DATABASE_URL` 读取。`-migrate` 独立执行迁移后退出。`-auth` 和 `-database` 参数已移除，不再提供无需数据库的 HTTP 模式。配置和连接错误不输出连接字符串或密码。
 
 可在独立测试库执行：
 

@@ -7,7 +7,10 @@ import (
 )
 
 func ResultFromRun(run Run) (Result, string, error) {
-	result := Result{Kind: run.Kind, PromptVersion: run.PromptVersion, Answer: run.Answer, Suggestions: run.Suggestions, HistoryScope: run.HistoryScope, Route: run.Route, Basis: run.Basis}
+	if err := ValidateCards(run.Cards); err != nil {
+		return Result{}, "", err
+	}
+	result := Result{Kind: run.Kind, PromptVersion: run.PromptVersion, Answer: run.Answer, Suggestions: run.Suggestions, HistoryScope: run.HistoryScope, Route: run.Route, Basis: run.Basis, Cards: run.Cards}
 	for _, suggestion := range run.Suggestions {
 		if strings.ContainsRune(suggestion.Title, '\x00') || strings.ContainsRune(suggestion.TimeExpression, '\x00') {
 			return Result{}, "", fmt.Errorf("invalid agent suggestion")

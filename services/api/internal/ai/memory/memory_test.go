@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -168,7 +169,7 @@ func TestPostgresRestartSkipsCompletedDataAndOnlyProcessesNewMessages(t *testing
 	ctx := context.Background()
 	first := f.send(t, f.alice, "我们决定周六去杭州")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "decision", Subject: "shared", EventKey: "weekend-trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{first.ID}}}
+		return []Candidate{{Kind: "decision", Subject: "shared", EventKey: "weekend-trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{first.ID}}}
 	}
 	f.init(t)
 	f.process(t)
@@ -209,7 +210,7 @@ func TestPostgresRestartSkipsCompletedDataAndOnlyProcessesNewMessages(t *testing
 		t.Fatalf("unindexed recent: %+v %v", result, err)
 	}
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "decision", Subject: "shared", EventKey: "weekend-trip", TemporalScope: "event", Content: "周日去苏州", SourceIDs: []string{second.ID}, ExplicitChange: true}}
+		return []Candidate{{Kind: "decision", Subject: "shared", EventKey: "weekend-trip", TemporalScope: "event", Status: "active", ChangeType: "modify", Content: "周日去苏州", SourceIDs: []string{second.ID}}}
 	}
 	f.extract.decision = func(c Candidate, ds []Document) Decision {
 		return Decision{Action: "UPDATE", TargetID: ds[0].ID, Content: c.Content}
@@ -226,6 +227,9 @@ func TestPostgresRestartSkipsCompletedDataAndOnlyProcessesNewMessages(t *testing
 	}
 	cfg := testConfig()
 	cfg.Embedding.Revision = "v2"
+	if err = NewStore(f.pool, cfg).CheckPipeline(ctx); !errors.Is(err, ErrPipeline) {
+		t.Fatal("read-only preflight accepted incompatible pipeline", err)
+	}
 	if err = NewStore(f.pool, cfg).Initialize(ctx); !errors.Is(err, ErrPipeline) {
 		t.Fatal("model change silently reset or mixed pipeline", err)
 	}
@@ -243,7 +247,7 @@ func TestPostgresExtractionCheckpointLeaseAndEmbeddingRecovery(t *testing.T) {
 	if _, err = f.service.Store.Claim(ctx, true); !errors.Is(err, ErrNotFound) {
 		t.Fatal("concurrent claim allowed")
 	}
-	cs := []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "food", TemporalScope: "enduring", Content: "Alice喜欢日料", SourceIDs: []string{m.ID}}}
+	cs := []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "food", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "Alice喜欢日料", SourceIDs: []string{m.ID}}}
 	if err = f.service.Store.SaveExtraction(ctx, b, cs); err != nil {
 		t.Fatal(err)
 	}
@@ -306,7 +310,7 @@ func TestPostgresNoopTemporaryPreferenceDeletionAndClosure(t *testing.T) {
 	ctx := context.Background()
 	first := f.send(t, f.alice, "一直喜欢辣")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Content: "Alice长期喜欢辣", SourceIDs: []string{first.ID}}}
+		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "Alice长期喜欢辣", SourceIDs: []string{first.ID}}}
 	}
 	f.init(t)
 	f.process(t)
@@ -315,7 +319,7 @@ func TestPostgresNoopTemporaryPreferenceDeletionAndClosure(t *testing.T) {
 	}
 	second := f.send(t, f.alice, "对，我一直都喜欢辣")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Content: "Alice长期喜欢辣", SourceIDs: []string{second.ID}}}
+		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "Alice长期喜欢辣", SourceIDs: []string{second.ID}}}
 	}
 	calls := f.embed.calls.Load()
 	f.process(t)
@@ -327,7 +331,7 @@ func TestPostgresNoopTemporaryPreferenceDeletionAndClosure(t *testing.T) {
 	}
 	third := f.send(t, f.alice, "今天不想吃辣")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy-today", TemporalScope: "temporary", Content: "Alice今天不想吃辣", SourceIDs: []string{third.ID}}}
+		return []Candidate{{Kind: "preference", Subject: f.alice, EventKey: "spicy-today", TemporalScope: "temporary", Status: "active", ChangeType: "none", Content: "Alice今天不想吃辣", SourceIDs: []string{third.ID}}}
 	}
 	f.process(t)
 	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='preference' AND active`); n != 2 {
@@ -364,7 +368,7 @@ func TestPostgresNoopTemporaryPreferenceDeletionAndClosure(t *testing.T) {
 func TestCandidateAndReconciliationBoundaries(t *testing.T) {
 	now := time.Now()
 	b := Batch{From: 2, Messages: []Message{{ID: "old", Seq: 2, SenderID: "alice", SentAt: now}, {ID: "new", Seq: 3, SenderID: "alice", SentAt: now}}}
-	good := Candidate{Kind: "preference", Subject: "alice", EventKey: "spicy", TemporalScope: "enduring", Content: "喜欢辣", SourceIDs: []string{"new"}}
+	good := Candidate{Kind: "preference", Subject: "alice", EventKey: "spicy", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "喜欢辣", SourceIDs: []string{"new"}}
 	if err := validateCandidates(b, []Candidate{good}); err != nil {
 		t.Fatal(err)
 	}
@@ -379,7 +383,7 @@ func TestCandidateAndReconciliationBoundaries(t *testing.T) {
 	if err := validateDecision(good, Decision{Action: "UPDATE", TargetID: target.ID}, []Document{target}); err == nil {
 		t.Fatal("implicit preference overwritten")
 	}
-	good.ExplicitChange = true
+	good.ChangeType = "modify"
 	target.Subject = "bob"
 	if err := validateDecision(good, Decision{Action: "UPDATE", TargetID: target.ID}, []Document{target}); err == nil {
 		t.Fatal("different person overwritten")
@@ -481,31 +485,35 @@ func TestPostgresLongMessagesDoNotStallAndBatchSourcesAreUnique(t *testing.T) {
 	}
 }
 
-func TestPostgresInvalidationRetainsVersionsAndEvidence(t *testing.T) {
+func TestPostgresCancellationRetainsVersionsAndEvidence(t *testing.T) {
 	f := fixture(t)
 	ctx := context.Background()
 	first := f.send(t, f.alice, "周六去杭州")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{first.ID}}}
+		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{first.ID}}}
 	}
 	f.init(t)
 	f.process(t)
 	second := f.send(t, f.bob, "取消这次杭州旅行")
 	f.extract.extract = func(b Batch) []Candidate {
-		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Content: "杭州旅行已取消", ExplicitChange: true, SourceIDs: []string{second.ID}}}
+		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "cancelled", ChangeType: "cancel", Content: "杭州旅行已取消", SourceIDs: []string{second.ID}}}
 	}
 	f.extract.decision = func(c Candidate, ds []Document) Decision {
-		return Decision{Action: "INVALIDATE", TargetID: ds[0].ID, Content: c.Content}
+		return Decision{Action: "UPDATE", TargetID: ds[0].ID, Content: c.Content}
 	}
 	f.process(t)
-	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan' AND active`); n != 0 {
+	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan' AND active AND status='cancelled'`); n != 1 {
 		t.Fatal("cancelled plan active")
 	}
 	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan'`); n != 2 {
 		t.Fatal("cancellation erased historical version")
 	}
-	if _, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "plan"}); err != nil {
+	result, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "plan"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(result.Documents) != 1 || result.Documents[0].Status != "cancelled" {
+		t.Fatalf("cancelled memory not retrievable: %+v", result.Documents)
 	}
 }
 
@@ -518,7 +526,7 @@ func TestPostgresCompletedReconciliationResumesWithoutModelCalls(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := Candidate{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Content: "周六去杭州", SourceIDs: []string{m.ID}}
+	c := Candidate{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{m.ID}}
 	if err = f.service.Store.SaveExtraction(ctx, b, []Candidate{c}); err != nil {
 		t.Fatal(err)
 	}
@@ -554,7 +562,7 @@ func TestPostgresFailedCommitRollsBackDocumentsAndCursor(t *testing.T) {
 	if err = f.service.Store.SaveExtraction(ctx, b, []Candidate{}); err != nil {
 		t.Fatal(err)
 	}
-	c := Candidate{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Content: "喜欢辣", SourceIDs: []string{uuid.NewString()}}
+	c := Candidate{Kind: "preference", Subject: f.alice, EventKey: "spicy", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "喜欢辣", SourceIDs: []string{uuid.NewString()}}
 	if err = f.service.Store.Complete(ctx, b, []Mutation{{Candidate: c, Decision: Decision{Action: "ADD", Content: c.Content}}}); err == nil {
 		t.Fatal("missing source accepted")
 	}
@@ -634,7 +642,7 @@ func TestMemoryConfigNeedsNoSwitchAndLoadsWorkingDirectoryDefault(t *testing.T) 
 
 func TestModelExtractorIgnoresOnlyKnownHistoricalCandidates(t *testing.T) {
 	b := Batch{From: 128, To: 155, Members: []Person{{ID: "alice"}}, Messages: []Message{{ID: "old", Seq: 126, SenderID: "alice"}, {ID: "new", Seq: 154, SenderID: "alice"}, {ID: "assistant", Seq: 125}}}
-	old := Candidate{Kind: "event", Subject: "alice", EventKey: "interview", TemporalScope: "event", Content: "Interview on Friday", SourceIDs: []string{"old"}}
+	old := Candidate{Kind: "event", Subject: "alice", EventKey: "interview", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "Interview on Friday", SourceIDs: []string{"old"}}
 	for _, tc := range []struct {
 		name    string
 		sources []string
@@ -654,11 +662,14 @@ func TestModelExtractorIgnoresOnlyKnownHistoricalCandidates(t *testing.T) {
 			raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
 			model := &fixedChatModel{content: string(raw)}
 			out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
-			if err != nil || out == nil || len(out) != tc.want {
-				t.Fatalf("result: %+v %v", out, err)
+			if !tc.valid {
+				if !errors.Is(err, ErrInvalid) || model.calls != 2 || out != nil {
+					t.Fatalf("invalid evidence not rejected after one retry: %+v %v calls=%d", out, err, model.calls)
+				}
+				return
 			}
-			if err := validateCandidates(b, out); (err == nil) != tc.valid {
-				t.Fatalf("validation: %v", err)
+			if err != nil || out == nil || len(out) != tc.want || model.calls != 1 {
+				t.Fatalf("result: %+v %v calls=%d", out, err, model.calls)
 			}
 		})
 	}
@@ -676,7 +687,7 @@ func TestModelExtractorIgnoresOnlyKnownHistoricalCandidates(t *testing.T) {
 func TestPostgresHistoricalModelCandidateDoesNotBlockProgress(t *testing.T) {
 	f := fixture(t)
 	old := f.send(t, f.alice, "周五参加面试")
-	candidate := Candidate{Kind: "event", Subject: f.alice, EventKey: "interview", TemporalScope: "event", Content: "周五参加面试", SourceIDs: []string{old.ID}}
+	candidate := Candidate{Kind: "event", Subject: f.alice, EventKey: "interview", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周五参加面试", SourceIDs: []string{old.ID}}
 	f.extract.extract = func(Batch) []Candidate { return []Candidate{candidate} }
 	f.init(t)
 	f.process(t)
@@ -692,5 +703,359 @@ func TestPostgresHistoricalModelCandidateDoesNotBlockProgress(t *testing.T) {
 	}
 	if count := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='history'"); count != 2 {
 		t.Fatalf("new history not retained: %d", count)
+	}
+}
+
+// Simulate a model that corrects an invented source after validation feedback.
+type correctingMemoryModel struct {
+	requests []llm.Request
+	results  []string
+	err      error
+}
+
+func (m *correctingMemoryModel) Call(_ context.Context, req llm.Request) (llm.Result, error) {
+	m.requests = append(m.requests, req)
+	if len(m.requests) > len(m.results) {
+		return llm.Result{}, m.err
+	}
+	return llm.Result{Content: m.results[len(m.requests)-1]}, nil
+}
+
+func TestModelExtractorRepairsUnknownSourceWithBatchEvidence(t *testing.T) {
+	b := Batch{From: 216, To: 234, Members: []Person{{ID: "alice"}}, Messages: []Message{{ID: "actual-message-id", Seq: 233, SenderID: "alice", Text: "周六去杭州"}}}
+	candidate := Candidate{Kind: "plan", Subject: "alice", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{"invented-id"}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.SourceIDs = []string{"actual-message-id"}
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &correctingMemoryModel{results: []string{string(bad), string(good)}}
+	out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+	if err != nil || len(out) != 1 || out[0].SourceIDs[0] != "actual-message-id" || len(model.requests) != 2 {
+		t.Fatalf("repair failed: %+v %v calls=%d", out, err, len(model.requests))
+	}
+	feedback := model.requests[1].Messages[1].Content
+	if !strings.Contains(feedback, "source_not_in_batch") || !strings.Contains(feedback, "invented-id") || !strings.Contains(feedback, "actual-message-id") {
+		t.Fatalf("repair missing validation feedback or batch: %s", feedback)
+	}
+	for _, req := range model.requests {
+		if !strings.Contains(string(req.Format), `"enum":["actual-message-id"]`) {
+			t.Fatalf("source IDs not constrained: %s", req.Format)
+		}
+	}
+}
+
+func TestModelExtractorRepairFailureDoesNotReturnPartialCandidates(t *testing.T) {
+	b := Batch{Messages: []Message{{ID: "new", Seq: 1, SenderID: "alice"}}}
+	good := Candidate{Kind: "fact", Subject: "alice", EventKey: "food", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "喜欢辣", SourceIDs: []string{"new"}}
+	bad := good
+	bad.SourceIDs = []string{"unknown"}
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{good, bad}})
+	unavailable := errors.New("model unavailable")
+	model := &correctingMemoryModel{results: []string{string(raw)}, err: unavailable}
+	out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+	if !errors.Is(err, unavailable) || out != nil || len(model.requests) != 2 {
+		t.Fatalf("partial result accepted: %+v %v", out, err)
+	}
+}
+
+func TestPostgresRepairedSourceCommitsMemoryAndProgress(t *testing.T) {
+	f := fixture(t)
+	message := f.send(t, f.alice, "周六去杭州")
+	candidate := Candidate{Kind: "plan", Subject: f.alice, EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{uuid.NewString()}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.SourceIDs = []string{message.ID}
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &correctingMemoryModel{results: []string{string(bad), string(good)}}
+	f.service.Extractor = ModelExtractor{Model: model, Config: testConfig().Extraction}
+	f.init(t)
+	f.process(t)
+	if len(model.requests) != 2 {
+		t.Fatalf("expected one correction, got %d calls", len(model.requests))
+	}
+	if cursor := f.scalar(t, "SELECT cursor_seq FROM memory_progress"); cursor != int(message.Seq) {
+		t.Fatalf("corrected batch did not advance: %d", cursor)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_documents WHERE kind='plan'"); n != 1 {
+		t.Fatalf("corrected memory not committed: %d", n)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_document_sources WHERE message_id=$1", message.ID); n != 2 {
+		t.Fatalf("history and corrected memory missing evidence: %d", n)
+	}
+}
+
+func TestModelExtractorResolvesOnlyExactBatchSequences(t *testing.T) {
+	b := Batch{From: 216, To: 234, Messages: []Message{
+		{ID: "old-uuid", Seq: 216, SenderID: "alice"},
+		{ID: "trip-uuid", Seq: 218, SenderID: "alice"},
+		{ID: "confirm-uuid", Seq: 221, SenderID: "alice"},
+		{ID: "assistant-uuid", Seq: 222},
+	}}
+	for _, tc := range []struct {
+		name    string
+		sources []string
+		want    []string
+		valid   bool
+	}{
+		{"production_sequence_output", []string{"218", "221"}, []string{"trip-uuid", "confirm-uuid"}, true},
+		{"mixed_uuid_and_sequence", []string{"trip-uuid", "221"}, []string{"trip-uuid", "confirm-uuid"}, true},
+		{"old_only", []string{"216"}, nil, true},
+		{"unknown_sequence", []string{"219"}, nil, false},
+		{"assistant_sequence", []string{"222"}, nil, false},
+		{"noncanonical_sequence", []string{"0218"}, nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			candidate := Candidate{Kind: "event", Subject: "alice", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "去成都出差", SourceIDs: tc.sources}
+			raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+			model := &fixedChatModel{content: string(raw)}
+			out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+			if !tc.valid {
+				if !errors.Is(err, ErrInvalid) || out != nil {
+					t.Fatalf("invalid reference accepted: %+v %v", out, err)
+				}
+				return
+			}
+			if err != nil || model.calls != 1 {
+				t.Fatalf("sequence resolution retried: %v calls=%d", err, model.calls)
+			}
+			if tc.want == nil {
+				if len(out) != 0 {
+					t.Fatalf("context-only sequence retained: %+v", out)
+				}
+			} else if len(out) != 1 || strings.Join(out[0].SourceIDs, ",") != strings.Join(tc.want, ",") {
+				t.Fatalf("wrong evidence: %+v", out)
+			}
+		})
+	}
+}
+
+func TestPostgresSequenceSourcesCommitWithoutRetry(t *testing.T) {
+	f := fixture(t)
+	message := f.send(t, f.alice, "周六去杭州")
+	candidate := Candidate{Kind: "plan", Subject: f.alice, EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{strconv.FormatInt(message.Seq, 10)}}
+	raw, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	model := &fixedChatModel{content: string(raw)}
+	f.service.Extractor = ModelExtractor{Model: model, Config: testConfig().Extraction}
+	f.init(t)
+	f.process(t)
+	if model.calls != 1 {
+		t.Fatalf("sequence source required model retry: %d", model.calls)
+	}
+	if cursor := f.scalar(t, "SELECT cursor_seq FROM memory_progress"); cursor != int(message.Seq) {
+		t.Fatalf("batch stuck at %d", cursor)
+	}
+	if n := f.scalar(t, "SELECT count(*) FROM memory_document_sources WHERE message_id=$1", message.ID); n != 2 {
+		t.Fatalf("canonical evidence missing: %d", n)
+	}
+}
+
+func TestModelExtractorRepairsSubjectWithoutGuessingIdentity(t *testing.T) {
+	b := Batch{Members: []Person{{ID: "user-alice", Nickname: "Alice"}}, Messages: []Message{{ID: "msg", Seq: 1, SenderID: "user-alice", Text: "喜欢辣"}}}
+	candidate := Candidate{Kind: "preference", Subject: "Alice", EventKey: "food", TemporalScope: "enduring", Status: "active", ChangeType: "none", Content: "Alice喜欢辣", SourceIDs: []string{"msg"}}
+	bad, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	candidate.Subject = "user-alice"
+	good, _ := json.Marshal(map[string]any{"candidates": []Candidate{candidate}})
+	for _, repaired := range []bool{true, false} {
+		second := string(bad)
+		if repaired {
+			second = string(good)
+		}
+		model := &correctingMemoryModel{results: []string{string(bad), second}}
+		out, err := (ModelExtractor{Model: model, Config: testConfig().Extraction}).Extract(context.Background(), b)
+		if repaired {
+			if err != nil || len(out) != 1 || out[0].Subject != "user-alice" {
+				t.Fatalf("subject correction failed: %+v %v", out, err)
+			}
+		} else if !errors.Is(err, ErrInvalid) || out != nil {
+			t.Fatalf("invented subject accepted: %+v %v", out, err)
+		}
+		if len(model.requests) != 2 {
+			t.Fatalf("unexpected calls: %d", len(model.requests))
+		}
+		if !strings.Contains(string(model.requests[0].Format), `"subject":{"type":"string","enum":["shared","user-alice"]}`) {
+			t.Fatalf("missing subject constraint: %s", model.requests[0].Format)
+		}
+		if !strings.Contains(model.requests[1].Messages[1].Content, "invalid_subject") {
+			t.Fatal("missing feedback")
+		}
+	}
+}
+
+func TestUnprocessedMessagesExcludesWindowBeforeLimit(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	exclude := []string{}
+	var fence int64
+	for i := 0; i < 40; i++ {
+		m := f.send(t, f.alice, "尚未提炼")
+		fence = m.Seq
+		if i >= 5 {
+			exclude = append(exclude, m.ID)
+		}
+	}
+	out, err := f.service.UnprocessedMessages(ctx, f.group, f.alice, SearchInput{MaxSeq: fence}, exclude)
+	if err != nil || len(out.RecentUnprocessed) != 5 || out.RecentOmitted {
+		t.Fatal(out, err)
+	}
+	for _, m := range out.RecentUnprocessed {
+		if m.Seq > 5 {
+			t.Fatal("excluded message returned", m)
+		}
+	}
+	f.send(t, f.alice, "future")
+	out, err = f.service.UnprocessedMessages(ctx, f.group, f.alice, SearchInput{MaxSeq: fence}, exclude)
+	if err != nil || len(out.RecentUnprocessed) != 5 {
+		t.Fatal("fence escaped", out, err)
+	}
+	if _, err := f.service.UnprocessedMessages(ctx, f.group, f.outsider, SearchInput{MaxSeq: fence}, nil); !errors.Is(err, ErrNotFound) {
+		t.Fatal("membership bypass", err)
+	}
+}
+
+func dateValue(s string) *string { return &s }
+
+func TestMemoryMetadataValidation(t *testing.T) {
+	base := Candidate{Kind: "plan", Status: "active", ChangeType: "none"}
+	for _, tc := range []struct {
+		name   string
+		change func(*Candidate)
+		valid  bool
+	}{
+		{"unknown", func(c *Candidate) { c.Status = "unknown" }, true},
+		{"completed", func(c *Candidate) { c.Status = "completed"; c.ChangeType = "complete" }, true},
+		{"cancelled", func(c *Candidate) { c.Status = "cancelled"; c.ChangeType = "cancel" }, true},
+		{"missing status", func(c *Candidate) { c.Status = "" }, false},
+		{"missing change", func(c *Candidate) { c.ChangeType = "" }, false},
+		{"invalid change", func(c *Candidate) { c.ChangeType = "update" }, false},
+		{"inconsistent completion", func(c *Candidate) { c.ChangeType = "complete" }, false},
+		{"inconsistent cancellation", func(c *Candidate) { c.ChangeType = "cancel" }, false},
+		{"completed preference", func(c *Candidate) { c.Kind = "preference"; c.Status = "completed" }, false},
+		{"invalid date", func(c *Candidate) { c.ValidFrom = dateValue("2026-02-30") }, false},
+		{"reversed dates", func(c *Candidate) { c.ValidFrom = dateValue("2026-11-03"); c.ValidUntil = dateValue("2026-11-01") }, false},
+		{"open period", func(c *Candidate) { c.ValidUntil = dateValue("2026-11-03") }, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := base
+			tc.change(&c)
+			if err := validateMetadata(c); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v error=%v", tc.valid, err)
+			}
+		})
+	}
+}
+
+func TestReconciliationStateChanges(t *testing.T) {
+	c := Candidate{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "completed", ChangeType: "complete"}
+	old := Document{ID: uuid.NewString(), Kind: c.Kind, Subject: c.Subject, EventKey: c.EventKey, TemporalScope: c.TemporalScope, Status: "active"}
+	if err := validateDecision(c, Decision{Action: "UPDATE", TargetID: old.ID}, []Document{old}); err != nil {
+		t.Fatal(err)
+	}
+	for _, action := range []string{"NOOP", "INVALIDATE"} {
+		if err := validateDecision(c, Decision{Action: action, TargetID: old.ID}, []Document{old}); err == nil {
+			t.Fatalf("%s lost completion", action)
+		}
+	}
+	c.Status = "cancelled"
+	c.ChangeType = "cancel"
+	if err := validateDecision(c, Decision{Action: "INVALIDATE", TargetID: old.ID}, []Document{old}); err == nil {
+		t.Fatal("cancellation invalidated memory")
+	}
+	c.ChangeType = "correct"
+	if err := validateDecision(c, Decision{Action: "INVALIDATE", TargetID: old.ID}, []Document{old}); err != nil {
+		t.Fatal(err)
+	}
+	c.Status = old.Status
+	c.ChangeType = "modify"
+	c.ValidFrom = dateValue("2026-11-01")
+	if sameMetadata(c, old) {
+		t.Fatal("date change treated as exact duplicate")
+	}
+	if err := validateDecision(c, Decision{Action: "NOOP", TargetID: old.ID}, []Document{old}); err == nil {
+		t.Fatal("NOOP dropped validity change")
+	}
+}
+
+func TestPostgresMetadataOnlyUpdateAndRetrieval(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	first := f.send(t, f.alice, "11月1日至3日在杭州出差")
+	c := Candidate{Kind: "event", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", ValidFrom: dateValue("2026-11-01"), ValidUntil: dateValue("2026-11-03"), Content: "杭州出差", SourceIDs: []string{first.ID}}
+	f.extract.extract = func(Batch) []Candidate { return []Candidate{c} }
+	f.init(t)
+	f.process(t)
+	second := f.send(t, f.alice, "已完成出差")
+	c.Status = "completed"
+	c.ChangeType = "complete"
+	c.SourceIDs = []string{second.ID}
+	f.extract.decision = func(c Candidate, ds []Document) Decision {
+		return Decision{Action: "UPDATE", TargetID: ds[0].ID, Content: c.Content}
+	}
+	f.process(t)
+	result, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "event"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Documents) != 1 {
+		t.Fatalf("documents=%+v", result.Documents)
+	}
+	d := result.Documents[0]
+	if d.Status != "completed" || d.ChangeType != "complete" || !sameDate(c.ValidFrom, d.ValidFrom) || !sameDate(c.ValidUntil, d.ValidUntil) || d.Revision != 2 {
+		t.Fatalf("metadata lost: %+v", d)
+	}
+	if f.extract.reconcileCalls.Load() != 1 {
+		t.Fatal("same text bypassed metadata reconciliation")
+	}
+}
+
+func TestCandidateJSONRequiresNullableDates(t *testing.T) {
+	c := Candidate{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "unknown", ChangeType: "none", Content: "出行", SourceIDs: []string{"msg"}}
+	raw, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Candidate
+	if err = json.Unmarshal(raw, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"status", "validFrom", "validUntil", "changeType"} {
+		var fields map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		delete(fields, field)
+		bad, _ := json.Marshal(fields)
+		if err = json.Unmarshal(bad, &decoded); err == nil {
+			t.Fatalf("missing %s accepted", field)
+		}
+	}
+}
+
+func TestPostgresCorrectionInvalidatesWrongMemory(t *testing.T) {
+	f := fixture(t)
+	ctx := context.Background()
+	first := f.send(t, f.alice, "周六去杭州")
+	f.extract.extract = func(b Batch) []Candidate {
+		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "active", ChangeType: "none", Content: "周六去杭州", SourceIDs: []string{first.ID}}}
+	}
+	f.init(t)
+	f.process(t)
+	second := f.send(t, f.bob, "刚才说错了，没有这次杭州旅行")
+	f.extract.extract = func(b Batch) []Candidate {
+		return []Candidate{{Kind: "plan", Subject: "shared", EventKey: "trip", TemporalScope: "event", Status: "unknown", ChangeType: "correct", Content: "此前杭州旅行计划为错误信息", SourceIDs: []string{second.ID}}}
+	}
+	f.extract.decision = func(c Candidate, ds []Document) Decision {
+		return Decision{Action: "INVALIDATE", TargetID: ds[0].ID, Content: c.Content}
+	}
+	f.process(t)
+	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan' AND active`); n != 0 {
+		t.Fatal("cancelled plan active")
+	}
+	if n := f.scalar(t, `SELECT count(*) FROM memory_documents WHERE kind='plan'`); n != 2 {
+		t.Fatal("cancellation erased historical version")
+	}
+	result, err := f.service.Search(ctx, f.group, f.alice, SearchInput{Query: "杭州", Kind: "plan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Documents) != 0 {
+		t.Fatalf("incorrect memory still retrievable: %+v", result.Documents)
 	}
 }

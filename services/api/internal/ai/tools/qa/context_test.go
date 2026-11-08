@@ -58,3 +58,35 @@ func TestEvidenceBudgetPinsCurrentAndReferencesWithoutCuttingOriginals(t *testin
 		t.Fatal(err)
 	}
 }
+
+func TestFitContextPrioritizesSourcesThenNewestBackgroundRegardlessOfAppendOrder(t *testing.T) {
+	input := snapshot()
+	current := input.Messages[0]
+	input.HistoryScope = &ai.HistoryScope{RetrievedMessageIDs: []string{"source"}, HistoricalSearch: true}
+	for i := 99; i >= 0; i-- {
+		m := current
+		m.ID = fmt.Sprintf("background-%d", i)
+		m.Text = "背景"
+		m.SentAt = current.SentAt.Add(time.Duration(i-101) * time.Minute)
+		input.Messages = append(input.Messages, m)
+	}
+	source := current
+	source.ID = "source"
+	source.Text = "直接来源"
+	source.SentAt = current.SentAt.Add(-time.Hour * 24)
+	input.Messages = append(input.Messages, source)
+	out, err := FitContext(input, "历史问题", 65536)
+	if err != nil || len(out.Messages) != 80 {
+		t.Fatal(len(out.Messages), err)
+	}
+	kept := map[string]bool{}
+	for _, m := range out.Messages {
+		kept[m.ID] = true
+	}
+	if !kept["current"] || !kept["source"] || !kept["background-99"] || kept["background-0"] {
+		t.Fatal("priority depends on append order", kept)
+	}
+	if input.Messages[1].ID != "background-99" {
+		t.Fatal("mutated original order")
+	}
+}

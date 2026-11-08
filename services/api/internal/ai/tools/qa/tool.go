@@ -159,10 +159,3 @@ func request(model string, input ai.Context, question string, tokens int) (llm.R
 	omitted := input.HistoryScope != nil && input.HistoryScope.EarlierMessagesOmitted
 	return llm.Request{Model: model, Messages: []llm.Message{{Role: "system", Content: system(omitted)}, {Role: "user", Content: string(data)}}, Format: Schema, Options: llm.Options{NumCtx: tokens, NumPredict: 2048}}, nil
 }
-
-func (t *Tool) LegacyArguments(s tools.Scope) (json.RawMessage, bool) {
-	if s.LegacyMode == "qa" || s.LegacyMode == "help" {
-		return MarshalArguments(s.Question), true
-	}
-	return nil, false
-}

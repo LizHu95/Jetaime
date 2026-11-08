@@ -1,0 +1,1377 @@
+{
+  "version": "tool-search-synthetic-v1-draft",
+  "snapshotSha256": "6f6a77b82c9f09037bba00cb4d0616b598572ec67f2f05989a2e90cc926fa3f9",
+  "cases": [
+    {
+      "id": "chat-greeting",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "你好，今天给我一句鼓励吧。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "简短友好鼓励，不创建提醒、不查询地图。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ]
+      }
+    },
+    {
+      "id": "chat-goodnight",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "帮我写一句温柔的晚安，不超过30个字。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "一条不超过30字的温柔晚安。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "晚安"
+        ]
+      }
+    },
+    {
+      "id": "chat-rewrite",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "把“今天有点累，但还是想见你”改写得温柔一些。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "保留疲惫但想见面的意思。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ]
+      }
+    },
+    {
+      "id": "chat-knowledge",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "为什么天空通常看起来是蓝色的？用两句话解释。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "以通俗语言解释短波长光更易散射。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "散射"
+        ]
+      }
+    },
+    {
+      "id": "history-meeting",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "上次我们约好周六几点、在哪里见面？",
+      "retrievedMessageIds": [
+        "383f4f0b-d354-5cf3-8953-fe68dbe397e4",
+        "8803633a-9e44-558c-8237-1edc80865b0d"
+      ],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "周六下午三点，青禾公园北门。",
+        "requiredTools": [
+          "answer_question"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "三点",
+          "青禾公园",
+          "北门"
+        ],
+        "requiredSourceIds": [
+          "8803633a-9e44-558c-8237-1edc80865b0d"
+        ]
+      }
+    },
+    {
+      "id": "history-fare",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "我上次说买车票一共花了多少钱？",
+      "retrievedMessageIds": [
+        "53253110-d7c5-55a4-b840-a8718fa9bc82",
+        "730aa28e-a87a-5bde-b2b2-2e9ba7452075"
+      ],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "286元。",
+        "requiredTools": [
+          "answer_question"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "286"
+        ],
+        "requiredSourceIds": [
+          "53253110-d7c5-55a4-b840-a8718fa9bc82"
+        ]
+      }
+    },
+    {
+      "id": "history-yesterday-trip",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "总结昨天上午我们确定的出行安排和分工。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "2026-10-31上午：去苏州，每人预算300元，小乙买车票。",
+        "requiredTools": [
+          "summarize_history"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "苏州",
+          "300"
+        ],
+        "requiredSourceIds": [
+          "851e7a67-75cc-5e78-a781-2bc59340bd8b",
+          "eba55d15-f5d6-5ade-90ec-2fc034a685ff"
+        ]
+      }
+    },
+    {
+      "id": "history-yesterday-chores",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "总结昨天晚上我们约定的家务分工。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "小甲洗碗，小乙倒垃圾。",
+        "requiredTools": [
+          "summarize_history"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "洗碗",
+          "倒垃圾"
+        ],
+        "requiredSourceIds": [
+          "69db397c-e5ef-5391-988f-a54457fb388c",
+          "92048450-171f-5885-965d-9e2d25322491"
+        ]
+      }
+    },
+    {
+      "id": "reminder-tomorrow",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "明天上午九点提醒我喝水。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "创建2026-11-02 09:00北京时间的一次性喝水提醒。",
+        "requiredTools": [
+          "set_reminder"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated"
+        ],
+        "answerContainsAll": [
+          "创建",
+          "09:00",
+          "喝水"
+        ]
+      }
+    },
+    {
+      "id": "reminder-absolute",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "2026年11月3日晚上八点半提醒我拉伸。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "创建2026-11-03 20:30北京时间的一次性拉伸提醒。",
+        "requiredTools": [
+          "set_reminder"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated"
+        ],
+        "answerContainsAll": [
+          "创建",
+          "20:30",
+          "拉伸"
+        ]
+      }
+    },
+    {
+      "id": "reminder-missing-time",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "明天提醒我买牛奶。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "保留待补充草稿，追问具体时刻，不默认时间。",
+        "requiredTools": [
+          "set_reminder"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated"
+        ],
+        "answerContainsAll": [
+          "几点"
+        ]
+      }
+    },
+    {
+      "id": "reminder-recurring",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "以后每天早上九点提醒我喝水。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "解释仅支持一次性提醒，请用户改为一条具体提醒。",
+        "requiredTools": [
+          "set_reminder"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated"
+        ],
+        "answerContainsAll": [
+          "一次"
+        ]
+      }
+    },
+    {
+      "id": "maps-weather",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "查一下上海今天的天气。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_weather",
+          "arguments": {
+            "city": "上海"
+          },
+          "response": {
+            "city": "上海市",
+            "forecasts": [
+              {
+                "date": "2026-11-01",
+                "dayweather": "晴",
+                "nightweather": "多云",
+                "daytemp": "22",
+                "nighttemp": "16"
+              },
+              {
+                "date": "2026-11-02",
+                "dayweather": "小雨",
+                "nightweather": "阴",
+                "daytemp": "20",
+                "nighttemp": "15"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_weather",
+          "arguments": {
+            "city": "上海市"
+          },
+          "response": {
+            "city": "上海市",
+            "forecasts": [
+              {
+                "date": "2026-11-01",
+                "dayweather": "晴",
+                "nightweather": "多云",
+                "daytemp": "22",
+                "nighttemp": "16"
+              },
+              {
+                "date": "2026-11-02",
+                "dayweather": "小雨",
+                "nightweather": "阴",
+                "daytemp": "20",
+                "nighttemp": "15"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_weather",
+          "arguments": {
+            "city": "310000"
+          },
+          "response": {
+            "city": "上海市",
+            "forecasts": [
+              {
+                "date": "2026-11-01",
+                "dayweather": "晴",
+                "nightweather": "多云",
+                "daytemp": "22",
+                "nighttemp": "16"
+              },
+              {
+                "date": "2026-11-02",
+                "dayweather": "小雨",
+                "nightweather": "阴",
+                "daytemp": "20",
+                "nighttemp": "15"
+              }
+            ]
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "仅依据合成预报：2026-11-01晴，最高22℃，最低16℃。",
+        "requiredTools": [
+          "maps_weather"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "晴",
+          "22",
+          "16"
+        ]
+      }
+    },
+    {
+      "id": "maps-search",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "在上海搜索咖啡馆，推荐一个即可。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "合成青禾咖啡馆，合成路18号，来源为模拟高德返回。",
+        "requiredTools": [
+          "maps_text_search"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "合成青禾咖啡馆"
+        ]
+      }
+    },
+    {
+      "id": "maps-around",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "我提供的高德坐标是121.500000,31.300000，搜索附近1000米的咖啡馆。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_around_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "location": "121.500000,31.300000",
+            "radius": "1000"
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_around_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "location": "121.5,31.3",
+            "radius": "1000"
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_around_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "location": "121.500000,31.300000",
+            "radius": "1000"
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_around_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "location": "121.5,31.3",
+            "radius": "1000"
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "基于用户给定坐标及1000米范围返回合成青禾咖啡馆。",
+        "requiredTools": [
+          "maps_around_search"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "合成青禾咖啡馆"
+        ]
+      }
+    },
+    {
+      "id": "maps-detail",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "先搜索上海的咖啡馆，再查第一家的营业时间和人均消费。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_search_detail",
+          "arguments": {
+            "id": "BTEST001"
+          },
+          "response": {
+            "id": "BTEST001",
+            "name": "合成青禾咖啡馆",
+            "address": "合成路18号",
+            "city": "上海市",
+            "location": "121.510000,31.310000",
+            "type": "咖啡馆",
+            "opentime2": "09:00-21:00",
+            "cost": "35",
+            "rating": "4.5"
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "先取得BTEST001，再查详情；09:00-21:00，人均35元。",
+        "requiredTools": [
+          "maps_text_search",
+          "maps_search_detail"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "09:00",
+          "21:00",
+          "35"
+        ]
+      }
+    },
+    {
+      "id": "maps-geocode-walk",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "查询从上海合成路1号到合成路18号的步行路线。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "合成路1号",
+            "city": "上海"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.500000,31.300000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "上海市合成路1号",
+            "city": "上海"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.500000,31.300000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "合成路18号",
+            "city": "上海"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.510000,31.310000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "上海市合成路18号",
+            "city": "上海"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.510000,31.310000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "合成路1号",
+            "city": "上海市"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.500000,31.300000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "上海市合成路1号",
+            "city": "上海市"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.500000,31.300000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "合成路18号",
+            "city": "上海市"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.510000,31.310000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_geo",
+          "arguments": {
+            "address": "上海市合成路18号",
+            "city": "上海市"
+          },
+          "response": {
+            "results": [
+              {
+                "location": "121.510000,31.310000",
+                "city": "上海市",
+                "district": "合成区",
+                "adcode": "310110"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.500000,31.300000",
+            "destination": "121.510000,31.310000"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.500000,31.300000",
+            "destination": "121.51,31.31"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.5,31.3",
+            "destination": "121.510000,31.310000"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.5,31.3",
+            "destination": "121.51,31.31"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "先地理编码确认两端坐标，再查询步行路线；模拟距离1200米、耗时900秒（15分钟）。",
+        "requiredTools": [
+          "maps_geo",
+          "maps_direction_walking"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ]
+      }
+    },
+    {
+      "id": "maps-multistep",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "我的高德坐标是121.500000,31.300000。请在上海搜索咖啡馆，查第一家的营业时间，再规划从我这里步行过去的路线。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡馆",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_text_search",
+          "arguments": {
+            "keywords": "咖啡",
+            "city": "上海市",
+            "citylimit": true
+          },
+          "response": {
+            "pois": [
+              {
+                "id": "BTEST001",
+                "name": "合成青禾咖啡馆",
+                "address": "合成路18号",
+                "city": "上海市",
+                "location": "121.510000,31.310000",
+                "type": "咖啡馆"
+              }
+            ]
+          }
+        },
+        {
+          "tool": "maps_search_detail",
+          "arguments": {
+            "id": "BTEST001"
+          },
+          "response": {
+            "id": "BTEST001",
+            "name": "合成青禾咖啡馆",
+            "address": "合成路18号",
+            "city": "上海市",
+            "location": "121.510000,31.310000",
+            "type": "咖啡馆",
+            "opentime2": "09:00-21:00",
+            "cost": "35",
+            "rating": "4.5"
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.500000,31.300000",
+            "destination": "121.510000,31.310000"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.500000,31.300000",
+            "destination": "121.51,31.31"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.5,31.3",
+            "destination": "121.510000,31.310000"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "tool": "maps_direction_walking",
+          "arguments": {
+            "origin": "121.5,31.3",
+            "destination": "121.51,31.31"
+          },
+          "response": {
+            "route": {
+              "paths": [
+                {
+                  "distance": "1200",
+                  "duration": "900",
+                  "steps": [
+                    {
+                      "instruction": "沿合成路向东步行，到达目的地。"
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "reviewed": false,
+      "expected": {
+        "reference": "搜索→BTEST001详情→步行路线；09:00-21:00，1200米、15分钟。",
+        "requiredTools": [
+          "maps_text_search",
+          "maps_search_detail",
+          "maps_direction_walking"
+        ],
+        "forbiddenTools": [
+          "set_reminder"
+        ],
+        "answerContainsAll": [
+          "合成青禾咖啡馆",
+          "09:00"
+        ]
+      }
+    },
+    {
+      "id": "boundary-no-location",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "附近有什么好吃的？",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "当前没有位置，先询问城市或具体位置，不猜测所在城市。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ]
+      }
+    },
+    {
+      "id": "boundary-no-booking",
+      "groupId": "10000000-0000-4000-8000-000000000001",
+      "actorId": "10000000-0000-4000-8000-000000000002",
+      "cutoffSeq": 43,
+      "at": "2026-11-01T10:00:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "question": "帮我预订明晚七点的餐厅座位，直接替我下单。",
+      "retrievedMessageIds": [],
+      "mapFixtures": [],
+      "reviewed": false,
+      "expected": {
+        "reference": "说明当前无法直接预订或下单，可询问城市并提供查找帮助。",
+        "requiredTools": [
+          "respond"
+        ],
+        "forbiddenTools": [
+          "maps_text_search",
+          "maps_around_search",
+          "maps_search_detail",
+          "maps_weather",
+          "maps_geo",
+          "maps_direction_walking",
+          "maps_direction_driving",
+          "maps_direction_bicycling",
+          "maps_direction_transit_integrated",
+          "set_reminder"
+        ]
+      }
+    }
+  ]
+}

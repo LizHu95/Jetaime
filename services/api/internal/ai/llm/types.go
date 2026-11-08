@@ -13,12 +13,13 @@ type ChatModel interface {
 // Request retains the workflow trace format. Provider-specific wire parameters
 // are translated by the adapter; cloud requests never receive Ollama options.
 type Request struct {
-	Model    string          `json:"model"`
-	Messages []Message       `json:"messages"`
-	Format   json.RawMessage `json:"format"`
-	Stream   bool            `json:"stream"`
-	Think    bool            `json:"think"`
-	Options  Options         `json:"options"`
+	compacted bool
+	Model     string          `json:"model"`
+	Messages  []Message       `json:"messages"`
+	Format    json.RawMessage `json:"format"`
+	Stream    bool            `json:"stream"`
+	Think     bool            `json:"think"`
+	Options   Options         `json:"options"`
 }
 type Message struct {
 	Role    string `json:"role"`

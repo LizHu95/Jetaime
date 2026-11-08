@@ -23,16 +23,19 @@ web-check:
 	cd apps/web && npm test && npm run test:e2e && npm run build
 
 GO_DIR := services/api
-UV ?= uv
-EVAL_ARGS ?=
 FEISHU_ARGS ?=
 API_ARGS ?=
-ASSISTANT_ARGS ?=
+API_BUILD_ARGS ?=
+MODEL_CHECK_ARGS ?=
+SQLC_VERSION := v1.30.0
+SQLC_DIR := $(CURDIR)/$(GO_DIR)/bin/sqlc/$(SQLC_VERSION)
+SQLC := $(SQLC_DIR)/sqlc
+
 GOLANGCI_LINT_VERSION := v2.14.0
 TOOLS_DIR := $(CURDIR)/$(GO_DIR)/bin/golangci-lint/$(GOLANGCI_LINT_VERSION)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 
-.PHONY: dev api-build feishu feishu-build model-check eval eval-check eval-services eval-test assistant assistant-check help tools fmt fmt-check build test vet lint check \
+.PHONY: dev api-build feishu feishu-build model-check scripts-test help tools fmt fmt-check build test vet lint check \
 	go-tools go-fmt go-fmt-check go-build go-test go-vet go-lint go-check
 
 help:
@@ -47,13 +50,13 @@ help:
 	@echo "make api-build  Package unified HTTP API into outputs/api"
 	@echo "make feishu     Start Feishu with local environment"
 	@echo "make model-check Validate default model configuration without inference"
+	@echo "make eval-replay-check Validate isolated snapshot replay without model requests"
+	@echo "make eval-replay Run local snapshot evaluation (EVAL_ARGS)"
+	@echo "make eval-tool-search-check Build A/B/C and validate the candidate suite offline"
+	@echo "make eval-tool-search Run an approved Phoenix comparison (TOOL_SEARCH_ARGS)"
 	@echo "make feishu-build Build the private Feishu deployment package"
-	@echo "make eval       Run local V2 evaluation (EVAL_ARGS)"
-	@echo "make eval-check Validate case schema offline"
-	@echo "make eval-services Check model configuration and installed Ollama models"
-	@echo "make eval-test  Run isolated evaluator tests"
-	@echo "make assistant  Start debug console with imported chat history at http://127.0.0.1:8081"
-	@echo "make assistant-check Verify real model, confirmation and persistence with imported history"
+	@echo "make sqlc-generate Generate typed Go queries from SQL"
+	@echo "make sqlc-check Check that generated queries match SQL"
 	@echo "make tools      Install development tools"
 	@echo "make fmt        Format source files"
 	@echo "make fmt-check  Check formatting without changing files"
@@ -67,7 +70,7 @@ dev:
 	python3 scripts/dev.py api $(API_ARGS)
 
 api-build:
-	bash deploy/api/build.sh
+	bash deploy/api/build.sh $(API_BUILD_ARGS)
 
 db-migrate:
 	cd $(GO_DIR) && go run ./cmd/api -migrate
@@ -79,9 +82,6 @@ db-test:
 memory-backfill:
 	python3 scripts/dev.py api -memory-backfill -memory-config ../../local/memory.json $(API_ARGS)
 
-assistant:
-	python3 scripts/dev.py assistant $(ASSISTANT_ARGS)
-
 feishu:
 	python3 scripts/dev.py feishu $(FEISHU_ARGS)
 
@@ -89,21 +89,29 @@ feishu-build:
 	python3 scripts/dev.py feishu-build
 
 model-check:
-	python3 scripts/dev.py model-check $(ASSISTANT_ARGS)
-
-assistant-check:
-	python3 scripts/dev.py assistant-check
+	python3 scripts/dev.py model-check $(MODEL_CHECK_ARGS)
 
 tools: go-tools
 fmt: go-fmt
 fmt-check: go-fmt-check
 build: go-build
-test: go-test eval-test
+test: go-test scripts-test
 vet: go-vet
 lint: go-lint
-check: go-check eval-test
+check: go-check scripts-test
 
-go-tools: $(GOLANGCI_LINT)
+go-tools: $(GOLANGCI_LINT) $(SQLC)
+
+.PHONY: sqlc-generate sqlc-check
+
+$(SQLC):
+	GOBIN="$(SQLC_DIR)" go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+
+sqlc-generate: $(SQLC)
+	cd $(GO_DIR) && "$(SQLC)" generate
+
+sqlc-check: $(SQLC)
+	cd $(GO_DIR) && "$(SQLC)" diff
 
 $(GOLANGCI_LINT):
 	@set -eu; \
@@ -136,16 +144,31 @@ go-lint: go-tools
 	cd $(GO_DIR) && "$(GOLANGCI_LINT)" config verify --config .golangci.yml
 	cd $(GO_DIR) && "$(GOLANGCI_LINT)" run --config .golangci.yml ./...
 
-go-check: go-fmt-check go-build go-vet go-test go-lint
+go-check: sqlc-check go-fmt-check go-build go-vet go-test go-lint
 
-eval:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval $(EVAL_ARGS)
+scripts-test:
+	python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 
-eval-check:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-check $(EVAL_ARGS)
+# Isolated snapshot replay; never starts business API/workers.
+EVAL_ARGS ?=
+.PHONY: eval-replay eval-replay-build eval-replay-check
 
-eval-services:
-	JETAIME_UV="$(UV)" python3 scripts/dev.py eval-services $(EVAL_ARGS)
+eval-replay:
+	python3 scripts/eval_replay.py run -- $(EVAL_ARGS)
 
-eval-test:
-	$(UV) run --project evals --locked python -m unittest discover -s evals/tests -p 'test_*.py'
+eval-replay-build:
+	python3 scripts/eval_replay.py build
+
+eval-replay-check:
+	cd $(GO_DIR) && go test -race ./internal/ai/replay ./cmd/eval-replay
+	python3 scripts/eval_replay.py run -- -snapshot evals/replay/messages.example.jsonl -cases evals/replay/cases.example.json -dry-run -output -
+
+# A/B/C discovery comparison. The default check is strictly offline.
+TOOL_SEARCH_ARGS ?=
+.PHONY: eval-tool-search-check eval-tool-search
+
+eval-tool-search-check:
+	python3 scripts/tool_search_eval.py check $(TOOL_SEARCH_ARGS)
+
+eval-tool-search:
+	local/eval-replay-venv/bin/python scripts/tool_search_eval.py run $(TOOL_SEARCH_ARGS)

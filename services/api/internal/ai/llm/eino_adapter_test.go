@@ -202,3 +202,38 @@ func TestOllamaExplicitSamplingTemperature(t *testing.T) {
 		server.Close()
 	}
 }
+
+func TestEinoSparseSchemaDoesNotRequireUnusedFields(t *testing.T) {
+	t.Setenv("TEST_LLM_KEY", "test-credential")
+	sparse := json.RawMessage(`{"type":"object","additionalProperties":false,"required":["action","reason"],"properties":{"action":{"type":"string"},"reason":{"type":"string"},"intent":{"type":["object","null"]}}}`)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			ResponseFormat struct {
+				Type       string `json:"type"`
+				JSONSchema struct {
+					Strict *bool           `json:"strict"`
+					Schema json.RawMessage `json:"schema"`
+				} `json:"json_schema"`
+			} `json:"response_format"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		f := body.ResponseFormat
+		if f.Type != "json_schema" || f.JSONSchema.Strict == nil || *f.JSONSchema.Strict || !strings.Contains(string(f.JSONSchema.Schema), `"intent"`) {
+			t.Errorf("sparse schema changed or forced strict: %+v", f)
+		}
+		_, _ = w.Write([]byte(`{"choices":[{"index":0,"message":{"role":"assistant","content":"{\"action\":\"skip\",\"reason\":\"闲聊\"}"},"finish_reason":"stop"}]}`))
+	}))
+	defer server.Close()
+	a, err := (Config{Provider: "openai-compatible", BaseURL: server.URL, Model: "test", APIKeyEnv: "TEST_LLM_KEY", OutputMode: "json_schema", ContextTokens: 8192}).New(time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := testRequest()
+	request.Format = sparse
+	out, err := a.Call(context.Background(), request)
+	if err != nil || out.Content != `{"action":"skip","reason":"闲聊"}` {
+		t.Fatalf("sparse schema call failed: %+v %v", out, err)
+	}
+}

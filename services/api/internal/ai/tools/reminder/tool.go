@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
@@ -32,7 +31,7 @@ func New(service API, operation func(tools.Scope) (reminder.Operation, error)) *
 	t.Typed = tools.NewTyped(tools.Metadata{
 		Name:        "set_reminder",
 		Description: description,
-		Version:     "reminder-v5-source-feedback",
+		Version:     "reminder-v6-recipient-time-evidence",
 		Kind:        "main",
 		Terminal:    true,
 		Idempotent:  true,
@@ -48,6 +47,9 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 	if scope.Context.Request == nil || t.Operation == nil {
 		return Output{}, ai.ErrInvalidDecision
 	}
+	if targetsAnotherRecipient(scope.Context) {
+		return Output{Result: reminder.Result{Status: "unsupported", Reason: "recipient_not_supported", MissingFields: []string{}}, SourceMessageIDs: []string{scope.Context.Request.MessageID}}, nil
+	}
 	sources, err := reminderSources(scope.Context, args.SourceMessageIDs)
 	if err != nil {
 		return Output{}, err
@@ -61,8 +63,13 @@ func (t *Tool) Execute(ctx context.Context, scope tools.Scope, args Arguments) (
 	switch args.Action {
 	case "save":
 		draft := scope.Context.ReminderDraft
+		if args.Time == "" {
+			if err := checkMissingTime(scope.Context, sources); err != nil {
+				return Output{}, err
+			}
+		}
 		if args.Time != "" && !hasExplicitTime(scope.Context, args.Time, sources...) {
-			return Output{}, tools.InvalidArguments("time_evidence_missing", "time 缺少明确的原文依据。请在 sourceMessageIds 引用相关时间原文；用户确实未提供时刻时，time 应传空字符串。")
+			return Output{}, tools.InvalidArguments("time_evidence_missing", "time 必须与所引用真人原文的具体时刻一致；不能把15:30改成15:00，或自行提前/推迟。请引用同一用户相关安排的原文，按原时刻修正；只有用户明确要求提前/推迟时才能调整。没有明确时刻时传空字符串。")
 		}
 		if args.ReminderID == "" && draft != nil {
 			args.ReminderID = draft.ID
@@ -114,6 +121,9 @@ func reply(result reminder.Result) string {
 	}
 	switch result.Status {
 	case "unsupported":
+		if result.Reason == "recipient_not_supported" {
+			return "目前只能为你本人设置提醒，不能替另一位成员设置。请对方本人发起提醒请求。"
+		}
 		return "目前支持一次设置一条一次性提醒。请告诉我一件要提醒的事，以及具体日期和时间。"
 	case "cancelled":
 		return "已取消这次提醒设置。"
@@ -155,29 +165,6 @@ func (t *Tool) Inject(ctx context.Context, request aicontext.ContextRequest) (ai
 		input.ReminderDraft = &ai.ReminderDraft{ID: draft.ID, Version: draft.Version, Title: draft.Title, Date: draft.Date, Time: draft.Time}
 	}
 	return input, err
-}
-
-// A model may resolve an explicit time, but cannot invent a default clock time.
-// Prior draft times have already passed this check on the original message.
-var clockExpression = regexp.MustCompile(`([0-9零〇一二两三四五六七八九十百]+\s*(点|时|[:：][0-9]{2})|([0-9零〇一二两三四五六七八九十百]+|半)\s*(分钟|小时|秒钟|秒)\s*(后|以后)|正午|午夜|零点)`)
-
-func hasExplicitTime(input ai.Context, clock string, sources ...string) bool {
-	if input.ReminderDraft != nil && input.ReminderDraft.Time == clock {
-		return true
-	}
-	if input.Request == nil {
-		return false
-	}
-	selected := map[string]bool{input.Request.MessageID: true}
-	for _, id := range sources {
-		selected[id] = true
-	}
-	for _, m := range input.Messages {
-		if selected[m.ID] && m.SenderID == input.ActorID && m.GroupID == input.GroupID && !m.SentAt.After(input.Request.SentAt) && clockExpression.MatchString(m.Text) {
-			return true
-		}
-	}
-	return false
 }
 
 // A historical clock is eligible only when the model cites its original message.

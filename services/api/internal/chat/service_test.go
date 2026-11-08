@@ -1,9 +1,8 @@
 package chat
 
 import (
-	"context"
-	"errors"
-	"github.com/google/uuid"
+	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -25,10 +24,20 @@ func TestMentionAndQuestionParsing(t *testing.T) {
 	}
 }
 
-func TestRetiredExtractModeRejectedBeforeStore(t *testing.T) {
-	service := NewService(nil, true)
-	_, err := service.Send(context.Background(), uuid.NewString(), uuid.NewString(), SendInput{Content: "@AI 提取待办", ClientID: uuid.NewString(), AgentKind: "extract"})
-	if !errors.Is(err, ErrInvalid) {
-		t.Fatal("retired mode accepted", err)
+func TestChatAPIOmitsAgentKind(t *testing.T) {
+	for _, value := range []any{Message{AgentKind: "main"}, Run{Kind: "main"}} {
+		data, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(data), "agentKind") {
+			t.Fatalf("internal kind exposed: %s", data)
+		}
+	}
+	var input SendInput
+	decoder := json.NewDecoder(strings.NewReader(`{"content":"hello","agentKind":"qa"}`))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err == nil {
+		t.Fatal("removed agentKind request field accepted")
 	}
 }

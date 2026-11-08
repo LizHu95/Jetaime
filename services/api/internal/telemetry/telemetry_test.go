@@ -53,6 +53,9 @@ func TestOTLPHTTPExportAndDurableParent(t *testing.T) {
 	t.Setenv("OTEL_SDK_DISABLED", "false")
 	t.Setenv("JETAIME_PHOENIX_TRACES_ENDPOINT", server.URL+"/v1/traces")
 	t.Setenv("PHOENIX_API_KEY", "test-key")
+	t.Setenv("JETAIME_DEPLOY_BRANCH", "feat/debug")
+	t.Setenv("JETAIME_DEPLOY_COMMIT", "abcdef0123456789")
+	t.Setenv("JETAIME_DEPLOY_DIRTY", "true")
 	t.Setenv("OTEL_TRACES_SAMPLER", "always_on")
 	shutdown, err := Init(context.Background())
 	if err != nil {
@@ -84,6 +87,15 @@ func TestOTLPHTTPExportAndDurableParent(t *testing.T) {
 	var names []string
 	for _, res := range data.ResourceSpans {
 		project := false
+		deployment := map[string]string{}
+		for _, attr := range res.Resource.Attributes {
+			deployment[attr.Key] = attr.Value.GetStringValue()
+		}
+		for key, want := range map[string]string{"deployment.branch": "feat/debug", "deployment.commit": "abcdef0123456789", "service.version": "abcdef0123456789", "deployment.dirty": "true"} {
+			if deployment[key] != want {
+				t.Errorf("%s = %q, want %q", key, deployment[key], want)
+			}
+		}
 		for _, attr := range res.Resource.Attributes {
 			if attr.Key == "service.name" && attr.Value.GetStringValue() == "jetaime-api" {
 				project = true

@@ -110,7 +110,7 @@ func TestPostgresAPIStartsMemoryAutomatically(t *testing.T) {
 	}))
 	defer server.Close()
 	memoryConfig := memory.Config{Embedding: memory.EmbeddingConfig{BaseURL: server.URL + "/v1", Model: "embed-test", Revision: "v1", APIKeyEnv: "MEMORY_STARTUP_TEST_KEY", Dimension: 3, MaxInputBytes: 24576}, Extraction: llm.Config{Provider: "openai-compatible", BaseURL: server.URL + "/v1", Model: "extract-test", APIKeyEnv: "MEMORY_STARTUP_TEST_KEY", OutputMode: "json_object", ContextTokens: 32768}}
-	cfg := config.Config{EnableAccountAPI: true, EnableChatAI: false, DatabaseURL: u.String(), Memory: memoryConfig}
+	cfg := config.Config{EnableChatAI: false, DatabaseURL: u.String(), Memory: memoryConfig}
 	modules, err := buildModules(ctx, cfg)
 	if err != nil {
 		t.Fatal(err)

@@ -69,7 +69,7 @@ func TestPostgresMainQAToolRecallsIndexedHistoryWithOriginalFence(t *testing.T) 
 		t.Fatal(err)
 	}
 	index() // Even indexed post-question facts must not enter a delayed/retried run.
-	f.qaContext = qa.HistoryContext(mem, mem.Store)
+	f.qaContext = qa.HistoryContext(mem, f.service)
 	calls := 0
 	model := testModel{func(_ context.Context, r llm.Request) (llm.Result, error) {
 		calls++

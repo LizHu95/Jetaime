@@ -11,6 +11,7 @@ var ErrContextLimit = errors.New("model context exceeds capacity")
 // model tokenizer. Include the separately supplied schema and framing as well
 // as every message, even when the schema is also present in the system prompt.
 func InputTokenUpperBound(in Request) int {
+	in, _ = compactRequest(in)
 	bound := len(in.Format) + 512
 	for _, message := range in.Messages {
 		bound += len(message.Role) + len(message.Content) + 32

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
@@ -20,9 +21,11 @@ import (
 )
 
 type Adapter struct {
-	config  Config
-	timeout time.Duration
-	key     string
+	config     Config
+	timeout    time.Duration
+	key        string
+	candidates []*Adapter
+	active     atomic.Uint64
 }
 
 var _ ChatModel = (*Adapter)(nil)
@@ -95,7 +98,22 @@ func (t *captureTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr error) {
+func (a *Adapter) Call(ctx context.Context, in Request) (Result, error) {
+	in, originals := compactRequest(in)
+	var out Result
+	var err error
+	if len(a.candidates) > 0 {
+		out, err = a.callWithFallback(ctx, in)
+	} else {
+		out, err = a.callOnce(ctx, in)
+	}
+	if err == nil {
+		out.Content = restoreReferences(out.Content, originals)
+	}
+	return out, err
+}
+
+func (a *Adapter) callOnce(ctx context.Context, in Request) (out Result, callErr error) {
 	ctx, span := telemetry.Start(ctx, "llm.call", "LLM", attribute.String("llm.model_name", a.config.Model), attribute.String("llm.provider", a.config.Provider))
 	if span.IsRecording() && strings.EqualFold(os.Getenv("JETAIME_TRACE_CAPTURE_CONTENT"), "true") {
 		messages, err := json.Marshal(in.Messages)
@@ -156,7 +174,7 @@ func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr err
 	if a.config.Provider == "openai-compatible" {
 		extra := map[string]any{}
 		if a.config.OutputMode == "json_schema" {
-			extra["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "workflow_output", "strict": true, "schema": in.Format}}
+			extra["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "workflow_output", "strict": requiresAllOutputFields(in.Format), "schema": in.Format}}
 		}
 		if a.config.EnableThinking != nil {
 			extra["enable_thinking"] = *a.config.EnableThinking
@@ -214,4 +232,27 @@ func (a *Adapter) Call(ctx context.Context, in Request) (out Result, callErr err
 		return out, fmt.Errorf("model output is empty")
 	}
 	return out, nil
+}
+
+// Sparse decision objects deliberately omit unused fields. Use non-strict
+// schema guidance for these requests; provider strict schemas require all
+// properties, and domain/schema validation still runs after inference.
+func requiresAllOutputFields(raw json.RawMessage) bool {
+	var shape struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	if json.Unmarshal(raw, &shape) != nil {
+		return false
+	}
+	required := make(map[string]bool, len(shape.Required))
+	for _, key := range shape.Required {
+		required[key] = true
+	}
+	for key := range shape.Properties {
+		if !required[key] {
+			return false
+		}
+	}
+	return true
 }

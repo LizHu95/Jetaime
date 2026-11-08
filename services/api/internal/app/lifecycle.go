@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -28,7 +27,8 @@ func openDatabase(ctx context.Context, url string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-func migrateDatabase(ctx context.Context, url string) error {
+// MigrateDatabase applies schema migrations and closes the connection.
+func MigrateDatabase(ctx context.Context, url string) error {
 	startup, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	pool, err := database.Open(startup, url)
@@ -43,14 +43,6 @@ func migrateDatabase(ctx context.Context, url string) error {
 	return nil
 }
 
-func flushTracing(shutdown func(context.Context) error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := shutdown(ctx); err != nil {
-		log.Print("trace shutdown failed")
-	}
-}
-
 func serveHTTP(ctx context.Context, cfg config.Config, handler http.Handler) error {
 	listener, err := net.Listen("tcp", cfg.Address)
 	if err != nil {
@@ -59,9 +51,6 @@ func serveHTTP(ctx context.Context, cfg config.Config, handler http.Handler) err
 	server := &http.Server{Handler: handler, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, BaseContext: func(net.Listener) context.Context { return ctx }}
 	defer func() { _ = server.Close() }()
 	fmt.Printf("HTTP API: http://%s\n", listener.Addr())
-	if cfg.DebugConsole.Enabled {
-		fmt.Printf("Debug console: http://%s/page/assistant/\n", listener.Addr())
-	}
 	serveError := make(chan error, 1)
 	go func() { serveError <- server.Serve(listener) }()
 	select {

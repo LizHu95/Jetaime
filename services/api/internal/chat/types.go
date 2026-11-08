@@ -19,7 +19,7 @@ var (
 )
 
 type Message struct {
-	AgentKind   string     `json:"agentKind"`
+	AgentKind   string     `json:"-"`
 	AgentResult *ai.Result `json:"agentResult,omitempty"`
 	ID          string     `json:"id"`
 	GroupID     string     `json:"groupId"`
@@ -34,10 +34,10 @@ type Message struct {
 	CreatedAt   time.Time  `json:"createdAt"`
 }
 type SendInput struct {
-	AgentKind  string `json:"agentKind,omitempty"`
-	Content    string `json:"content"`
-	ClientID   string `json:"clientMessageId"`
-	MentionsAI bool   `json:"mentionsAI"`
+	ClientContext *ClientContext `json:"clientContext,omitempty"`
+	Content       string         `json:"content"`
+	ClientID      string         `json:"clientMessageId"`
+	MentionsAI    bool           `json:"mentionsAI"`
 }
 type State struct {
 	ProactiveEnabled bool        `json:"proactiveEnabled"`

@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
 	aicontext "github.com/LizHu95/Jetaime/services/api/internal/ai/context"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
@@ -143,7 +143,8 @@ func setup(t *testing.T) fixture {
 		}
 		return llm.Result{Content: string(data)}, err
 	}}
-	f.configureAI(model, "test", 8192, time.Second)
+	// Exercise routing and persistence with room for the current prompt and schemas.
+	f.configureAI(model, "test", 16384, time.Second)
 	return f
 }
 func TestPostgresMessagesAndRead(t *testing.T) {
@@ -421,7 +422,7 @@ func TestPostgresAIInvalidOutputAndBoundaries(t *testing.T) {
 	ctx := context.Background()
 	for _, answer := range []string{`{"answer":"\u0000"}`, `{"answer":""}`, `{"answer":"ok","other":1}`, `not json`} {
 		f.model = testModel{func(context.Context, llm.Request) (llm.Result, error) { return llm.Result{Content: answer}, nil }}
-		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString(), AgentKind: "qa"})
+		_, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI test", ClientID: uuid.NewString()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -477,7 +478,7 @@ func TestPostgresRecentQAContextAndRetry(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 最近聊了什么？", ClientID: uuid.NewString(), AgentKind: "qa"})
+	trigger, err := f.service.Send(ctx, f.group, f.users[0].ID, SendInput{Content: "@AI 最近聊了什么？", ClientID: uuid.NewString()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +551,7 @@ func (f *fixture) worker(t *testing.T) *jobs.Worker {
 	if err != nil {
 		t.Fatal(err)
 	}
-	executor, err := bootstrap.New(f.model, f.modelName, max(4096, f.capacity), registry)
+	executor, err := execution.New(f.model, f.modelName, max(4096, f.capacity), registry)
 	if err != nil {
 		t.Fatal(err)
 	}

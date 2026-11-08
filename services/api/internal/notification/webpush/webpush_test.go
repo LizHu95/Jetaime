@@ -177,7 +177,7 @@ func TestPostgresOutboxAndDelivery(t *testing.T) {
 	if code := f.request(t, "POST", "/api/push/test", f.tokens[0], map[string]string{"endpoint": b.Endpoint}); code != 429 {
 		t.Fatal("cross-account test accepted")
 	}
-	input := chat.SendInput{Content: "private message", ClientID: uuid.NewString(), AgentKind: "qa"}
+	input := chat.SendInput{Content: "private message", ClientID: uuid.NewString()}
 	store := chat.NewStore(f.pool)
 	m, err := store.Send(ctx, f.group, f.users[0].ID, input, false)
 	if err != nil {

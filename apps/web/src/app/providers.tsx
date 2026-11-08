@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RealtimeProvider } from '@/features/chat/realtime-provider'
 import { AuthProvider } from '@/features/auth/auth-provider'
 import type { ReactNode } from 'react'
+import { ThemeProvider } from '@/features/settings/theme-provider'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,5 +12,5 @@ const queryClient = new QueryClient({
 })
 
 export function Providers({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={queryClient}><AuthProvider><RealtimeProvider>{children}</RealtimeProvider></AuthProvider></QueryClientProvider>
+  return <ThemeProvider><QueryClientProvider client={queryClient}><AuthProvider><RealtimeProvider>{children}</RealtimeProvider></AuthProvider></QueryClientProvider></ThemeProvider>
 }

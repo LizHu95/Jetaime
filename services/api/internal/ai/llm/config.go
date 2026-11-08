@@ -13,16 +13,17 @@ import (
 )
 
 // Config contains no credential value. Environment variables are resolved once
-// at startup and the selected profile remains fixed for this process.
+// at startup; configured fallback profiles may be selected after a call fails.
 type Config struct {
-	Provider       string `json:"provider"`
-	BaseURL        string `json:"base_url"`
-	Model          string `json:"model"`
-	APIKeyEnv      string `json:"api_key_env,omitempty"`
-	OutputMode     string `json:"output_mode,omitempty"`
-	EnableThinking *bool  `json:"enable_thinking,omitempty"`
-	ContextTokens  int    `json:"context_tokens,omitempty"`
-	Profile        string `json:"-"`
+	Provider       string   `json:"provider"`
+	BaseURL        string   `json:"base_url"`
+	Model          string   `json:"model"`
+	APIKeyEnv      string   `json:"api_key_env,omitempty"`
+	OutputMode     string   `json:"output_mode,omitempty"`
+	EnableThinking *bool    `json:"enable_thinking,omitempty"`
+	ContextTokens  int      `json:"context_tokens,omitempty"`
+	Profile        string   `json:"-"`
+	Fallbacks      []Config `json:"-"`
 }
 
 type Flags struct {
@@ -37,7 +38,7 @@ func RegisterFlags(fs *flag.FlagSet) *Flags {
 	fs.StringVar(&f.Provider, "provider", "ollama", "ollama or openai-compatible")
 	fs.StringVar(&f.BaseURL, "model-url", "", "provider base URL (defaults to OLLAMA or LLM_BASE_URL)")
 	fs.StringVar(&f.OllamaURL, "ollama-url", "http://127.0.0.1:11434", "Ollama base URL; legacy alias")
-	fs.StringVar(&f.Model, "model", "qwen3.5:9b", "model fixed at startup")
+	fs.StringVar(&f.Model, "model", "qwen3.5:9b", "primary model selected at startup")
 	fs.StringVar(&f.APIKeyEnv, "api-key-env", "DASHSCOPE_API_KEY", "environment variable containing cloud API key")
 	fs.StringVar(&f.OutputMode, "output-mode", "json_schema", "cloud structured output: json_schema or json_object")
 	fs.StringVar(&f.EnableThinking, "enable-thinking", "", "optional cloud enable_thinking: true or false")
@@ -63,8 +64,9 @@ func (f *Flags) Resolve(tokens int) (Config, error) {
 		}
 		defer func() { _ = file.Close() }()
 		var profiles struct {
-			DefaultProfile string            `json:"default_profile"`
-			Models         map[string]Config `json:"models"`
+			DefaultProfile   string            `json:"default_profile"`
+			FallbackProfiles []string          `json:"fallback_profiles,omitempty"`
+			Models           map[string]Config `json:"models"`
 		}
 		d := json.NewDecoder(io.LimitReader(file, 1<<20))
 		d.DisallowUnknownFields()
@@ -89,6 +91,25 @@ func (f *Flags) Resolve(tokens int) (Config, error) {
 		c.Profile = profile
 		if c.ContextTokens == 0 {
 			c.ContextTokens = tokens
+		}
+		seen := map[string]bool{profile: true}
+		for _, name := range profiles.FallbackProfiles {
+			if seen[name] {
+				continue
+			}
+			fallback, exists := profiles.Models[name]
+			if !exists {
+				return c, fmt.Errorf("unknown fallback model profile %q", name)
+			}
+			seen[name] = true
+			fallback.Profile = name
+			if fallback.ContextTokens == 0 {
+				fallback.ContextTokens = tokens
+			}
+			if fallback.OutputMode == "" {
+				fallback.OutputMode = "json_schema"
+			}
+			c.Fallbacks = append(c.Fallbacks, fallback)
 		}
 	} else {
 		if f.EnableThinking != "" {
@@ -134,6 +155,14 @@ func (f *Flags) directConfiguration() bool {
 }
 
 func (c Config) Validate() error {
+	for _, fallback := range c.Fallbacks {
+		if len(fallback.Fallbacks) != 0 {
+			return fmt.Errorf("nested model fallbacks are not supported")
+		}
+		if err := fallback.Validate(); err != nil {
+			return fmt.Errorf("fallback profile %q: %w", fallback.Profile, err)
+		}
+	}
 	u, err := url.Parse(c.BaseURL)
 	if err != nil || u == nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
 		return fmt.Errorf("invalid model base URL")
@@ -176,5 +205,21 @@ func (c Config) New(timeout time.Duration) (*Adapter, error) {
 			return nil, fmt.Errorf("missing API key environment variable %s", c.APIKeyEnv)
 		}
 	}
-	return &Adapter{config: c, timeout: timeout, key: key}, nil
+	adapter := &Adapter{config: c, timeout: timeout, key: key}
+	if len(c.Fallbacks) > 0 {
+		configs := append([]Config{c}, c.Fallbacks...)
+		attemptTimeout := timeout / time.Duration(len(configs))
+		if attemptTimeout <= 0 {
+			return nil, fmt.Errorf("model timeout too short for fallback candidates")
+		}
+		for _, candidate := range configs {
+			candidate.Fallbacks = nil
+			client, err := candidate.New(attemptTimeout)
+			if err != nil {
+				return nil, err
+			}
+			adapter.candidates = append(adapter.candidates, client)
+		}
+	}
+	return adapter, nil
 }

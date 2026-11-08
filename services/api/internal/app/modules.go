@@ -4,17 +4,23 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/intervention"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/mcpclient"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/memory"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/amap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/catalog"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/history"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/qa"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/recent"
 	remindertool "github.com/LizHu95/Jetaime/services/api/internal/ai/tools/reminder"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/respond"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools/silence"
@@ -22,8 +28,8 @@ import (
 	"github.com/LizHu95/Jetaime/services/api/internal/chat"
 	"github.com/LizHu95/Jetaime/services/api/internal/collaboration"
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
-	"github.com/LizHu95/Jetaime/services/api/internal/debugconsole"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
+	"github.com/LizHu95/Jetaime/services/api/internal/location"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/realtime"
 	"github.com/LizHu95/Jetaime/services/api/internal/notification/webpush"
 	"github.com/LizHu95/Jetaime/services/api/internal/reminder"
@@ -35,12 +41,15 @@ type modules struct {
 	database        *pgxpool.Pool
 	memoryService   *memory.Service
 	reminderService *reminder.Service
+	chatStore       *chat.Store
+	chatService     *chat.Service
 	background      []func(context.Context)
 	workers         sync.WaitGroup
 }
 
-// Build every dependency before starting background work. On failure, release
-// resources here; on success, Run owns shutdown.
+// buildModules 装配数据库、领域服务、AI 执行入口和 HTTP Handler，并登记后台任务。
+// 此处只完成初始化，不启动后台循环；全部装配成功后，由 startWorkers 统一启动。
+// 初始化失败时关闭已打开的数据库连接池；成功后由 Run 管理关闭流程。
 func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error) {
 	m := &modules{}
 	defer func() {
@@ -48,30 +57,35 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 			m.database.Close()
 		}
 	}()
-	if cfg.EnableAccountAPI || cfg.EnableDatabase {
-		m.database, err = openDatabase(ctx, cfg.DatabaseURL)
-		if err != nil {
-			return nil, err
-		}
+	// 领域服务共享数据库连接池，HTTP Handler 和 AI 工具复用同一套业务能力。
+	m.database, err = openDatabase(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.EnableAccountAPI {
-		m.reminderService = reminder.NewService(reminder.NewStore(m.database))
-		memoryStore := memory.NewStore(m.database, cfg.Memory)
-		memoryService, err := cfg.Memory.Build()
-		if err != nil {
-			return nil, err
-		}
-		memoryService.Store = memoryStore
-		if err = memoryStore.Initialize(ctx); err != nil {
-			return nil, err
-		}
-		m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
-		m.memoryService = memoryService
-		fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
+	m.chatStore = chat.NewStore(m.database)
+	m.chatStore.SetLocationConverter(location.AmapConverter(cfg.GaodeAPIKey))
+	m.chatService = chat.NewService(m.chatStore, cfg.EnableChatAI)
+	m.background = append(m.background, m.chatStore.CleanLocations)
+	m.reminderService = reminder.NewService(reminder.NewStore(m.database))
+
+	// 初始化记忆存储与模型配置，登记记忆提取和向量化任务。
+	memoryStore := memory.NewStore(m.database, cfg.Memory)
+	memoryService, err := cfg.Memory.Build()
+	if err != nil {
+		return nil, err
 	}
+	memoryService.Store = memoryStore
+	if err = memoryStore.Initialize(ctx); err != nil {
+		return nil, err
+	}
+	m.background = append(m.background, memoryService.Work, memoryService.WorkEmbeddings)
+	m.memoryService = memoryService
+	fmt.Printf("Memory: extraction=%s, embedding=%s (%d dimensions)\n", cfg.Memory.Extraction.Model, cfg.Memory.Embedding.Model, cfg.Memory.Embedding.Dimension)
+
+	// 聊天 AI 开启时构建模型和统一执行入口，供主动、被动回复共用。
 	var model llm.ChatModel
-	var executor *ai.Service
-	if cfg.EnableChatAI || cfg.DebugConsole.Enabled {
+	var executor *execution.Service
+	if cfg.EnableChatAI {
 		var modelErr error
 		model, modelErr = cfg.Model.New(cfg.ModelTimeout)
 		if modelErr != nil {
@@ -80,101 +94,69 @@ func buildModules(ctx context.Context, cfg config.Config) (_ *modules, err error
 		fmt.Printf("Model: %s (%s), profile: %s\n", cfg.Model.Model, cfg.Model.Provider, cfg.Model.Profile)
 	}
 	if cfg.EnableChatAI {
-		if m.reminderService == nil {
-			return nil, fmt.Errorf("chat AI requires account services")
-		}
-		var provider qa.ContextProvider
-		if m.memoryService != nil {
-			provider = qa.HistoryContext(m.memoryService, m.memoryService.Store)
-		}
-		// Complete production chat capability list, including its domain dependencies.
-		registry, e := tools.New(
+		provider := qa.HistoryContext(m.memoryService, m.chatService)
+		interventionEvidence := intervention.NewHistoryEvidenceProvider(m.memoryService, m.chatService)
+		// 显式列出生产环境的 AI 工具，并注入其依赖的领域服务。
+		entries := []tools.Tool{
 			respond.New(),
 			silence.New(),
 			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, provider),
-			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, chat.NewService(chat.NewStore(m.database), true)),
-			remindertool.New(m.reminderService, chat.ReminderOperation),
-		)
+			recent.New(m.chatService),
+			history.New(model, cfg.Model.Model, cfg.Model.ContextTokens, m.chatService),
+			remindertool.New(m.reminderService, reminderOperation),
+		}
+		if key := strings.TrimSpace(cfg.GaodeAPIKey); key != "" {
+			// 高德工具按密钥配置启用，调用前通过聊天领域服务校验权限。
+			endpoint := "https://mcp.amap.com/mcp?" + url.Values{"key": {key}}.Encode()
+			client := mcpclient.New(endpoint)
+			guard := func(ctx context.Context, scope tools.Scope) error {
+				return m.chatService.AuthorizeExternalTool(ctx, chatExecutionScope(scope))
+			}
+			entries = append(entries, amap.New(client, guard, location.AmapRegionResolver(key))...)
+		}
+		registry, e := catalog.New(entries...)
 		if e != nil {
 			return nil, e
 		}
-		executor, err = bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
+		executor, err = execution.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry, interventionEvidence)
 		if err != nil {
 			return nil, err
 		}
 	}
-	if cfg.EnableAccountAPI {
-		if err = m.addAccountModules(ctx, cfg, executor); err != nil {
-			return nil, err
-		}
-	}
-	if cfg.DebugConsole.Enabled {
-		// The local console has no production write capabilities or database history.
-		registry, e := tools.New(
-			respond.New(),
-			silence.New(),
-			qa.New(model, cfg.Model.Model, cfg.Model.ContextTokens, nil),
-		)
-		if e != nil {
-			return nil, e
-		}
-		debugExecutor, e := bootstrap.New(model, cfg.Model.Model, cfg.Model.ContextTokens, registry)
-		if e != nil {
-			return nil, e
-		}
-		m.handlers.Assistant, err = buildDebugConsole(cfg, debugExecutor)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return m, nil
-}
 
-func (m *modules) addAccountModules(ctx context.Context, cfg config.Config, executor *ai.Service) error {
+	// 共享认证服务装配各业务 Handler；实时通知同时依赖聊天权限与账号认证。
 	accounts, err := auth.NewService(auth.NewPostgresStore(m.database))
 	if err != nil {
-		return fmt.Errorf("initialize authentication: %w", err)
+		return nil, fmt.Errorf("initialize authentication: %w", err)
 	}
 	authentication := auth.NewHandler(accounts)
 	pushConfig, err := webpush.FromEnv()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	chatStore := chat.NewStore(m.database)
-	chatService := chat.NewService(chatStore, cfg.EnableChatAI)
+	chatStore, chatService := m.chatStore, m.chatService
 	events := realtime.New(ctx, chatStore, accounts)
 	m.handlers.Auth = authentication
 	m.handlers.Collaboration = collaboration.NewHandler(collaboration.NewService(collaboration.NewPostgresStore(m.database)), authentication)
 	m.handlers.Chat = chat.NewHandler(chatService, authentication, events)
 	reminders := m.reminderService
 	m.handlers.Reminders = reminder.NewHandler(reminders, authentication)
-	m.background = append(m.background, reminder.NewWorker(reminders).Work)
 	m.handlers.Push = webpush.NewHandler(m.database, authentication, pushConfig)
 
-	m.background = append(m.background, events.Listen)
+	// 登记提醒调度、数据库事件监听及按配置启用的 Web Push 任务。
+	// 与前面登记的清理、记忆任务一样，这里不会立即启动循环。
+	m.background = append(m.background, reminder.NewWorker(reminders).Work, events.Listen)
 	if pushConfig.Enabled {
 		m.background = append(m.background, webpush.NewWorker(m.database, pushConfig).Work)
 	}
 	if cfg.EnableChatAI {
-		inject := remindertool.New(reminders, chat.ReminderOperation).Inject
+		inject := remindertool.New(reminders, reminderOperation).Inject
 		worker := jobs.New(chatStore, executor, cfg.Model.ContextTokens, cfg.ModelTimeout, inject)
+		// 同一 Worker 启动两个消费循环，允许不同群并发处理；Claim 保证同群串行。
 		m.background = append(m.background, worker.Work, worker.Work)
 	}
-	return nil
-}
-
-func buildDebugConsole(cfg config.Config, executor ai.Executor) (*debugconsole.Server, error) {
-	console := cfg.DebugConsole
-	store, err := debugconsole.OpenStore(console.HistoryFile, console.StateFile)
-	if err != nil {
-		return nil, err
-	}
-	workflow, err := debugconsole.NewWorkflow(store, executor, cfg.Model.Model, console.RunLogFile, cfg.Model.ContextTokens)
-	if err != nil {
-		return nil, err
-	}
-	return debugconsole.NewServer(workflow), nil
+	return m, nil
 }
 
 func (m *modules) startWorkers(ctx context.Context) {

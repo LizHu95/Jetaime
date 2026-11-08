@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/LizHu95/Jetaime/services/api/internal/ai"
-	"github.com/LizHu95/Jetaime/services/api/internal/ai/bootstrap"
+	"github.com/LizHu95/Jetaime/services/api/internal/ai/execution"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/jobs"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/llm"
 	"github.com/LizHu95/Jetaime/services/api/internal/ai/tools"
@@ -83,13 +83,14 @@ func TestPostgresProactiveDebounceWindowAndSilence(t *testing.T) {
 			t.Fatal("speaker attribution missing")
 		}
 	}
-	f.capacity = 16384
+	// The full thirty-message recognition request also includes its schema.
+	f.capacity = 32768
 	f.model = testModel{func(_ context.Context, req llm.Request) (llm.Result, error) {
 		var in ai.RecognitionInput
 		if err := json.Unmarshal([]byte(req.Messages[1].Content), &in); err != nil || len(in.Messages) != 30 || in.CurrentMessageID != last.ID {
 			t.Fatal("recognition window changed", err)
 		}
-		return llm.Result{Content: `{"shouldIntervene":false,"reason":"讨论正常推进","breakdowns":[],"intent":null}`}, nil
+		return llm.Result{Content: `{"topicContext":null,"action":"skip","verification":null,"reason":"讨论正常推进","breakdowns":[],"intent":null}`}, nil
 	}}
 	f.worker(t).Execute(ctx, run)
 	runs, err := f.store.Runs(ctx, f.group, f.users[0].ID)
@@ -206,7 +207,7 @@ func TestPostgresProactiveReplyAndConcurrentActivity(t *testing.T) {
 							t.Fatal(err)
 						}
 					}
-					decision := ai.Recognition{ShouldIntervene: true, Reason: "约束需要确认", Breakdowns: []ai.Breakdown{{Type: "forgotten_constraint", EvidenceMessageIDs: []string{trigger.ID}}}, Intent: &ai.InterventionIntent{Type: "clarify", Objective: "确认是否调整预算", EvidenceMessageIDs: []string{trigger.ID}}}
+					decision := ai.InterventionCandidate{TopicContext: &ai.TopicContext{Topic: "本次预算", Continuity: "continuation", MessageIDs: []string{trigger.ID}, AnchorMessageIDs: []string{trigger.ID}}, Action: "intervene", Reason: "约束需要确认", Breakdowns: []ai.Breakdown{{Type: "uncertainty", EvidenceMessageIDs: []string{trigger.ID}}}, Intent: &ai.InterventionIntent{Type: "clarify", Objective: "确认是否调整预算", EvidenceMessageIDs: []string{trigger.ID}}}
 					body, _ := json.Marshal(decision)
 					return llm.Result{Content: string(body)}, nil
 				}
@@ -217,7 +218,7 @@ func TestPostgresProactiveReplyAndConcurrentActivity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			executor, err := bootstrap.New(model, "test", 16384, registry)
+			executor, err := execution.New(model, "test", 16384, registry)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -10,3 +10,7 @@
 - 认证与本机访问限制在路由表中显式包装。登录身份只由认证中间件写入私有 Context key，不信任请求体中的用户身份。WebSocket 保留实时传输层自己的握手鉴权。
 - Handler 处理 HTTP 参数、状态码与响应，业务入口经过 Service，不直接访问 `service.store`。领域错误映射留在对应 Handler；账号和业务 API 使用 `httpapi.WriteJSON` 输出 JSON，保留既有错误码和请求大小限制。
 - 移动包时同步更新 import、测试、Makefile、脚本和现行文档。不得重写 `local/`、`outputs/` 中的历史快照或私有数据。重构保持既有 URL、请求/响应字段与权限行为。
+
+- `ai/execution` 是 main 的统一装配与执行入口，负责执行身份、Trace 和主动/被动入口编排；不再单独设立 bootstrap、runtime 转接包。`ai` 根包只维护协议和公共数据类型。
+- 聊天原文的近期读取和来源/相邻消息回查由 `chat.Service` 提供，`chat/history` 保存消费者可依赖的原文读取契约；`ai/memory` 维护提取、索引、召回及其事务进度。业务授权只接收 `chat.ExecutionScope`，由 app 适配 AI 工具协议。
+- `ai/context` 只依赖公共 AI 协议与预算基础设施，不依赖具体 Agent 提示词；完整提示词和工具 Schema 的预算由执行 Agent 在每次模型调用前检查。

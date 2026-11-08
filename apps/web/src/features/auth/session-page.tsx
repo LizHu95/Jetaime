@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { Bell, ChevronRight, KeyRound, LoaderCircle, LogOut } from 'lucide-react'
+import { Bell, Bug, ChevronRight, KeyRound, LoaderCircle, LogOut, Palette } from 'lucide-react'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { errorMessage } from '@/lib/api'
 import { useAuth } from './auth-provider'
@@ -28,6 +28,10 @@ export function SessionPage() {
       <div className="profile-avatar" role="img" aria-label={`${nickname}的头像`}>{Array.from(nickname)[0]}</div>
       <div><h2>{nickname}</h2><p>账号：{session.user.username}</p></div>
     </section>
+    <section className="account-management" aria-labelledby="settingsTitle">
+      <h2 id="settingsTitle">偏好设置</h2>
+      <div className="settings-list"><Link className="settings-row" to="/me/settings/"><Palette size={20} /><span>主题设置</span><ChevronRight size={18} /></Link></div>
+    </section>
     <section className="account-management" aria-labelledby="accountTitle">
       <h2 id="accountTitle">账号管理</h2>
       <div className="settings-list">
@@ -41,6 +45,10 @@ export function SessionPage() {
     <section className="account-management" aria-labelledby="notificationTitle">
       <h2 id="notificationTitle">消息通知</h2>
       <div className="settings-list"><Link className="settings-row" to="/notifications/"><Bell size={20} /><span>消息通知设置</span><ChevronRight size={18} /></Link></div>
+    </section>
+    <section className="account-management" aria-labelledby="developerTitle">
+      <h2 id="developerTitle">开发</h2>
+      <div className="settings-list"><Link className="settings-row" to="/me/debug/"><Bug size={20} /><span>开发调试</span><ChevronRight size={18} /></Link></div>
     </section>
     {error && <Alert className="feedback feedback-error" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
   </main>

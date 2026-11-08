@@ -6,7 +6,7 @@ export function MainLayout() {
   const { pathname } = useLocation()
   const inConversation = !!useMatch('/chat/:groupId/*')
   const root = useKeyboardViewport()
-  const inAccount = pathname === '/me/' || pathname.startsWith('/auth/') || pathname.startsWith('/notifications/')
+  const inAccount = pathname.startsWith('/me/') || pathname.startsWith('/auth/') || pathname.startsWith('/notifications/')
   return <div className={`main-app${inConversation ? ' without-tabs' : ''}`} ref={root}>
     <div className="main-content"><Outlet /></div>
     {!inConversation && <nav className="bottom-tabs" aria-label="主导航">

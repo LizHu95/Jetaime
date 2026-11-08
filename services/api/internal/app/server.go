@@ -6,27 +6,13 @@ import (
 
 	"github.com/LizHu95/Jetaime/services/api/internal/config"
 	"github.com/LizHu95/Jetaime/services/api/internal/httpapi"
-	"github.com/LizHu95/Jetaime/services/api/internal/telemetry"
 )
 
-// Run starts tracing, assembles enabled modules, then serves HTTP until cancellation.
-// Configuration parsing lives in config; endpoint bindings live in httpapi/router.go.
+// Run assembles the HTTP service and its workers, then serves until cancellation.
+// Command dispatch and tracing lifetime belong to cmd/api.
 func Run(ctx context.Context, cfg config.Config) error {
 	ctx, stop := context.WithCancel(ctx)
 	defer stop()
-
-	shutdownTracing, err := telemetry.Init(ctx)
-	if err != nil {
-		return err
-	}
-	defer flushTracing(shutdownTracing)
-
-	if cfg.MigrateOnly {
-		return migrateDatabase(ctx, cfg.DatabaseURL)
-	}
-	if cfg.MemoryBackfill {
-		return backfillMemory(ctx, cfg)
-	}
 
 	modules, err := buildModules(ctx, cfg)
 	if err != nil {
@@ -37,6 +23,7 @@ func Run(ctx context.Context, cfg config.Config) error {
 		modules.close()
 	}()
 
+	modules.handlers.Deployment = httpapi.Deployment{Branch: cfg.DeployBranch, Commit: cfg.DeployCommit, Dirty: cfg.DeployDirty}
 	modules.startWorkers(ctx)
 	return serveHTTP(ctx, cfg, httpapi.NewRouter(modules.handlers))
 }

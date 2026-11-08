@@ -4,7 +4,7 @@
 
 - 页面统一使用 `/page/` 前缀。
 - HTTP 接口统一使用 `/api/` 前缀。
-- 前缀之后按业务域组织，例如 `/page/assistant/`、`/api/assistant/...`、`/api/feishu/...`。
+- 前缀之后按业务域组织，例如 `/page/chat/`、`/api/chat/...`。
 - 所有 HTTP 方法与路径集中在 `internal/httpapi/router.go` 的 `NewRouter(Handlers)` 注册；业务模块通过 `Endpoints()` 提供处理器，不自行注册路由。
 - `internal/app/modules.go` 负责构建并注入启用的端点组；未注入的组不挂载。认证、群 ID 校验、本机与同源限制由端点组封装，不得因集中注册而丢失。
 - Router 只依赖 HTTP 端点契约，不依赖业务 service/store；不添加默认首页跳转或预先占位接口。
@@ -20,7 +20,6 @@
 
 - `make dev` 默认启用 Auth、群聊 AI 和健康检查，需要有效模型配置，加载 `local/.env` 并连接 PostgreSQL；`API_ARGS` 用于追加或覆盖参数，例如 `-addr`、`-auth=false`。
 - API 二进制默认启用认证及其 PostgreSQL 业务模块，必须配置数据库并应用迁移；仅需健康检查时显式传 `-auth=false`。
-- 本地调试台通过 `-debug-console` 显式启用（兼容旧 `-assistant`），与正式群聊主 Agent 独立，只在启用时校验自身配置；`make assistant` 显式关闭认证，保留独立的本地 JSON 调试流程。
 
 - Auth 模块默认启用，自动连接 PostgreSQL；认证业务在 `internal/auth` 按 handler、service、store 拆分职责，通过 HTTP 端点契约注入 Router。
 

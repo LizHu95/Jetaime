@@ -6,12 +6,12 @@ import "net/http"
 // Interfaces keep the route table independent of domain implementations;
 // each method is a named HTTP handler, not an endpoint field mapping.
 type Handlers struct {
+	Deployment    Deployment
 	Auth          AuthHandler
 	Collaboration CollaborationHandler
 	Chat          ChatHandler
 	Reminders     ReminderHandler
 	Push          PushHandler
-	Assistant     AssistantHandler
 }
 
 // Authenticated supplies the session middleware used explicitly in the route table.
@@ -58,23 +58,22 @@ type PushHandler interface {
 	SendTest(http.ResponseWriter, *http.Request)
 }
 
-type AssistantHandler interface {
-	LocalOnly(http.Handler) http.Handler
-	GetCatalog(http.ResponseWriter, *http.Request)
-	GetState(http.ResponseWriter, *http.Request)
-	Run(http.ResponseWriter, *http.Request)
-	SendMessage(http.ResponseWriter, *http.Request)
-	Reload(http.ResponseWriter, *http.Request)
-	Dismiss(http.ResponseWriter, *http.Request)
-	Confirm(http.ResponseWriter, *http.Request)
-	Complete(http.ResponseWriter, *http.Request)
-	Page(http.ResponseWriter, *http.Request)
-}
-
 type ReminderHandler interface {
 	Authenticated
 	CreateReminder(http.ResponseWriter, *http.Request)
 	UpdateReminder(http.ResponseWriter, *http.Request)
 	ListReminders(http.ResponseWriter, *http.Request)
 	CancelReminder(http.ResponseWriter, *http.Request)
+}
+
+// Deployment contains only public source metadata, never runtime credentials.
+type Deployment struct {
+	Branch string `json:"branch"`
+	Commit string `json:"commit"`
+	Dirty  string `json:"dirty"`
+}
+
+func (d Deployment) GetDeployment(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	WriteJSON(w, http.StatusOK, d)
 }

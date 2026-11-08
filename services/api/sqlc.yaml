@@ -1,0 +1,26 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema:
+      - migrations/000001_chat_schema.up.sql
+      - migrations/000002_case_sensitive_usernames.up.sql
+      - migrations/000003_chat_agent_results.up.sql
+      - migrations/000004_web_push.up.sql
+      - migrations/000005_agent_trace_context.up.sql
+      - migrations/000006_agent_routing.up.sql
+      - migrations/000007_main_agent.up.sql
+      - migrations/000008_memory.up.sql
+      - migrations/000009_reminders.up.sql
+      - migrations/000010_reminder_domain.up.sql
+      - migrations/000011_agent_run_trace_id.up.sql
+      - migrations/000012_history_time_range.up.sql
+      - migrations/000013_proactive_agent.up.sql
+      - migrations/000014_client_location.up.sql
+      - migrations/000015_intervention_policy.up.sql
+    queries: internal/ai/memory/queries
+    gen:
+      go:
+        package: memorydb
+        out: internal/ai/memory/memorydb
+        sql_package: pgx/v5
+        omit_unused_structs: true
