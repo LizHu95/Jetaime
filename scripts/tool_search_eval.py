@@ -22,7 +22,7 @@ SCORES = ('execution_success', 'map_fixtures_complete', 'required_tools',
           'forbidden_tools', 'answer_terms', 'required_sources',
           'reminder_operations', 'reminder_arguments', 'reminder_result')
 METRICS = ('promptTokens', 'completionTokens', 'durationMs', 'searchCalls',
-           'firstInputByteEstimate', 'cumulativeInputByteEstimate', 'totalTokens', 'modelCallCount')
+           'firstInputTokens', 'cumulativeInputTokens', 'totalTokens', 'modelCallCount')
 
 
 def digest(path):
@@ -274,7 +274,7 @@ def summarize(outdir):
             lines.append(f'| {category} | {variant} | {values["actualRuns"]} / {values["expectedRuns"]} | '
                          f'{len(values["failures"])} | {tokens["sum"]} ({tokens["available"]}/{values["actualRuns"]}) | '
                          f'{metrics["durationMs"]["p50"]} | {metrics["searchCalls"]["mean"]} | '
-                         f'{metrics["cumulativeInputByteEstimate"]["mean"]} |')
+                         f'{metrics["cumulativeInputTokens"]["mean"]} |')
     lines += ['', 'Missing token usage is unavailable, never zero. Incomplete runs cannot support a winner.',
               'Per-category scores, metrics, failures and report paths are in summary.json.', '',
               '## Manual review', '',

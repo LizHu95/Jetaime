@@ -66,7 +66,11 @@ func TestMainRequestLoadsOnlyTheSelectedCommunicationSkill(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(base.Messages[0].Content, "Skill ID:") || llm.InputTokenUpperBound(req) <= llm.InputTokenUpperBound(base)+len(body) {
+		bodyTokens, err := llm.CountQwenTokens(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(base.Messages[0].Content, "Skill ID:") || llm.InputTokenUpperBound(req) <= llm.InputTokenUpperBound(base)+bodyTokens {
 			t.Fatal("strategy missing from full request budget")
 		}
 	}

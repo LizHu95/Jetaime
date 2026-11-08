@@ -76,22 +76,22 @@ type ExpectedReminder struct {
 	UserID           string   `json:"userId,omitempty"`
 }
 type ModelCall struct {
-	Model             string `json:"model"`
-	InputByteEstimate int    `json:"inputByteEstimate"`
-	PromptTokens      *int   `json:"promptTokens"`
-	CompletionTokens  *int   `json:"completionTokens"`
-	DurationMS        int64  `json:"durationMs"`
-	Error             bool   `json:"error"`
+	Model            string `json:"model"`
+	InputTokens      int    `json:"inputTokens"`
+	PromptTokens     *int   `json:"promptTokens"`
+	CompletionTokens *int   `json:"completionTokens"`
+	DurationMS       int64  `json:"durationMs"`
+	Error            bool   `json:"error"`
 }
 type Metrics struct {
-	ModelCalls                  []ModelCall `json:"modelCalls"`
-	FirstInputByteEstimate      int         `json:"firstInputByteEstimate"`
-	CumulativeInputByteEstimate int         `json:"cumulativeInputByteEstimate"`
-	PromptTokens                *int        `json:"promptTokens"`
-	CompletionTokens            *int        `json:"completionTokens"`
-	ToolCalls                   []string    `json:"toolCalls"`
-	SearchCalls                 int         `json:"searchCalls"`
-	DurationMS                  int64       `json:"durationMs"`
+	ModelCalls            []ModelCall `json:"modelCalls"`
+	FirstInputTokens      int         `json:"firstInputTokens"`
+	CumulativeInputTokens int         `json:"cumulativeInputTokens"`
+	PromptTokens          *int        `json:"promptTokens"`
+	CompletionTokens      *int        `json:"completionTokens"`
+	ToolCalls             []string    `json:"toolCalls"`
+	SearchCalls           int         `json:"searchCalls"`
+	DurationMS            int64       `json:"durationMs"`
 }
 type Result struct {
 	CaseID                      string          `json:"caseId"`

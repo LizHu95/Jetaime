@@ -90,6 +90,39 @@ func TestMainRepairsEvidenceBeforeWriting(t *testing.T) {
 		t.Fatal("evidence failure was not fed back")
 	}
 }
+
+func TestMainStopsAfterOneUnchangedEvidenceRepair(t *testing.T) {
+	model := &repairModel{responses: []string{`{"name":"save_item","arguments":{"mode":"save"}}`}}
+	attempts := 0
+	tool := tools.NewTyped(tools.Metadata{Name: "save_item", Description: "保存", Terminal: true}, func(context.Context, tools.Scope, saveInput) (saveOutput, error) {
+		attempts++
+		return saveOutput{}, tools.InvalidArguments("time_evidence_missing", "请引用已提供的时间原文。")
+	}, saveContractOptions())
+	registry, _ := tools.New(tool)
+	agent, _ := NewAgent(model, "test", 16384, registry)
+	_, err := agent.ExecuteMain(context.Background(), testContext(), "保存", nil)
+	failure, repairable := tools.Repairable(err)
+	if !repairable || failure.Code != "time_evidence_missing" || attempts != 2 || len(model.requests) != 2 {
+		t.Fatalf("repeated evidence repair was not stopped: attempts=%d requests=%d err=%v", attempts, len(model.requests), err)
+	}
+}
+
+func TestMainDoesNotExpandBudgetUntilMapSearchIsSelected(t *testing.T) {
+	model := &repairModel{responses: []string{`{"name":"save_item","arguments":{"mode":"wrong"}}`}}
+	save := tools.NewTyped(tools.Metadata{Name: "save_item", Description: "保存", Terminal: true}, func(context.Context, tools.Scope, saveInput) (saveOutput, error) {
+		return saveOutput{Status: "saved"}, nil
+	}, saveContractOptions())
+	mapSearch := tools.NewTyped(tools.Metadata{Name: "maps_text_search", Description: "地点搜索", ReadOnly: true}, func(context.Context, tools.Scope, saveInput) (saveOutput, error) {
+		return saveOutput{Status: "saved"}, nil
+	}, saveContractOptions())
+	registry, _ := tools.New(save, mapSearch)
+	agent, _ := NewAgent(model, "test", 16384, registry)
+	_, err := agent.ExecuteMain(context.Background(), testContext(), "保存", nil)
+	if !errors.Is(err, ai.ErrInvalidDecision) || len(model.requests) != MaxToolSteps {
+		t.Fatalf("unselected map tool expanded write repair budget: requests=%d err=%v", len(model.requests), err)
+	}
+}
+
 func TestMainDoesNotReplayInfrastructureOrOutputFailures(t *testing.T) {
 	for _, invalidOutput := range []bool{false, true} {
 		t.Run(map[bool]string{false: "infrastructure", true: "output contract"}[invalidOutput], func(t *testing.T) {

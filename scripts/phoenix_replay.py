@@ -201,8 +201,8 @@ def main():
         'execution_success', 'map_fixtures_complete', 'required_tools', 'forbidden_tools',
         'answer_terms', 'required_sources', 'reminder_operations', 'reminder_arguments', 'reminder_result')}
     evaluators.update({name: metric_evaluator(name) for name in (
-        'promptTokens', 'completionTokens', 'durationMs', 'firstInputByteEstimate',
-        'cumulativeInputByteEstimate', 'searchCalls')})
+        'promptTokens', 'completionTokens', 'durationMs', 'firstInputTokens',
+        'cumulativeInputTokens', 'searchCalls')})
     if judge:
         for name in EVALUATORS:
             evaluator = JudgeScore(name)

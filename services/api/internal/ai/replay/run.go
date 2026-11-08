@@ -41,7 +41,7 @@ func (m *recordingModel) Call(ctx context.Context, req llm.Request) (llm.Result,
 	if name == "" {
 		name = req.Model
 	}
-	m.calls = append(m.calls, ModelCall{Model: name, InputByteEstimate: llm.InputTokenUpperBound(req), PromptTokens: result.PromptTokens, CompletionTokens: result.CompletionTokens, DurationMS: time.Since(start).Milliseconds(), Error: err != nil})
+	m.calls = append(m.calls, ModelCall{Model: name, InputTokens: llm.InputTokenUpperBound(req), PromptTokens: result.PromptTokens, CompletionTokens: result.CompletionTokens, DurationMS: time.Since(start).Milliseconds(), Error: err != nil})
 	return result, err
 }
 
@@ -91,9 +91,9 @@ func Run(ctx context.Context, snapshot *Snapshot, c Case, model llm.ChatModel, m
 	prompt, completion := 0, 0
 	allPrompt, allCompletion := len(recorded.calls) > 0, len(recorded.calls) > 0
 	for i, call := range recorded.calls {
-		result.Metrics.CumulativeInputByteEstimate += call.InputByteEstimate
+		result.Metrics.CumulativeInputTokens += call.InputTokens
 		if i == 0 {
-			result.Metrics.FirstInputByteEstimate = call.InputByteEstimate
+			result.Metrics.FirstInputTokens = call.InputTokens
 		}
 		if call.PromptTokens == nil {
 			allPrompt = false

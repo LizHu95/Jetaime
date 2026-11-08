@@ -32,6 +32,17 @@ func TestContextBudgetBoundaries(t *testing.T) {
 	}
 }
 
+func TestQwenTokenCountHandlesChineseText(t *testing.T) {
+	text := strings.Repeat("各自不同的语义边界需要安全评估。", 1000)
+	count, err := CountQwenTokens(text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if count < 4096 {
+		t.Fatalf("Qwen token count=%d, want >=4096", count)
+	}
+}
+
 func TestAdapterRejectsOverBudgetWithoutHTTP(t *testing.T) {
 	t.Setenv("TEST_LLM_KEY", "test-credential")
 	for _, provider := range []string{"ollama", "openai-compatible"} {
@@ -51,14 +62,14 @@ func TestAdapterRejectsOverBudgetWithoutHTTP(t *testing.T) {
 					request := testRequest()
 					switch scenario {
 					case "messages":
-						request.Messages[1].Content = strings.Repeat("中文", 2000)
+						request.Messages[1].Content = strings.Repeat("中文", 10000)
 					case "schema":
-						request.Format = []byte(`{"description":"` + strings.Repeat("x", 8192) + `"}`)
+						request.Format = []byte(`{"description":"` + strings.Repeat("模型预算", 10000) + `"}`)
 					case "output":
 						request.Options.NumPredict = 8192
 					case "raised-context":
 						request.Options.NumCtx = 32768
-						request.Messages[1].Content = strings.Repeat("x", 8192)
+						request.Messages[1].Content = strings.Repeat("模型预算", 10000)
 					case "missing-context":
 						request.Options.NumCtx = 0
 					case "missing-output":

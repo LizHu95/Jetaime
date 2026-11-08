@@ -145,10 +145,10 @@ func TestHistoryLimitsBeforeSummary(t *testing.T) {
 			}
 			if tc.status == "ok" || tc.status == "token_limit_exceeded" {
 				budget := out.Budget
-				if budget == nil || budget.Method != "utf8_byte_upper_bound" || budget.ContextLimitTokens != tc.tokens || budget.OutputReserveTokens != 2048 || budget.AvailableInputTokens != tc.tokens-2048 || budget.InputTokenUpperBound <= 0 || budget.Exceeded != (tc.status == "token_limit_exceeded") {
+				if budget == nil || budget.Method != "qwen_bpe" || budget.ContextLimitTokens != tc.tokens || budget.OutputReserveTokens != 2048 || budget.AvailableInputTokens != tc.tokens-2048 || budget.InputTokens <= 0 || budget.Exceeded != (tc.status == "token_limit_exceeded") {
 					t.Fatalf("missing or incorrect budget: %+v", budget)
 				}
-				if tc.status == "ok" && budget.InputTokenUpperBound != llm.InputTokenUpperBound(model.request) {
+				if tc.status == "ok" && budget.InputTokens != llm.InputTokenUpperBound(model.request) {
 					t.Fatal("reported budget does not match model request")
 				}
 				found := false

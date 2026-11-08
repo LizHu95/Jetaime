@@ -37,10 +37,10 @@ type Output struct {
 	HistoryScope *ai.HistoryScope `json:"-"`
 }
 
-// Budget reports the local admission estimate, never provider token usage.
+// Budget reports local Qwen-token admission, never provider token usage.
 type Budget struct {
 	Method               string `json:"method"`
-	InputTokenUpperBound int    `json:"inputTokenUpperBound"`
+	InputTokens          int    `json:"inputTokens"`
 	ContextLimitTokens   int    `json:"contextLimitTokens"`
 	OutputReserveTokens  int    `json:"outputReserveTokens"`
 	AvailableInputTokens int    `json:"availableInputTokens"`
@@ -123,15 +123,20 @@ func execute(ctx context.Context, scope tools.Scope, args Arguments, model llm.C
 		{Role: "user", Content: string(payload)},
 	}, Format: validator.Definition().InputSchema, Options: llm.Options{NumCtx: tokens, NumPredict: 2048}}
 	budgetStarted := time.Now()
+	inputTokens, countErr := llm.InputTokenCount(req)
 	budgetErr := llm.CheckContextBudget(req, tokens)
 	limit := min(tokens, req.Options.NumCtx)
 	out.Budget = &Budget{
-		Method:               "utf8_byte_upper_bound",
-		InputTokenUpperBound: llm.InputTokenUpperBound(req),
+		Method:               "qwen_bpe",
+		InputTokens:          inputTokens,
 		ContextLimitTokens:   limit,
 		OutputReserveTokens:  req.Options.NumPredict,
 		AvailableInputTokens: max(0, limit-req.Options.NumPredict),
 		Exceeded:             budgetErr != nil,
+	}
+	if countErr != nil && budgetErr == nil {
+		budgetErr = countErr
+		out.Budget.Exceeded = true
 	}
 	budgetStep := ai.Step{Name: "budget", Status: "succeeded", StartedAt: budgetStarted, DurationNS: time.Since(budgetStarted).Nanoseconds(), Output: out.Budget}
 	if budgetErr != nil {

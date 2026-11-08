@@ -58,7 +58,7 @@ func TestMainReservesToolSpaceBeforeOptionalBackground(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + reserve + 700
+			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + reserve + 1
 			model := &proactiveModel{outputs: []string{`{"name":"remain_silent","arguments":{"reason":"暂不发言"}}`}}
 			agent, err := NewAgent(model, "test", capacity, registry)
 			if err != nil {

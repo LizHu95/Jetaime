@@ -51,7 +51,7 @@ func TestMainRebudgetsAfterToolFeedback(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + ToolFeedbackReserve + 32
+			capacity := llm.InputTokenUpperBound(req) + req.Options.NumPredict + ToolFeedbackReserve + 1
 			agent, err := NewAgent(model, "test", capacity, registry)
 			if err != nil {
 				t.Fatal(err)

@@ -87,6 +87,7 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 	building = false
 	// observations 保存工具结果和纠错反馈，供下一轮模型决定后续动作。
 	observations := []map[string]any{}
+	evidenceRepairAttempts := map[string]int{}
 	catalog := a.Tools.Definitions()
 	// 普通轮开放完整工具目录；额度耗尽后只开放回答/沉默这类收尾工具。
 	finalCatalog := []tools.Definition{}
@@ -95,12 +96,16 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			finalCatalog = append(finalCatalog, definition)
 		}
 	}
-	// 地图任务可能需要多次搜索、详情和路线查询，因此采用更高轮数上限。
+	// 地图任务可能需要多次搜索、详情和路线查询，但不能因为地图工具
+	// 恰好注册在目录中就放大所有请求（尤其是写操作）的重试预算。
+	// 真正选中地图搜索后再扩容，见下方工具执行成功后的分支。
 	stepLimit := MaxToolSteps
 	feedbackReserve := ToolFeedbackReserve
+	// Keep enough context headroom when map tools are available. This is a
+	// capacity reservation only; it must not grant non-map requests extra
+	// execution rounds.
 	for _, definition := range catalog {
 		if definition.Name == "maps_text_search" {
-			stepLimit = MaxMCPToolSteps
 			feedbackReserve = MCPFeedbackReserve
 			break
 		}
@@ -169,7 +174,10 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 					optional++
 				}
 			}
-			return stepIndex == 0 && optional > 1 && llm.InputTokenUpperBound(req) > a.Tokens-req.Options.NumPredict-feedbackReserve
+			// Keep the feedback reserve before the first tool call, and keep
+			// compacting optional chat history on later rounds when a tool result
+			// grows the prompt. Required evidence and the tool result remain pinned.
+			return optional > 0 && llm.InputTokenUpperBound(req) > a.Tokens-req.Options.NumPredict-feedbackReserve
 		}
 		for needsSpace() {
 			remove := aicontext.OptionalMessageToDrop(input, required)
@@ -190,14 +198,14 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 			}
 		}
 		if before != len(input.Messages) {
-			recordStep(ai.Step{Name: "context_trim", Status: "succeeded", StartedAt: trimStarted, DurationMS: time.Since(trimStarted).Milliseconds(), Output: map[string]any{"round": stepIndex + 1, "beforeMessages": before, "afterMessages": len(input.Messages), "inputByteEstimate": llm.InputTokenUpperBound(req)}})
+			recordStep(ai.Step{Name: "context_trim", Status: "succeeded", StartedAt: trimStarted, DurationMS: time.Since(trimStarted).Milliseconds(), Output: map[string]any{"round": stepIndex + 1, "beforeMessages": before, "afterMessages": len(input.Messages), "inputTokens": llm.InputTokenUpperBound(req)}})
 		}
 		if err = llm.CheckContextBudget(req, a.Tokens); err != nil {
 			recordStep(ai.Step{Name: "budget", Status: "failed", StartedAt: time.Now(), Error: err.Error()})
 			return run, err
 		}
 		if stepIndex == 0 {
-			recordStep(ai.Step{Name: "context_budget", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"contextLimit": a.Tokens, "inputByteEstimate": llm.InputTokenUpperBound(req), "outputReserve": req.Options.NumPredict, "targetToolFeedbackReserve": feedbackReserve, "remainingBudget": a.Tokens - req.Options.NumPredict - llm.InputTokenUpperBound(req), "selectedMessages": len(input.Messages)}})
+			recordStep(ai.Step{Name: "context_budget", Status: "succeeded", StartedAt: time.Now(), Output: map[string]any{"contextLimit": a.Tokens, "inputTokens": llm.InputTokenUpperBound(req), "outputReserve": req.Options.NumPredict, "targetToolFeedbackReserve": feedbackReserve, "remainingBudget": a.Tokens - req.Options.NumPredict - llm.InputTokenUpperBound(req), "selectedMessages": len(input.Messages), "tokenizer": "qwen-bpe"}})
 		}
 		if stepIndex == 0 {
 			run.Steps[0].Output = input
@@ -251,6 +259,16 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		recordStep(step)
 		if e != nil {
 			if feedback, ok := tools.Repairable(e); ok && stepIndex+1 < roundLimit {
+				// Evidence errors protect a write boundary. One corrected retry is
+				// useful; repeatedly asking the model to repair the same missing
+				// evidence only burns latency/tokens and may end in a false success.
+				if nonRepeatableEvidenceError(feedback.Code) {
+					key := call.Name + ":" + feedback.Code
+					if evidenceRepairAttempts[key] > 0 {
+						return run, e
+					}
+					evidenceRepairAttempts[key]++
+				}
 				// 把可修复错误反馈给模型；不可修复错误直接结束执行。
 				observations = append(observations, map[string]any{"name": call.Name, "arguments": call.Arguments, "error": feedback})
 				continue
@@ -259,6 +277,16 @@ func (a *Agent) ExecuteMain(ctx context.Context, input ai.Context, question stri
 		}
 		for _, source := range result.Completion.Sources {
 			required[source.ID] = true
+		}
+		// A map workflow may need several dependent read calls. Raise the budget
+		// only after this workflow has actually begun; unrelated tools retain the
+		// short, bounded repair budget above.
+		if call.Name == "maps_text_search" && stepLimit < MaxMCPToolSteps {
+			stepLimit = MaxMCPToolSteps
+			feedbackReserve = MCPFeedbackReserve
+			roundLimit = stepLimit + 1
+			roundCatalog = catalog
+			roundInstruction = ""
 		}
 		// 将工具查到的新原文合入上下文并去重，供下一轮判断及引用。
 		// 同时将来源标记为必要证据，避免后续预算裁剪时丢失。
@@ -314,6 +342,14 @@ func readOnlyTool(registry *tools.Registry, name string) bool {
 		}
 	}
 	return false
+}
+
+// A repeated evidence failure cannot be resolved by preserving the same tool
+// result in the model context. Allow one correction, then surface the durable
+// validation failure instead of spending the remaining tool budget retrying a
+// potentially destructive write.
+func nonRepeatableEvidenceError(code string) bool {
+	return code == "time_evidence_missing" || code == "invalid_sources"
 }
 
 // The Agent owns its execution record; tools supply validated business data and

@@ -85,7 +85,7 @@ func TestDefaultContextRequiredEvidenceNeverSilentlyDropped(t *testing.T) {
 	request := initialContextFixture(t)
 	reference := request.Snapshot.Messages[0]
 	reference.ID = "old-reference"
-	reference.Text = strings.Repeat("直接引用", 3000)
+	reference.Text = strings.Repeat("请准确保留这条直接引用的完整事实。", 5000)
 	request.References = []ai.Message{reference}
 	if _, err := aicontext.InjectDefaultContext(context.Background(), request); !errors.Is(err, ai.ErrContext) {
 		t.Fatal("oversized direct reference was dropped", err)

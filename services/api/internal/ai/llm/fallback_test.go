@@ -134,7 +134,7 @@ func TestFallbackExhaustionAndContextBudget(t *testing.T) {
 	}
 	a.active.Store(1)
 	req = testRequest()
-	req.Messages[0].Content = strings.Repeat("x", 4500)
+	req.Messages[0].Content = strings.Repeat("各自不同的语义边界需要安全评估。", 500)
 	if _, err := a.Call(context.Background(), req); err == nil {
 		t.Fatal("failed primary accepted")
 	}
